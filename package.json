@@ -1,0 +1,51 @@
+{
+  "name": "rlnjs",
+  "version": "0.1.0",
+  "description": "Client library for generating and using RLN ZK proofs.",
+  "license": "MIT",
+  "repository": "https://github.com/privacy-scaling-explorations/rln",
+  "homepage": "https://github.com/privacy-scaling-explorations/rln/",
+  "author": {
+    "name": "AtHeartEngineer",
+    "email": "atheartengineer@gmail.com"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig-cjs.json",
+    "test": "ts-jest"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    "import": "./lib/index.js",
+    "require": "./lib/cjs/index.js"
+  },
+  "directories": {
+    "lib": "./lib",
+    "src": "./src",
+    "test": "./src"
+  },
+  "files": [
+    "dist/",
+    "src/",
+    "README.md"
+  ],
+  "dependencies": {
+    "@ethersproject/bytes": "^5.6.1",
+    "@ethersproject/solidity": "^5.6.1",
+    "@ethersproject/strings": "^5.6.1",
+    "@zk-kit/identity": "^1.4.1",
+    "@zk-kit/incremental-merkle-tree": "^0.4.3",
+    "circomlibjs": "0.1.6",
+    "ffjavascript": "0.2.55",
+    "snarkjs": "^0.4.22"
+  },
+  "devDependencies": {
+    "@types/jest": "^28.1.4",
+    "jest": "^28.1.2",
+    "ts-jest": "^28.0.5",
+    "typescript": "^4.7.4"
+  }
+}
