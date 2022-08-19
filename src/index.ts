@@ -8,6 +8,8 @@ import {
   genExternalNullifier
 } from "./utils"
 
+import Registry from './registry'
+
 import { MerkleProof } from "@zk-kit/incremental-merkle-tree"
 
 // Exports
@@ -16,7 +18,8 @@ export {
   generateMerkleProof,
   generateMerkleTree,
   genExternalNullifier,
-  MerkleProof
+  MerkleProof,
+  Registry
 }
 
 // Export Types
