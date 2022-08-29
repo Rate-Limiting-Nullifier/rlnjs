@@ -29,7 +29,7 @@ describe("RLN", () => {
   })
 
   describe("RLN functionalities", () => {
-    it("Should generate rln witness", () => {
+    it("Should generate rln witness", async () => {
       const identity = new ZkIdentity()
       const identityCommitment = identity.genIdentityCommitment()
       const secretHash = identity.getSecretHash()
@@ -41,7 +41,7 @@ describe("RLN", () => {
       const epoch: string = genExternalNullifier("test-epoch")
       const rlnIdentifier = RLN.genIdentifier()
 
-      const merkleProof = generateMerkleProof(15, BigInt(0), leaves, identityCommitment)
+      const merkleProof = await generateMerkleProof(15, BigInt(0), leaves, identityCommitment)
       const witness = RLN.genWitness(secretHash, merkleProof, epoch, signal, rlnIdentifier)
 
       expect(typeof witness).toBe("object")
@@ -52,12 +52,12 @@ describe("RLN", () => {
       const leaves = Object.assign([], identityCommitments)
       leaves.push(zeroIdCommitment)
 
-      const fun = () => generateMerkleProof(15, zeroIdCommitment, leaves, zeroIdCommitment)
+      const fun = async() => await generateMerkleProof(15, zeroIdCommitment, leaves, zeroIdCommitment)
 
       expect(fun).toThrow("Can't generate a proof for a zero leaf")
     })
 
-    it("Should retrieve user secret after spaming", () => {
+    it("Should retrieve user secret after spaming", async () => {
       const identity = new ZkIdentity()
       const secretHash = identity.getSecretHash()
 
@@ -69,8 +69,8 @@ describe("RLN", () => {
       const epoch = genExternalNullifier("test-epoch")
       const rlnIdentifier = RLN.genIdentifier()
 
-      const [y1] = RLN.calculateOutput(secretHash, BigInt(epoch), rlnIdentifier, signalHash1)
-      const [y2] = RLN.calculateOutput(secretHash, BigInt(epoch), rlnIdentifier, signalHash2)
+      const [y1] = await RLN.calculateOutput(secretHash, BigInt(epoch), rlnIdentifier, signalHash1)
+      const [y2] = await RLN.calculateOutput(secretHash, BigInt(epoch), rlnIdentifier, signalHash2)
 
       const retrievedSecret = RLN.retrieveSecret(signalHash1, signalHash2, y1, y2)
 
@@ -90,7 +90,7 @@ describe("RLN", () => {
       const epoch = genExternalNullifier("test-epoch")
       const rlnIdentifier = RLN.genIdentifier()
 
-      const merkleProof = generateMerkleProof(15, BigInt(0), leaves, identityCommitment)
+      const merkleProof = await generateMerkleProof(15, BigInt(0), leaves, identityCommitment)
       const witness = RLN.genWitness(secretHash, merkleProof, epoch, signal, rlnIdentifier)
 
       const vkeyPath = path.join(zkeyFiles, "rln", "verification_key.json")

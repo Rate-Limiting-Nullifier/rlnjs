@@ -1,11 +1,13 @@
 import {
   IncrementalMerkleTree,
 } from "@zk-kit/incremental-merkle-tree";
-import { poseidon } from "circomlibjs";
+import { buildPoseidon } from "circomlibjs";
 import { Member } from "./types";
 
 export default class Registry {
   private _merkleTree: IncrementalMerkleTree;
+  private _treeDepth: number;
+  private _zeroValue: Member;
 
   /**
    * Initializes the group with the tree depth and the zero value.
@@ -16,13 +18,8 @@ export default class Registry {
     if (treeDepth < 16 || treeDepth > 32) {
       throw new Error("The tree depth must be between 16 and 32");
     }
-
-    this._merkleTree = new IncrementalMerkleTree(
-      poseidon,
-      treeDepth,
-      zeroValue,
-      2
-    );
+    this._treeDepth = treeDepth
+    this._zeroValue = zeroValue
   }
 
   /**
@@ -55,6 +52,17 @@ export default class Registry {
    */
   get members(): Member[] {
     return this._merkleTree.leaves;
+  }
+
+  async init() {
+    const poseidon = await buildPoseidon()
+
+    this._merkleTree = new IncrementalMerkleTree(
+      poseidon,
+      this._treeDepth,
+      this._zeroValue,
+      2
+    );
   }
 
   /**
