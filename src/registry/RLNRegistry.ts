@@ -1,24 +1,23 @@
-import { IncrementalMerkleTree } from "@zk-kit/incremental-merkle-tree";
 import { Member } from "./types";
 import Registry from "./index";
 
 export default class RLNRegistry {
   private _registry: Registry;
-  private _slashedRegistry: Registry;
+  private _slashed: Registry;
 
   /**
-   * Initializes the group with the tree depth and the zero value.
+   * Initializes the registry with the tree depth and the zero value.
    * @param treeDepth Tree depth.
    * @param zeroValue Zero values for zeroes.
-   * @param hasSlashedRegistry Boolean flag to determine whether to create a SlashedRegistry.
+   * @param hasSlashed Boolean flag to determine whether to create a SlashedRegistry.
    */
   constructor(
     treeDepth = 20,
     zeroValue: Member = BigInt(0),
-    hasSlashedRegistry = false
+    hasSlashed = false
   ) {
     this._registry = new Registry(treeDepth, zeroValue);
-    this._slashedRegistry = hasSlashedRegistry
+    this._slashed = hasSlashed
       ? new Registry(treeDepth, zeroValue)
       : null;
   }
