@@ -21,4 +21,35 @@ export default class RLNRegistry {
       ? new Registry(treeDepth, zeroValue)
       : null;
   }
-}
+
+  /**
+   * Returns the root hash of the tree.
+   * @returns Root hash.
+   */
+  get root(): Member {
+    return this._registry.root;
+  }
+
+  /**
+   * Returns the depth of the tree.
+   * @returns Tree depth.
+   */
+  get depth(): number {
+    return this._registry.depth;
+  }
+
+  /**
+   * Returns the zero value of the tree.
+   * @returns Tree zero value.
+   */
+  get zeroValue(): Member {
+    return this._registry.zeroValue;
+  }
+
+  /**
+   * Returns the members (i.e. identity commitments) of the registry.
+   * @returns List of members.
+   */
+  get members(): Member[] {
+    return this._registry.members;
+  }
