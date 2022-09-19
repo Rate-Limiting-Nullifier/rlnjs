@@ -53,3 +53,54 @@ export default class RLNRegistry {
   get members(): Member[] {
     return this._registry.members;
   }
+
+  /**
+   * Returns the index of a member. If the member does not exist it returns -1.
+   * @param member Registry member.
+   * @returns Index of the member.
+   */
+  indexOf(member: Member): number {
+    return this._registry.indexOf(member);
+  }
+
+  /**
+   * Adds a new member to the registry.
+   * If a member exists in the slashed registry, the member can't be added.
+   * @param identityCommitment New member.
+   */
+  addMember(identityCommitment: Member) {
+    const isSlashed = this._slashed
+      ? this._slashed.indexOf(identityCommitment) !== -1
+      : false;
+
+    if (isSlashed) {
+      throw new Error("Can't add slashed member.")
+    }
+
+    this._registry.addMember(identityCommitment);
+  }
+
+  /**
+   * Adds new members to the registry.
+   * @param identityCommitments New members.
+   */
+  addMembers(identityCommitments: Member[]) {
+    for (const identityCommitment of identityCommitments) {
+      this.addMember(identityCommitment);
+    }
+  }
+
+  /**
+  * Removes a member from the registry.
+  * @param identityCommitment IdentityCommitment of the member to be removed.
+  * @param isSlashed flag to check whether the member should be added to the slashed registry.
+  */
+  removeMember(identityCommitment: Member, isSlashed: boolean = true) {
+    const index = this._registry.indexOf(identityCommitment);
+    this._registry.removeMember(index);
+
+    if (isSlashed) {
+      this._slashed.addMember(identityCommitment);
+    }
+  }
+}
