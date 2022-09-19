@@ -55,6 +55,14 @@ export default class RLNRegistry {
   }
 
   /**
+   * Returns the members (i.e. identity commitments) of the slashed registry.
+   * @returns List of slashed members.
+   */
+  get slashedMembers(): Member[] {
+    return this._slashed.members;
+  }
+
+  /**
    * Returns the index of a member. If the member does not exist it returns -1.
    * @param member Registry member.
    * @returns Index of the member.
