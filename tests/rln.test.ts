@@ -54,7 +54,7 @@ describe("RLN", () => {
 
       const fun = async() => await generateMerkleProof(15, zeroIdCommitment, leaves, zeroIdCommitment)
 
-      expect(fun).toThrow("Can't generate a proof for a zero leaf")
+      expect(fun).rejects.toThrow("Can't generate a proof for a zero leaf")
     })
 
     it("Should retrieve user secret after spaming", async () => {
