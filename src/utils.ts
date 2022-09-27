@@ -1,9 +1,20 @@
 import { keccak256 } from "@ethersproject/solidity"
 import { IncrementalMerkleTree, MerkleProof } from "@zk-kit/incremental-merkle-tree"
-import { poseidon } from "circomlibjs"
+import { buildPoseidonOpt } from "circomlibjs"
 import { ZqField } from "ffjavascript"
 import { StrBigInt } from "./types"
 
+/**
+ *  Wrapper for Poseidon hash function to parse return value format from Uint8Array to BigInt
+ */
+export async function buildPoseidon() {
+  const poseidon = await buildPoseidonOpt()
+
+  return (input: any): bigint => {
+    const result = poseidon(input)
+    return BigInt(poseidon.F.toString(result))
+  }
+}
 
 /*
   This is the "Baby Jubjub" curve described here:
@@ -36,7 +47,9 @@ export function genExternalNullifier(plaintext: string): string {
  * @param leaves The list of the leaves of the tree.
  * @returns The Merkle tree.
  */
-export function generateMerkleTree(depth: number, zeroValue: StrBigInt, leaves: StrBigInt[]): IncrementalMerkleTree {
+export async function generateMerkleTree(depth: number, zeroValue: StrBigInt, leaves: StrBigInt[]): Promise<IncrementalMerkleTree> {
+  const poseidon = await buildPoseidon()
+
   const tree = new IncrementalMerkleTree(poseidon, depth, zeroValue, 2)
 
   for (const leaf of leaves) {
@@ -54,15 +67,15 @@ export function generateMerkleTree(depth: number, zeroValue: StrBigInt, leaves: 
  * @param leaf The leaf for which Merkle proof should be created.
  * @returns The Merkle proof.
  */
-export function generateMerkleProof(
+export async function generateMerkleProof(
   depth: number,
   zeroValue: StrBigInt,
   leaves: StrBigInt[],
   leaf: StrBigInt
-): MerkleProof {
+): Promise<MerkleProof> {
   if (leaf === zeroValue) throw new Error("Can't generate a proof for a zero leaf")
 
-  const tree = generateMerkleTree(depth, zeroValue, leaves)
+  const tree = await generateMerkleTree(depth, zeroValue, leaves)
 
   const leafIndex = tree.leaves.indexOf(BigInt(leaf))
 

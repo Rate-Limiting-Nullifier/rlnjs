@@ -2,10 +2,9 @@ import { hexlify } from "@ethersproject/bytes"
 import { keccak256 } from "@ethersproject/solidity"
 import { toUtf8Bytes } from "@ethersproject/strings"
 import { MerkleProof } from "@zk-kit/incremental-merkle-tree"
-import { poseidon } from "circomlibjs"
 import { groth16 } from "snarkjs"
 import { RLNFullProof, StrBigInt } from "./types"
-import { Fq } from "./utils"
+import { buildPoseidon, Fq } from "./utils"
 
 export default class RLN {
   /**
@@ -90,10 +89,11 @@ export default class RLN {
    * @param x signal hash
    * @returns y & slashing nullfier
    */
-  public static calculateOutput(identitySecret: bigint, epoch: bigint, rlnIdentifier: bigint, x: bigint): bigint[] {
+  public static async calculateOutput(identitySecret: bigint, epoch: bigint, rlnIdentifier: bigint, x: bigint): Promise<bigint[]> {
+    const poseidon = await buildPoseidon()
     const a1 = poseidon([identitySecret, epoch])
     const y = Fq.normalize(a1 * x + identitySecret)
-    const nullifier = RLN.genNullifier(a1, rlnIdentifier)
+    const nullifier = await RLN.genNullifier(a1, rlnIdentifier)
 
     return [y, nullifier]
   }
@@ -104,7 +104,9 @@ export default class RLN {
    * @param rlnIdentifier unique identifier of rln dapp
    * @returns rln slashing nullifier
    */
-  public static genNullifier(a1: bigint, rlnIdentifier: bigint): bigint {
+  public static async genNullifier(a1: bigint, rlnIdentifier: bigint): Promise<bigint> {
+    const poseidon = await buildPoseidon()
+
     return poseidon([a1, rlnIdentifier])
   }
 
