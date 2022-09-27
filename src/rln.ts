@@ -2,10 +2,9 @@ import { hexlify } from "@ethersproject/bytes"
 import { keccak256 } from "@ethersproject/solidity"
 import { toUtf8Bytes } from "@ethersproject/strings"
 import { MerkleProof } from "@zk-kit/incremental-merkle-tree"
-import { buildPoseidon } from "circomlibjs"
 import { groth16 } from "snarkjs"
 import { RLNFullProof, StrBigInt } from "./types"
-import { Fq } from "./utils"
+import { buildPoseidon, Fq } from "./utils"
 
 export default class RLN {
   /**

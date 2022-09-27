@@ -1,7 +1,7 @@
 import {
   IncrementalMerkleTree,
 } from "@zk-kit/incremental-merkle-tree";
-import { buildPoseidon } from "circomlibjs";
+import { buildPoseidon } from "../utils";
 import { Member } from "./types";
 
 export default class Registry {
