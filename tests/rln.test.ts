@@ -57,16 +57,6 @@ describe("RLN", () => {
       expect(fun).rejects.toThrow("Can't generate a proof for a zero leaf")
     })
 
-    it("Should success test", () => {
-      const zeroIdCommitment = BigInt(0)
-      const leaves = Object.assign([], identityCommitments)
-      leaves.push(zeroIdCommitment)
-
-      const fun = async() => await generateMerkleProof(15, zeroIdCommitment, leaves, zeroIdCommitment)
-
-      expect(fun).rejects.toThrow("Can't generate a proof for a zero leaf")
-    })
-
     it("Should retrieve user secret after spaming", async () => {
       const identity = new ZkIdentity()
       const secretHash = identity.getSecretHash()
