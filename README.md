@@ -5,29 +5,35 @@
 - [Rate Limiting Nullifier Javascript / Typescript Library](#rate-limiting-nullifier-javascript--typescript-library)
   - [Contents](#contents)
   - [Description](#description)
+  - [Install](#install)
   - [Usage](#usage)
-  - [API](#api)
   - [Tests](#tests)
   - [License](#license)
 
 ## Description
 
-1KB lightweight, fast & powerful JavaScript templating engine with zero dependencies. Compatible with server-side environments like [Node.js](https://nodejs.org/), [webpack](https://webpack.js.org/) and all web browsers.
+RLN (Rate-Limiting Nullifier) is a zk-gadget/protocol that enables spam prevention mechanism for anonymous environments.
+The core of the RLN is in the [circuit logic](https://github.com/Rate-Limiting-Nullifier/rln_circuits). RLN also provides Javascript Library for easy management of the registry and proof creation.
+
+## Install
+```bash
+git clone https://github.com/Rate-Limiting-Nullifier/rlnjs.git
+```
+
+And install the dependencies:
+
+```bash
+cd rlnjs && npm i
+```
 
 ## Usage
 
-## API
-
 ## Tests
 
-The JavaScript Templates project comes with [Unit Tests](https://en.wikipedia.org/wiki/Unit_testing).
-
-There are two different ways to run the tests:
-TODO! test don't run
-- run `npm test` in the Terminal in the root path of the repository package.
-
-The first one tests the browser integration, and the second one the [Node.js](https://nodejs.org/) integration.
+```bash
+npm test
+```
 
 ## License
 
-The JavaScript Templates script is released under the [MIT license](https://opensource.org/licenses/MIT).
+RLNjs is released under the [MIT license](https://opensource.org/licenses/MIT).
