@@ -1,12 +1,14 @@
-import { hexlify } from "@ethersproject/bytes"
-import { keccak256 } from "@ethersproject/solidity"
-import { toUtf8Bytes } from "@ethersproject/strings"
-import { MerkleProof } from "@zk-kit/incremental-merkle-tree"
-import { groth16 } from "snarkjs"
-import { RLNFullProof, StrBigInt } from "./types"
-import { buildPoseidon, Fq } from "./utils"
+import { hexlify } from '@ethersproject/bytes';
+import { keccak256 } from '@ethersproject/solidity';
+import { toUtf8Bytes } from '@ethersproject/strings';
+import { MerkleProof } from '@zk-kit/incremental-merkle-tree';
+import { groth16 } from 'snarkjs';
+import { RLNFullProof, StrBigInt } from './types';
+import { buildPoseidon, Fq } from './utils';
 
 export default class RLN {
+  private static _poseidon: any;
+
   /**
    * Generates a SnarkJS full proof with Groth16.
    * @param witness The parameters for creating the proof.
@@ -14,9 +16,17 @@ export default class RLN {
    * @param finalZkeyPath The ZKey file path.
    * @returns The full SnarkJS proof.
    */
-  /* istanbul ignore next */
-  public static async genProof(witness: any, wasmFilePath: string, finalZkeyPath: string): Promise<RLNFullProof> {
-    const { proof, publicSignals } = await groth16.fullProve(witness, wasmFilePath, finalZkeyPath, null)
+  public static async genProof(
+    witness: any,
+    wasmFilePath: string,
+    finalZkeyPath: string
+  ): Promise<RLNFullProof> {
+    const { proof, publicSignals } = await groth16.fullProve(
+      witness,
+      wasmFilePath,
+      finalZkeyPath,
+      null
+    );
 
     return {
       proof,
@@ -28,7 +38,7 @@ export default class RLN {
         epoch: publicSignals[4],
         rlnIdentifier: publicSignals[5]
       }
-    }
+    };
   }
 
   /**
@@ -37,8 +47,11 @@ export default class RLN {
    * @param fullProof The SnarkJS full proof.
    * @returns True if the proof is valid, false otherwise.
    */
-  /* istanbul ignore next */
-  public static verifyProof(verificationKey: string, { proof, publicSignals }: RLNFullProof): Promise<boolean> {
+  // TODO: Make async
+  public static verifyProof(
+    verificationKey: string,
+    { proof, publicSignals }: RLNFullProof
+  ): Promise<boolean> {
     return groth16.verify(
       verificationKey,
       [
@@ -50,7 +63,7 @@ export default class RLN {
         publicSignals.rlnIdentifier
       ],
       proof
-    )
+    );
   }
 
   /**
@@ -78,7 +91,7 @@ export default class RLN {
       x: shouldHash ? RLN.genSignalHash(signal) : signal,
       epoch,
       rln_identifier: rlnIdentifier
-    }
+    };
   }
 
   /**
@@ -89,13 +102,17 @@ export default class RLN {
    * @param x signal hash
    * @returns y & slashing nullfier
    */
-  public static async calculateOutput(identitySecret: bigint, epoch: bigint, rlnIdentifier: bigint, x: bigint): Promise<bigint[]> {
-    const poseidon = await buildPoseidon()
-    const a1 = poseidon([identitySecret, epoch])
-    const y = Fq.normalize(a1 * x + identitySecret)
-    const nullifier = await RLN.genNullifier(a1, rlnIdentifier)
+  public static async calculateOutput(
+    identitySecret: bigint,
+    epoch: bigint,
+    rlnIdentifier: bigint,
+    x: bigint
+  ): Promise<bigint[]> {
+    const a1 = await this.poseidon([identitySecret, epoch]);
+    const y = Fq.normalize(a1 * x + identitySecret);
+    const nullifier = await RLN.genNullifier(a1, rlnIdentifier);
 
-    return [y, nullifier]
+    return [y, nullifier];
   }
 
   /**
@@ -105,9 +122,7 @@ export default class RLN {
    * @returns rln slashing nullifier
    */
   public static async genNullifier(a1: bigint, rlnIdentifier: bigint): Promise<bigint> {
-    const poseidon = await buildPoseidon()
-
-    return poseidon([a1, rlnIdentifier])
+    return await this.poseidon([a1, rlnIdentifier]);
   }
 
   /**
@@ -116,9 +131,9 @@ export default class RLN {
    * @returns The signal hash.
    */
   public static genSignalHash(signal: string): bigint {
-    const converted = hexlify(toUtf8Bytes(signal))
+    const converted = hexlify(toUtf8Bytes(signal));
 
-    return BigInt(keccak256(["bytes"], [converted])) >> BigInt(8)
+    return BigInt(keccak256(['bytes'], [converted])) >> BigInt(8);
   }
 
   /**
@@ -130,10 +145,10 @@ export default class RLN {
    * @returns identity secret
    */
   public static retrieveSecret(x1: bigint, x2: bigint, y1: bigint, y2: bigint): bigint {
-    const slope = Fq.div(Fq.sub(y2, y1), Fq.sub(x2, x1))
-    const privateKey = Fq.sub(y1, Fq.mul(slope, x1))
+    const slope = Fq.div(Fq.sub(y2, y1), Fq.sub(x2, x1));
+    const privateKey = Fq.sub(y1, Fq.mul(slope, x1));
 
-    return Fq.normalize(privateKey)
+    return Fq.normalize(privateKey);
   }
 
   /**
@@ -141,6 +156,17 @@ export default class RLN {
    * @returns unique identifier of the rln dapp
    */
   public static genIdentifier(): bigint {
-    return Fq.random()
+    return Fq.random();
+  }
+
+  private static async poseidon(input: bigint[]): Promise<any> {
+    /* Initializes the Poseidon hash function on first use. */
+    if (!this._poseidon) {
+      buildPoseidon().then((p) => {
+        this._poseidon = p;
+        return this._poseidon(input);
+      });
+    }
+    return this._poseidon(input);
   }
 }
