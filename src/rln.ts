@@ -95,12 +95,12 @@ export default class RLN {
   }
 
   /**
-   * Calculates
+   * Calculates Output
    * @param identitySecret identity secret
    * @param epoch epoch on which signal is broadcasted
    * @param rlnIdentifier unique identifier of rln dapp
    * @param x signal hash
-   * @returns y & slashing nullfier
+   * @returns y (share) & slashing nullfier
    */
   public static async calculateOutput(
     identitySecret: bigint,
@@ -137,7 +137,7 @@ export default class RLN {
   }
 
   /**
-   * When spam occurs, identity secret can be retrieved
+   * Recovers secret from two shares
    * @param x1 x1
    * @param x2 x2
    * @param y1 y1
@@ -159,6 +159,11 @@ export default class RLN {
     return Fq.random();
   }
 
+  /**
+   * Poseidon hash function that initializes on first use
+   * @param input input to be hashed with poseidon
+   * @returns promise of poseidon hash
+   */
   private static async poseidon(input: bigint[]): Promise<any> {
     /* Initializes the Poseidon hash function on first use. */
     if (!this._poseidon) {
