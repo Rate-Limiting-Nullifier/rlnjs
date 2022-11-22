@@ -7,8 +7,6 @@ import { RLNFullProof, StrBigInt } from './types';
 import { buildPoseidon, Fq } from './utils';
 
 export default class RLN {
-  private static _poseidon: any;
-
   /**
    * Generates a SnarkJS full proof with Groth16.
    * @param witness The parameters for creating the proof.
@@ -108,7 +106,8 @@ export default class RLN {
     rlnIdentifier: bigint,
     x: bigint
   ): Promise<bigint[]> {
-    const a1 = await this.poseidon([identitySecret, epoch]);
+    const poseidon = await buildPoseidon()
+    const a1 = await poseidon([identitySecret, epoch]);
     const y = Fq.normalize(a1 * x + identitySecret);
     const nullifier = await RLN.genNullifier(a1, rlnIdentifier);
 
@@ -122,7 +121,8 @@ export default class RLN {
    * @returns rln slashing nullifier
    */
   public static async genNullifier(a1: bigint, rlnIdentifier: bigint): Promise<bigint> {
-    return await this.poseidon([a1, rlnIdentifier]);
+    const poseidon = await buildPoseidon()
+    return poseidon([a1, rlnIdentifier]);
   }
 
   /**
@@ -157,21 +157,5 @@ export default class RLN {
    */
   public static genIdentifier(): bigint {
     return Fq.random();
-  }
-
-  /**
-   * Poseidon hash function that initializes on first use
-   * @param input input to be hashed with poseidon
-   * @returns promise of poseidon hash
-   */
-  private static async poseidon(input: bigint[]): Promise<any> {
-    /* Initializes the Poseidon hash function on first use. */
-    if (!this._poseidon) {
-      buildPoseidon().then((p) => {
-        this._poseidon = p;
-        return this._poseidon(input);
-      });
-    }
-    return this._poseidon(input);
   }
 }

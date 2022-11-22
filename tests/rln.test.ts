@@ -52,7 +52,7 @@ describe("RLN", () => {
       const leaves = Object.assign([], identityCommitments)
       leaves.push(zeroIdCommitment)
 
-      const fun = async() => await generateMerkleProof(15, zeroIdCommitment, leaves, zeroIdCommitment)
+      const fun = async () => await generateMerkleProof(15, zeroIdCommitment, leaves, zeroIdCommitment)
 
       expect(fun).rejects.toThrow("Can't generate a proof for a zero leaf")
     })

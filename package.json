@@ -28,7 +28,7 @@
     "test": "./src"
   },
   "files": [
-    "dist/",
+    "lib/",
     "src/",
     "README.md"
   ],

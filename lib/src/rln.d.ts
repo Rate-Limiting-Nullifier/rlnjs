@@ -1,7 +1,6 @@
 import { MerkleProof } from '@zk-kit/incremental-merkle-tree';
 import { RLNFullProof, StrBigInt } from './types';
 export default class RLN {
-    private static _poseidon;
     /**
      * Generates a SnarkJS full proof with Groth16.
      * @param witness The parameters for creating the proof.
@@ -64,10 +63,4 @@ export default class RLN {
      * @returns unique identifier of the rln dapp
      */
     static genIdentifier(): bigint;
-    /**
-     * Poseidon hash function that initializes on first use
-     * @param input input to be hashed with poseidon
-     * @returns promise of poseidon hash
-     */
-    private static poseidon;
 }
