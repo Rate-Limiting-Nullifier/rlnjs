@@ -4,7 +4,8 @@ import { toUtf8Bytes } from '@ethersproject/strings';
 import { MerkleProof } from '@zk-kit/incremental-merkle-tree';
 import { groth16 } from 'snarkjs';
 import { RLNFullProof, StrBigInt } from './types';
-import { buildPoseidon, Fq } from './utils';
+import { Fq } from './utils';
+import poseidon from 'poseidon-lite'
 
 export default class RLN {
   /**
@@ -106,8 +107,7 @@ export default class RLN {
     rlnIdentifier: bigint,
     x: bigint
   ): Promise<bigint[]> {
-    const poseidon = await buildPoseidon()
-    const a1 = await poseidon([identitySecret, epoch]);
+    const a1 = poseidon([identitySecret, epoch]);
     const y = Fq.normalize(a1 * x + identitySecret);
     const nullifier = await RLN.genNullifier(a1, rlnIdentifier);
 
@@ -121,7 +121,6 @@ export default class RLN {
    * @returns rln slashing nullifier
    */
   public static async genNullifier(a1: bigint, rlnIdentifier: bigint): Promise<bigint> {
-    const poseidon = await buildPoseidon()
     return poseidon([a1, rlnIdentifier]);
   }
 

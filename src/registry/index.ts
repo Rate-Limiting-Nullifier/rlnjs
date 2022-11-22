@@ -1,7 +1,7 @@
 import {
   IncrementalMerkleTree,
 } from "@zk-kit/incremental-merkle-tree";
-import { buildPoseidon } from "../utils";
+import poseidon from 'poseidon-lite'
 import { Member } from "./types";
 
 export default class Registry {
@@ -55,8 +55,6 @@ export default class Registry {
   }
 
   async init() {
-    const poseidon = await buildPoseidon()
-
     this._merkleTree = new IncrementalMerkleTree(
       poseidon,
       this._treeDepth,

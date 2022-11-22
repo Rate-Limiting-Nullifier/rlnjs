@@ -1,20 +1,8 @@
 import { keccak256 } from "@ethersproject/solidity"
 import { IncrementalMerkleTree, MerkleProof } from "@zk-kit/incremental-merkle-tree"
-import { buildPoseidonOpt } from "circomlibjs"
 import { ZqField } from "ffjavascript"
 import { StrBigInt } from "./types"
-
-/**
- *  Wrapper for Poseidon hash function to parse return value format from Uint8Array to BigInt
- */
-export async function buildPoseidon() {
-  const poseidon = await buildPoseidonOpt()
-
-  return (input: any): bigint => {
-    const result = poseidon(input)
-    return BigInt(poseidon.F.toString(result))
-  }
-}
+import poseidon from 'poseidon-lite'
 
 /*
   This is the "Baby Jubjub" curve described here:
@@ -48,8 +36,6 @@ export function genExternalNullifier(plaintext: string): string {
  * @returns The Merkle tree.
  */
 export async function generateMerkleTree(depth: number, zeroValue: StrBigInt, leaves: StrBigInt[]): Promise<IncrementalMerkleTree> {
-  const poseidon = await buildPoseidon()
-
   const tree = new IncrementalMerkleTree(poseidon, depth, zeroValue, 2)
 
   for (const leaf of leaves) {

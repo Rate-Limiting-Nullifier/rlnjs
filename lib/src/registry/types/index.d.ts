@@ -1,1 +1,1 @@
-export declare type Member = string | bigint;
+export type Member = string | bigint;

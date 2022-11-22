@@ -1,16 +1,16 @@
-export type StrBigInt = string | bigint;
-export type Proof = {
+export declare type StrBigInt = string | bigint;
+export declare type Proof = {
     pi_a: StrBigInt[];
     pi_b: StrBigInt[][];
     pi_c: StrBigInt[];
     protocol: string;
     curve: string;
 };
-export type RLNFullProof = {
+export declare type RLNFullProof = {
     proof: Proof;
     publicSignals: RLNPublicSignals;
 };
-export type RLNPublicSignals = {
+export declare type RLNPublicSignals = {
     yShare: StrBigInt;
     merkleRoot: StrBigInt;
     internalNullifier: StrBigInt;

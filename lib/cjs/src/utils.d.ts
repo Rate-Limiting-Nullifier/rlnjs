@@ -1,10 +1,6 @@
 import { IncrementalMerkleTree, MerkleProof } from "@zk-kit/incremental-merkle-tree";
 import { ZqField } from "ffjavascript";
 import { StrBigInt } from "./types";
-/**
- *  Wrapper for Poseidon hash function to parse return value format from Uint8Array to BigInt
- */
-export declare function buildPoseidon(): Promise<(input: any) => bigint>;
 export declare const SNARK_FIELD_SIZE: bigint;
 export declare const Fq: ZqField;
 /**
