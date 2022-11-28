@@ -9,6 +9,7 @@ import {
 } from "./utils"
 
 import Registry from './registry'
+import poseidon from 'poseidon-lite'
 
 import { MerkleProof } from "@zk-kit/incremental-merkle-tree"
 
@@ -19,7 +20,8 @@ export {
   generateMerkleTree,
   genExternalNullifier,
   MerkleProof,
-  Registry
+  Registry,
+  poseidon as hash
 }
 
 // Export Types
