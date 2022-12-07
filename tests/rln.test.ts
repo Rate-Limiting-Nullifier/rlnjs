@@ -1,12 +1,12 @@
-import { ZkIdentity } from "@zk-kit/identity"
+import { Identity } from "@semaphore-protocol/identity"
 import { getCurveFromName } from "ffjavascript"
 import * as fs from "fs"
 import * as path from "path"
 import { RLN } from "../src"
-import { generateMerkleProof, genExternalNullifier } from "../src/utils"
+import { generateMerkleProof, genExternalNullifier, getSecretHash } from "../src/utils"
 
 describe("RLN", () => {
-  const zkeyFiles = "./packages/protocols/zkeyFiles"
+  const zkeyFiles = "./zkeyFiles"
   const identityCommitments: bigint[] = []
 
   let curve: any
@@ -17,8 +17,8 @@ describe("RLN", () => {
     const numberOfLeaves = 3
 
     for (let i = 0; i < numberOfLeaves; i += 1) {
-      const identity = new ZkIdentity()
-      const identityCommitment = identity.genIdentityCommitment()
+      const identity = new Identity()
+      const identityCommitment = identity.getCommitment()
 
       identityCommitments.push(identityCommitment)
     }
@@ -30,9 +30,9 @@ describe("RLN", () => {
 
   describe("RLN functionalities", () => {
     it("Should generate rln witness", async () => {
-      const identity = new ZkIdentity()
-      const identityCommitment = identity.genIdentityCommitment()
-      const secretHash = identity.getSecretHash()
+      const identity = new Identity()
+      const identityCommitment = identity.getCommitment()
+      const secretHash = await getSecretHash(identity)
 
       const leaves = Object.assign([], identityCommitments)
       leaves.push(identityCommitment)
@@ -58,8 +58,8 @@ describe("RLN", () => {
     })
 
     it("Should retrieve user secret after spaming", async () => {
-      const identity = new ZkIdentity()
-      const secretHash = identity.getSecretHash()
+      const identity = new Identity()
+      const secretHash = await getSecretHash(identity)
 
       const signal1 = "hey hey"
       const signalHash1 = RLN.genSignalHash(signal1)
@@ -79,9 +79,9 @@ describe("RLN", () => {
 
     // eslint-disable-next-line jest/no-disabled-tests
     it.skip("Should generate and verify RLN proof", async () => {
-      const identity = new ZkIdentity()
-      const secretHash = identity.getSecretHash()
-      const identityCommitment = identity.genIdentityCommitment()
+      const identity = new Identity()
+      const secretHash = await getSecretHash(identity)
+      const identityCommitment = identity.getCommitment()
 
       const leaves = Object.assign([], identityCommitments)
       leaves.push(identityCommitment)

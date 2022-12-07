@@ -1,3 +1,4 @@
+import type { Identity } from '@semaphore-protocol/identity';
 import { IncrementalMerkleTree, MerkleProof } from "@zk-kit/incremental-merkle-tree";
 import { ZqField } from "ffjavascript";
 import { StrBigInt } from "./types";
@@ -26,3 +27,4 @@ export declare function generateMerkleTree(depth: number, zeroValue: StrBigInt, 
  * @returns The Merkle proof.
  */
 export declare function generateMerkleProof(depth: number, zeroValue: StrBigInt, leaves: StrBigInt[], leaf: StrBigInt): Promise<MerkleProof>;
+export declare function getSecretHash(identity: Identity): Promise<bigint>;

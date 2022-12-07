@@ -1,4 +1,5 @@
 import { keccak256 } from "@ethersproject/solidity"
+import type { Identity } from '@semaphore-protocol/identity'
 import { IncrementalMerkleTree, MerkleProof } from "@zk-kit/incremental-merkle-tree"
 import { ZqField } from "ffjavascript"
 import { StrBigInt } from "./types"
@@ -74,4 +75,10 @@ export async function generateMerkleProof(
   merkleProof.siblings = merkleProof.siblings.map((s) => s[0])
 
   return merkleProof
+}
+
+export async function getSecretHash(identity: Identity): Promise<bigint> {
+  const nullifier = identity.getNullifier()
+  const trapdoor = identity.getTrapdoor()
+  return await poseidon([nullifier, trapdoor])
 }
