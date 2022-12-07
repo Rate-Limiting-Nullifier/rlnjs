@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "rootDir": "./src",
     "outDir": "./lib/",
     "target": "ES2017",
     "module": "ES2020",
@@ -17,5 +18,7 @@
     "declaration": true,
     "moduleResolution": "Node"
   },
-  "include": ["src", "tests"],
+  "include": [
+    "src",
+  ],
 }
