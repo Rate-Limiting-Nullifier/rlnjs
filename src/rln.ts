@@ -23,7 +23,7 @@ export default class RLN {
     this._getSecretHash().then((secretHash) => {
       this.identitySecret = secretHash
     })
-    console.info(`RLN Identity established with this commitment: ${this.identity.getCommitment()}`)
+    console.info(`RLN Identity established with this commitment: ${this.identity.commitment}`)
   }
 
 
