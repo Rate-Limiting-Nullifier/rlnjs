@@ -7,6 +7,12 @@
   - [Description](#description)
   - [Install](#install)
   - [Usage](#usage)
+      - [Create RLNRegistry](#create-rlnregistry)
+      - [Generate identity commitment](#generate-identity-commitment)
+      - [Add members to registry](#add-members-to-registry)
+      - [Remove members from registry](#remove-members-from-registry)
+      - [Generating a proof](#generating-a-proof)
+      - [Verifying a proof](#verifying-a-proof)
   - [Tests](#tests)
   - [License](#license)
 
@@ -35,8 +41,8 @@ const registry = new RLNRegistry()
 
 // generate RLN registry that contains slashed registry
 const registry = new RLNRegistry(
-  20, 
-  BigInt(0), 
+  20,
+  BigInt(0),
   true
 )
 ```
@@ -80,7 +86,7 @@ const proofResult = await RLN.verifyProof(vKey, fullProof)
 ## Tests
 
 ```bash
-npm test
+npm run tests
 ```
 
 ## License
