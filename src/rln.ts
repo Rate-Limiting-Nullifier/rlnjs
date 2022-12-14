@@ -6,24 +6,54 @@ import { groth16 } from 'snarkjs';
 import { RLNFullProof, StrBigInt } from './types';
 import { Fq } from './utils';
 import poseidon from 'poseidon-lite'
+import { Identity } from '@semaphore-protocol/identity';
 
 export default class RLN {
+  wasmFilePath: string;
+  finalZkeyPath: string;
+  rlnIdentifier: bigint;
+  identity: Identity;
+  identitySecret: bigint;
+
+  constructor(wasmFilePath: string, finalZkeyPath: string, rlnIdentifier?: bigint, identity?: Identity) {
+    this.wasmFilePath = wasmFilePath
+    this.finalZkeyPath = finalZkeyPath
+    this.rlnIdentifier = rlnIdentifier ? rlnIdentifier : RLN._genIdentifier()
+    this.identity = identity ? identity : new Identity()
+    this._getSecretHash().then((secretHash) => {
+      this.identitySecret = secretHash
+    })
+    console.info(`RLN Identity established with this commitment: ${this.identity.getCommitment()}`)
+  }
+
+
+  /**
+   * Generates an RLN Proof.
+   * @param this The parameters for creating the proof.
+   * @param signal This is usually the raw message.
+   * @param epoch This is the time component for the proof, if no epoch is set, unix epoch time rounded to 1 second will be used.
+   * @returns The full SnarkJS proof.
+   */
+  public async genProof(signal: string, merkleProof: MerkleProof, epoch?: StrBigInt): Promise<RLNFullProof> {
+    const _epoch = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000))
+    const witness = this._genWitness(merkleProof, _epoch, signal)
+    return this._genProof(witness)
+  }
+
+
   /**
    * Generates a SnarkJS full proof with Groth16.
    * @param witness The parameters for creating the proof.
-   * @param wasmFilePath The WASM file path.
-   * @param finalZkeyPath The ZKey file path.
    * @returns The full SnarkJS proof.
    */
-  public static async genProof(
+  public async _genProof(
+    this: RLN,
     witness: any,
-    wasmFilePath: string,
-    finalZkeyPath: string
   ): Promise<RLNFullProof> {
     const { proof, publicSignals } = await groth16.fullProve(
       witness,
-      wasmFilePath,
-      finalZkeyPath,
+      this.wasmFilePath,
+      this.finalZkeyPath,
       null
     );
 
@@ -47,12 +77,11 @@ export default class RLN {
    * @returns True if the proof is valid, false otherwise.
    */
   // TODO: Make async
-  public static verifyProof(
-    verificationKey: string,
+  public verifyProof(this,
     { proof, publicSignals }: RLNFullProof
   ): Promise<boolean> {
     return groth16.verify(
-      verificationKey,
+      this.verificationKey,
       [
         publicSignals.yShare,
         publicSignals.merkleRoot,
@@ -67,30 +96,32 @@ export default class RLN {
 
   /**
    * Creates witness for rln proof
-   * @param identitySecret identity secret
    * @param merkleProof merkle proof that identity exists in RLN tree
    * @param epoch epoch on which signal is broadcasted
    * @param signal signal that is being broadcasted
-   * @param rlnIdentifier identifier used by each separate app, needed for more accurate spam filtering
    * @param shouldHash should signal be hashed before broadcast
    * @returns rln witness
    */
-  public static genWitness(
-    identitySecret: bigint,
+  public _genWitness(
     merkleProof: MerkleProof,
     epoch: StrBigInt,
     signal: string,
-    rlnIdentifier: bigint,
     shouldHash = true
   ): any {
     return {
-      identity_secret: identitySecret,
+      identity_secret: this.identitySecret,
       path_elements: merkleProof.siblings,
       identity_path_index: merkleProof.pathIndices,
-      x: shouldHash ? RLN.genSignalHash(signal) : signal,
+      x: shouldHash ? RLN._genSignalHash(signal) : signal,
       epoch,
-      rln_identifier: rlnIdentifier
+      rln_identifier: this.rlnIdentifier
     };
+  }
+
+  public async _getSecretHash(): Promise<bigint> {
+    const nullifier = this.identity.getNullifier()
+    const trapdoor = this.identity.getTrapdoor()
+    return poseidon([nullifier, trapdoor])
   }
 
   /**
@@ -101,15 +132,14 @@ export default class RLN {
    * @param x signal hash
    * @returns y (share) & slashing nullfier
    */
-  public static async calculateOutput(
+  public async _calculateOutput(
     identitySecret: bigint,
     epoch: bigint,
-    rlnIdentifier: bigint,
     x: bigint
   ): Promise<bigint[]> {
     const a1 = poseidon([identitySecret, epoch]);
     const y = Fq.normalize(a1 * x + identitySecret);
-    const nullifier = await RLN.genNullifier(a1, rlnIdentifier);
+    const nullifier = await RLN._genNullifier(a1, this.rlnIdentifier);
 
     return [y, nullifier];
   }
@@ -120,7 +150,7 @@ export default class RLN {
    * @param rlnIdentifier unique identifier of rln dapp
    * @returns rln slashing nullifier
    */
-  public static async genNullifier(a1: bigint, rlnIdentifier: bigint): Promise<bigint> {
+  public static async _genNullifier(a1: bigint, rlnIdentifier: bigint): Promise<bigint> {
     return poseidon([a1, rlnIdentifier]);
   }
 
@@ -129,7 +159,7 @@ export default class RLN {
    * @param signal The RLN signal.
    * @returns The signal hash.
    */
-  public static genSignalHash(signal: string): bigint {
+  public static _genSignalHash(signal: string): bigint {
     const converted = hexlify(toUtf8Bytes(signal));
 
     return BigInt(keccak256(['bytes'], [converted])) >> BigInt(8);
@@ -154,7 +184,7 @@ export default class RLN {
    *
    * @returns unique identifier of the rln dapp
    */
-  public static genIdentifier(): bigint {
+  public static _genIdentifier(): bigint {
     return Fq.random();
   }
 }

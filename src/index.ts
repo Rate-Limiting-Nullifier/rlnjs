@@ -5,8 +5,7 @@ import RLN from "./rln"
 import {
   generateMerkleProof,
   generateMerkleTree,
-  genExternalNullifier,
-  getSecretHash
+  genExternalNullifier
 } from "./utils"
 
 import Registry from './registry'
@@ -22,8 +21,7 @@ export {
   genExternalNullifier,
   MerkleProof,
   Registry,
-  poseidon as hash,
-  getSecretHash
+  poseidon as hash
 }
 
 // Export Types

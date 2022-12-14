@@ -76,9 +76,3 @@ export async function generateMerkleProof(
 
   return merkleProof
 }
-
-export async function getSecretHash(identity: Identity): Promise<bigint> {
-  const nullifier = identity.getNullifier()
-  const trapdoor = identity.getTrapdoor()
-  return await poseidon([nullifier, trapdoor])
-}
