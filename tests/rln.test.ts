@@ -1,14 +1,19 @@
-import { Identity } from "@semaphore-protocol/identity"
+import { Identity } from '@semaphore-protocol/identity'
 import { getCurveFromName } from "ffjavascript"
 import * as fs from "fs"
 import * as path from "path"
-import { RLN } from "../src"
-import { generateMerkleProof, genExternalNullifier, getSecretHash } from "../src/utils"
+import { Registry, RLN } from "../src"
+import { genExternalNullifier } from "../src/utils"
 
 describe("RLN", () => {
   const zkeyFiles = "./zkeyFiles"
-  const identityCommitments: bigint[] = []
+  const vkeyPath = path.join(zkeyFiles, "rln", "verification_key.json")
+  const vKey = JSON.parse(fs.readFileSync(vkeyPath, "utf-8"))
 
+  const wasmFilePath = path.join(zkeyFiles, "rln", "rln.wasm")
+  const finalZkeyPath = path.join(zkeyFiles, "rln", "rln_final.zkey")
+  const identityCommitments: bigint[] = []
+  const rln_instance = new RLN(wasmFilePath, finalZkeyPath, vKey)
   let curve: any
 
   beforeAll(async () => {
@@ -30,19 +35,17 @@ describe("RLN", () => {
 
   describe("RLN functionalities", () => {
     it("Should generate rln witness", async () => {
-      const identity = new Identity()
-      const identityCommitment = identity.getCommitment()
-      const secretHash = await getSecretHash(identity)
+
+      const identityCommitment = rln_instance.commitment
 
       const leaves = Object.assign([], identityCommitments)
       leaves.push(identityCommitment)
 
       const signal = "hey hey"
       const epoch: string = genExternalNullifier("test-epoch")
-      const rlnIdentifier = RLN.genIdentifier()
 
-      const merkleProof = await generateMerkleProof(15, BigInt(0), leaves, identityCommitment)
-      const witness = RLN.genWitness(secretHash, merkleProof, epoch, signal, rlnIdentifier)
+      const merkleProof = await Registry.generateMerkleProof(20, BigInt(0), leaves, identityCommitment)
+      const witness = rln_instance._genWitness(merkleProof, epoch, signal)
 
       expect(typeof witness).toBe("object")
     })
@@ -52,55 +55,37 @@ describe("RLN", () => {
       const leaves = Object.assign([], identityCommitments)
       leaves.push(zeroIdCommitment)
 
-      const fun = async () => await generateMerkleProof(15, zeroIdCommitment, leaves, zeroIdCommitment)
+      const result = async () => await Registry.generateMerkleProof(20, zeroIdCommitment, leaves, zeroIdCommitment)
 
-      expect(fun).rejects.toThrow("Can't generate a proof for a zero leaf")
+      expect(result).rejects.toThrow("Can't generate a proof for a zero leaf")
     })
 
     it("Should retrieve user secret after spaming", async () => {
-      const identity = new Identity()
-      const secretHash = await getSecretHash(identity)
-
       const signal1 = "hey hey"
-      const signalHash1 = RLN.genSignalHash(signal1)
+      const signalHash1 = RLN._genSignalHash(signal1)
       const signal2 = "hey hey again"
-      const signalHash2 = RLN.genSignalHash(signal2)
+      const signalHash2 = RLN._genSignalHash(signal2)
 
       const epoch = genExternalNullifier("test-epoch")
-      const rlnIdentifier = RLN.genIdentifier()
 
-      const [y1] = await RLN.calculateOutput(secretHash, BigInt(epoch), rlnIdentifier, signalHash1)
-      const [y2] = await RLN.calculateOutput(secretHash, BigInt(epoch), rlnIdentifier, signalHash2)
+      const [y1] = await rln_instance._calculateOutput(BigInt(epoch), signalHash1)
+      const [y2] = await rln_instance._calculateOutput(BigInt(epoch), signalHash2)
 
       const retrievedSecret = RLN.retrieveSecret(signalHash1, signalHash2, y1, y2)
 
-      expect(retrievedSecret).toEqual(secretHash)
+      expect(retrievedSecret).toEqual(rln_instance.secretIdentity)
     })
 
-    // eslint-disable-next-line jest/no-disabled-tests
-    it.skip("Should generate and verify RLN proof", async () => {
-      const identity = new Identity()
-      const secretHash = await getSecretHash(identity)
-      const identityCommitment = identity.getCommitment()
-
+    it("Should generate and verify RLN proof", async () => {
       const leaves = Object.assign([], identityCommitments)
-      leaves.push(identityCommitment)
+      leaves.push(rln_instance.commitment)
 
       const signal = "hey hey"
       const epoch = genExternalNullifier("test-epoch")
-      const rlnIdentifier = RLN.genIdentifier()
+      const merkleProof = async () => await Registry.generateMerkleProof(20, BigInt(0), leaves, rln_instance.commitment)
 
-      const merkleProof = await generateMerkleProof(15, BigInt(0), leaves, identityCommitment)
-      const witness = RLN.genWitness(secretHash, merkleProof, epoch, signal, rlnIdentifier)
-
-      const vkeyPath = path.join(zkeyFiles, "rln", "verification_key.json")
-      const vKey = JSON.parse(fs.readFileSync(vkeyPath, "utf-8"))
-
-      const wasmFilePath = path.join(zkeyFiles, "rln", "rln.wasm")
-      const finalZkeyPath = path.join(zkeyFiles, "rln", "rln_final.zkey")
-
-      const fullProof = await RLN.genProof(witness, wasmFilePath, finalZkeyPath)
-      const response = await RLN.verifyProof(vKey, fullProof)
+      const fullProof = await rln_instance.genProof(signal, await merkleProof(), epoch)
+      const response = await rln_instance.verifyProof(fullProof)
 
       expect(response).toBe(true)
     }, 30000)
