@@ -9,28 +9,33 @@ import poseidon from 'poseidon-lite'
 import { Identity } from '@semaphore-protocol/identity';
 
 export default class RLN {
-  wasmFilePath: string;
-  finalZkeyPath: string;
+  private wasmFilePath: string;
+  private finalZkeyPath: string;
+  verificationKey: Object;
   rlnIdentifier: bigint;
   identity: Identity;
-  identitySecret: bigint;
+  commitment: bigint;
+  secretIdentity: bigint;
 
-  constructor(wasmFilePath: string, finalZkeyPath: string, rlnIdentifier?: bigint, identity?: Identity) {
+
+  constructor(wasmFilePath: string, finalZkeyPath: string, verificationKey: Object, rlnIdentifier?: bigint, identity?: Identity) {
     this.wasmFilePath = wasmFilePath
     this.finalZkeyPath = finalZkeyPath
+    this.verificationKey = verificationKey
     this.rlnIdentifier = rlnIdentifier ? rlnIdentifier : RLN._genIdentifier()
     this.identity = identity ? identity : new Identity()
+    this.commitment = this.identity.commitment
     this._getSecretHash().then((secretHash) => {
-      this.identitySecret = secretHash
+      this.secretIdentity = secretHash
     })
-    console.info(`RLN Identity established with this commitment: ${this.identity.commitment}`)
+    console.info(`RLN Identity established with this commitment: ${this.commitment}`)
   }
 
 
   /**
    * Generates an RLN Proof.
-   * @param this The parameters for creating the proof.
    * @param signal This is usually the raw message.
+   * @param merkleProof This is the merkle proof for the identity commitment.
    * @param epoch This is the time component for the proof, if no epoch is set, unix epoch time rounded to 1 second will be used.
    * @returns The full SnarkJS proof.
    */
@@ -72,7 +77,6 @@ export default class RLN {
 
   /**
    * Verifies a zero-knowledge SnarkJS proof.
-   * @param verificationKey The zero-knowledge verification key.
    * @param fullProof The SnarkJS full proof.
    * @returns True if the proof is valid, false otherwise.
    */
@@ -95,11 +99,33 @@ export default class RLN {
   }
 
   /**
+ * Verifies a zero-knowledge SnarkJS proof.
+ * @param fullProof The SnarkJS full proof.
+ * @returns True if the proof is valid, false otherwise.
+ */
+  public static verifyProof(verificationKey: Object,
+    { proof, publicSignals }: RLNFullProof
+  ): Promise<boolean> {
+    return groth16.verify(
+      verificationKey,
+      [
+        publicSignals.yShare,
+        publicSignals.merkleRoot,
+        publicSignals.internalNullifier,
+        publicSignals.signalHash,
+        publicSignals.epoch,
+        publicSignals.rlnIdentifier
+      ],
+      proof
+    );
+  }
+
+  /**
    * Creates witness for rln proof
    * @param merkleProof merkle proof that identity exists in RLN tree
    * @param epoch epoch on which signal is broadcasted
    * @param signal signal that is being broadcasted
-   * @param shouldHash should signal be hashed before broadcast
+   * @param shouldHash should the signal be hashed, default is true
    * @returns rln witness
    */
   public _genWitness(
@@ -109,7 +135,7 @@ export default class RLN {
     shouldHash = true
   ): any {
     return {
-      identity_secret: this.identitySecret,
+      identity_secret: this.secretIdentity,
       path_elements: merkleProof.siblings,
       identity_path_index: merkleProof.pathIndices,
       x: shouldHash ? RLN._genSignalHash(signal) : signal,
@@ -118,7 +144,7 @@ export default class RLN {
     };
   }
 
-  public async _getSecretHash(): Promise<bigint> {
+  private async _getSecretHash(): Promise<bigint> {
     const nullifier = this.identity.getNullifier()
     const trapdoor = this.identity.getTrapdoor()
     return poseidon([nullifier, trapdoor])
@@ -133,12 +159,11 @@ export default class RLN {
    * @returns y (share) & slashing nullfier
    */
   public async _calculateOutput(
-    identitySecret: bigint,
     epoch: bigint,
     x: bigint
   ): Promise<bigint[]> {
-    const a1 = poseidon([identitySecret, epoch]);
-    const y = Fq.normalize(a1 * x + identitySecret);
+    const a1 = poseidon([this.secretIdentity, epoch]);
+    const y = Fq.normalize(a1 * x + this.secretIdentity);
     const nullifier = await RLN._genNullifier(a1, this.rlnIdentifier);
 
     return [y, nullifier];
