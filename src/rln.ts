@@ -161,7 +161,8 @@ export default class RLN {
     epoch: bigint,
     x: bigint
   ): Promise<bigint[]> {
-    const a1 = poseidon([this.secretIdentity, epoch]);
+    const external_nullifier = await RLN._genNullifier(epoch, this.rlnIdentifier);
+    const a1 = poseidon([this.secretIdentity, external_nullifier]);
     const y = Fq.normalize(a1 * x + this.secretIdentity);
     const nullifier = await RLN._genNullifier(a1, this.rlnIdentifier);
 
