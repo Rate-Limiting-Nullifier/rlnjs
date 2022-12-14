@@ -28,7 +28,7 @@ export default class RLN {
     this._getSecretHash().then((secretHash) => {
       this.secretIdentity = secretHash
     })
-    console.info(`RLN Identity established with this commitment: ${this.commitment}`)
+    console.info(`RLN identity commitment created: ${this.commitment}`)
   }
 
 
@@ -192,17 +192,40 @@ export default class RLN {
 
   /**
    * Recovers secret from two shares
-   * @param x1 x1
-   * @param x2 x2
-   * @param y1 y1
-   * @param y2 y2
+   * @param x1 signal hash of first message
+   * @param x2 signal hash of second message
+   * @param y1 yshare of first message
+   * @param y2 yshare of second message
    * @returns identity secret
    */
-  public static retrieveSecret(x1: bigint, x2: bigint, y1: bigint, y2: bigint): bigint {
+  public static _shamirRecovery(x1: bigint, x2: bigint, y1: bigint, y2: bigint): bigint {
     const slope = Fq.div(Fq.sub(y2, y1), Fq.sub(x2, x1));
     const privateKey = Fq.sub(y1, Fq.mul(slope, x1));
 
     return Fq.normalize(privateKey);
+  }
+
+  /**
+   * Recovers secret from two shares from the same internalNullifier (user) and epoch
+   * @param proof1 x1
+   * @param proof2 x2
+   * @returns identity secret
+   */
+  public static retreiveSecret(proof1: RLNFullProof, proof2: RLNFullProof): bigint {
+    if (proof1.publicSignals.internalNullifier !== proof2.publicSignals.internalNullifier) {
+      // The internalNullifier is made up of the identityCommitment + epoch + rlnappID,
+      // so if they are different, the proofs are from:
+      // different users,
+      // different epochs,
+      // or different rln applications
+      throw new Error('Internal Nullifiers do not match! Cannot recover secret.');
+    }
+    return RLN._shamirRecovery(
+      BigInt(proof1.publicSignals.signalHash),
+      BigInt(proof2.publicSignals.signalHash),
+      BigInt(proof1.publicSignals.yShare),
+      BigInt(proof2.publicSignals.yShare)
+    );
   }
 
   /**
