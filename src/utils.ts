@@ -1,5 +1,4 @@
 import { keccak256 } from "@ethersproject/solidity"
-import type { Identity } from '@semaphore-protocol/identity'
 import { IncrementalMerkleTree, MerkleProof } from "@zk-kit/incremental-merkle-tree"
 import { ZqField } from "ffjavascript"
 import { StrBigInt } from "./types"
