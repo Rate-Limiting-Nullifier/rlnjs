@@ -4,11 +4,10 @@ describe("Registry", () => {
     describe("# Registry", () => {
         it("Should create a registry", async () => {
             const registry = new Registry()
-            await registry.init()
 
             expect(registry.root.toString()).toContain("150197")
-            expect(registry.depth).toBe(20)
-            expect(registry.zeroValue).toBe(BigInt(0))
+            expect(registry._treeDepth).toBe(20)
+            expect(registry._zeroValue).toBe(BigInt(0))
             expect(registry.members).toHaveLength(0)
         })
 
@@ -20,18 +19,16 @@ describe("Registry", () => {
 
         it("Should create a group with different parameters", async () => {
             const registry = new Registry(32, BigInt(1))
-            await registry.init()
 
             expect(registry.root.toString()).toContain("640470")
-            expect(registry.depth).toBe(32)
-            expect(registry.zeroValue).toBe(BigInt(1))
+            expect(registry._treeDepth).toBe(32)
+            expect(registry._zeroValue).toBe(BigInt(1))
             expect(registry.members).toHaveLength(0)
         })
 
         describe("# addMember", () => {
             it("Should add a member to a group", async () => {
                 const registry = new Registry()
-                await registry.init()
 
                 registry.addMember(BigInt(3))
 
@@ -42,7 +39,6 @@ describe("Registry", () => {
         describe("# addMembers", () => {
             it("Should add many members to a group", async () => {
                 const registry = new Registry()
-                await registry.init()
 
                 registry.addMembers([BigInt(1), BigInt(3)])
 
@@ -53,7 +49,6 @@ describe("Registry", () => {
         describe("# indexOf", () => {
             it("Should return the index of a member in a group", async () => {
                 const registry = new Registry()
-                await registry.init()
 
                 registry.addMembers([BigInt(1), BigInt(3)])
 
@@ -66,14 +61,11 @@ describe("Registry", () => {
         describe("# removeMember", () => {
             it("Should remove a member from a group", async () => {
                 const registry = new Registry()
-                await registry.init()
-
-                registry.addMembers([BigInt(1), BigInt(3)])
-
-                registry.removeMember(0)
+                registry.addMembers([BigInt(1), BigInt(2)])
+                registry.slashMember(BigInt(1))
 
                 expect(registry.members).toHaveLength(2)
-                expect(registry.members[0]).toBe(registry.zeroValue)
+                expect(registry.members[0]).toBe(registry._zeroValue)
             })
         })
     })
