@@ -71,7 +71,7 @@ describe("RLN", () => {
       const [y1] = await rln_instance._calculateOutput(BigInt(epoch), signalHash1)
       const [y2] = await rln_instance._calculateOutput(BigInt(epoch), signalHash2)
 
-      const retrievedSecret = RLN.retrieveSecret(signalHash1, signalHash2, y1, y2)
+      const retrievedSecret = RLN._shamirRecovery(signalHash1, signalHash2, y1, y2)
 
       expect(retrievedSecret).toEqual(rln_instance.secretIdentity)
     })
