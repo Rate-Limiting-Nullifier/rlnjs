@@ -14,7 +14,6 @@ export default class Registry {
    * Initializes the registry with the tree depth and the zero value.
    * @param treeDepth Tree depth (int).
    * @param zeroValue Zero values for zeroes.
-   * @param hasSlashed Boolean flag to determine whether to create a SlashedRegistry.
    */
   constructor(
     treeDepth: number = 20,
@@ -40,11 +39,19 @@ export default class Registry {
   }
 
   /**
-   * Returns the root hash of the tree.
+   * Returns the root hash of the registry merkle tree.
    * @returns Root hash.
    */
   public get root(): BigInt {
     return this._registry.root;
+  }
+
+  /**
+   * Returns the root hash of the slashed registry merkle tree.
+   * @returns Root hash.
+   */
+  public get slashedRoot(): BigInt {
+    return this._slashed.root;
   }
 
   /**
@@ -102,12 +109,20 @@ export default class Registry {
   /**
   * Removes a member from the registry and adds them to the slashed registry.
   * @param identityCommitment IdentityCommitment of the member to be removed.
-  * @param isSlashed flag to check whether the member should be added to the slashed registry.
   */
   public slashMember(identityCommitment: BigInt) {
     const index = this._registry.indexOf(identityCommitment);
     this._registry.delete(index);
     this._slashed.insert(identityCommitment);
+  }
+
+  /**
+  * Removes a member from the registry.
+  * @param identityCommitment IdentityCommitment of the member to be removed.
+  */
+  public removeMember(identityCommitment: BigInt) {
+    const index = this._registry.indexOf(identityCommitment);
+    this._registry.delete(index);
   }
 
   /**
