@@ -52,7 +52,6 @@ export default class RLN {
    * @returns The full SnarkJS proof.
    */
   public async _genProof(
-    this: RLN,
     witness: any,
   ): Promise<RLNFullProof> {
     const { proof, publicSignals } = await groth16.fullProve(
