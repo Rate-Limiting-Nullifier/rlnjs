@@ -85,14 +85,12 @@ export default class Registry {
    * @param identityCommitment New member.
    */
   public addMember(identityCommitment: BigInt) {
-    const isSlashed = this._slashed
-      ? this._slashed.indexOf(identityCommitment) !== -1
-      : false;
-
-    if (isSlashed) {
+    if (this._slashed.indexOf(identityCommitment) !== -1) {
       throw new Error("Can't add slashed member.")
     }
-
+    if (this._zeroValue === identityCommitment) {
+      throw new Error("Can't add zero value as member.")
+    }
     this._registry.insert(identityCommitment);
   }
 
@@ -133,14 +131,7 @@ export default class Registry {
   public async generateMerkleProof(
     idCommitment: StrBigInt
   ): Promise<MerkleProof> {
-    if (idCommitment === this._zeroValue) throw new Error("Can't generate a proof for a zero leaf")
-    const leafIndex = this.indexOf(BigInt(idCommitment))
-    if (leafIndex === -1) {
-      throw new Error("This member does not exist in the registry")
-    }
-    const merkleProof = this._registry.createProof(leafIndex)
-    merkleProof.siblings = merkleProof.siblings.map((s) => s[0])
-    return merkleProof
+    return Registry.generateMerkleProof(this._treeDepth, this._zeroValue as StrBigInt, this.members, idCommitment)
   }
 
   /**
