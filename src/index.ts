@@ -1,18 +1,20 @@
 
 // Imports
-import Registry from './registry'
 import RLN from "./rln"
+import Registry from './registry'
+import Cache from './cache'
 
 // Exports
 export {
   RLN,
-  Registry
+  Registry,
+  Cache
 }
 
 // Export Types
 export {
   StrBigInt,
-  Proof,
   RLNFullProof,
+  Proof,
   RLNPublicSignals
 } from "./types"
