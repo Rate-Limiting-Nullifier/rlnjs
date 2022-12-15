@@ -70,13 +70,20 @@ export default class RLN {
     static _genSignalHash(signal: string): bigint;
     /**
      * Recovers secret from two shares
-     * @param x1 x1
-     * @param x2 x2
-     * @param y1 y1
-     * @param y2 y2
+     * @param x1 signal hash of first message
+     * @param x2 signal hash of second message
+     * @param y1 yshare of first message
+     * @param y2 yshare of second message
      * @returns identity secret
      */
-    static retrieveSecret(x1: bigint, x2: bigint, y1: bigint, y2: bigint): bigint;
+    static _shamirRecovery(x1: bigint, x2: bigint, y1: bigint, y2: bigint): bigint;
+    /**
+     * Recovers secret from two shares from the same internalNullifier (user) and epoch
+     * @param proof1 x1
+     * @param proof2 x2
+     * @returns identity secret
+     */
+    static retreiveSecret(proof1: RLNFullProof, proof2: RLNFullProof): bigint;
     /**
      *
      * @returns unique identifier of the rln dapp
