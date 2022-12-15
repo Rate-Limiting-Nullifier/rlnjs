@@ -1,6 +1,6 @@
 {
   "name": "rlnjs",
-  "version": "0.2.0",
+  "version": "2.0.0-alpha.1",
   "description": "Client library for generating and using RLN ZK proofs.",
   "license": "MIT",
   "repository": "https://github.com/privacy-scaling-explorations/rln",
