@@ -1,6 +1,6 @@
 {
   "name": "rlnjs",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Client library for generating and using RLN ZK proofs.",
   "license": "MIT",
   "repository": "https://github.com/privacy-scaling-explorations/rln",
@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig-cjs.json",
-    "tests": "jest --coverage --testTimeout=30000"
+    "tests": "jest"
   },
   "publishConfig": {
     "access": "public"
@@ -39,15 +39,15 @@
     "@semaphore-protocol/identity": "^2.6.1",
     "@zk-kit/incremental-merkle-tree": "^0.4.3",
     "ffjavascript": "0.2.55",
-    "poseidon-lite": "0.0.2",
+    "poseidon-lite": "^0.0.2",
     "snarkjs": "^0.4.22"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.18.10",
-    "@types/jest": "^28.1.4",
-    "jest": "^28.1.2",
-    "ts-jest": "^28.0.5",
+    "@types/jest": "^29.2.4",
+    "jest": "^29.3.1",
+    "ts-jest": "^29.0.3",
     "ts-node": "^10.9.1",
-    "typescript": "^4.7.4"
+    "typescript": "^4.9.4"
   }
 }

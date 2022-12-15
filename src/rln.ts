@@ -42,6 +42,7 @@ export default class RLN {
   public async genProof(signal: string, merkleProof: MerkleProof, epoch?: StrBigInt): Promise<RLNFullProof> {
     const _epoch = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000))
     const witness = this._genWitness(merkleProof, _epoch, signal)
+    //console.debug("Witness:", witness)
     return this._genProof(witness)
   }
 

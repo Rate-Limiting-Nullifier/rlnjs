@@ -8,5 +8,10 @@ const config: Config.InitialOptions = {
     "^.+\\.jsx?$": "babel-jest",
     "^.+\\.tsx?$": "ts-jest"
   },
+  "silent": true,
+  "detectOpenHandles": true,
+  "testTimeout": 60000,
+  "collectCoverage": true,
+  "forceExit": true,
 };
 export default config;
