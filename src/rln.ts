@@ -17,7 +17,6 @@ export default class RLN {
   commitment: bigint;
   secretIdentity: bigint;
 
-
   constructor(wasmFilePath: string, finalZkeyPath: string, verificationKey: Object, rlnIdentifier?: bigint, identity?: Identity) {
     this.wasmFilePath = wasmFilePath
     this.finalZkeyPath = finalZkeyPath

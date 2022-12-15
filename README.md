@@ -5,12 +5,17 @@
 - [Rate Limiting Nullifier Javascript / Typescript Library](#rate-limiting-nullifier-javascript--typescript-library)
   - [Contents](#contents)
   - [Description](#description)
-  - [Install](#install)
-  - [Usage](#usage)
-    - [RLNjs](#rlnjs)
-      - [Building the circuits](#building-the-circuits)
+    - [RLN](#rln)
     - [Registry](#registry)
-      - [Create RLNRegistry](#create-rlnregistry)
+    - [Cache](#cache)
+  - [Install](#install)
+    - [Building the circuits](#building-the-circuits)
+    - [Copy ZKeyFiles to Your Project](#copy-zkeyfiles-to-your-project)
+    - [Add RLNjs to your project](#add-rlnjs-to-your-project)
+  - [Usage](#usage)
+    - [RLN](#rln-1)
+    - [Registry](#registry-1)
+      - [Create a Registry](#create-a-registry)
       - [Generate identity commitment](#generate-identity-commitment)
       - [Add members to the Registry](#add-members-to-the-registry)
       - [Slash member from the Registry](#slash-member-from-the-registry)
@@ -18,31 +23,37 @@
       - [Initializing an RLN instance](#initializing-an-rln-instance)
       - [Generating a proof](#generating-a-proof)
       - [Verifying a proof](#verifying-a-proof)
+    - [Cache](#cache-1)
   - [Tests](#tests)
   - [License](#license)
 
 ## Description
 
 RLN (Rate-Limiting Nullifier) is a zk-gadget/protocol that enables spam prevention in anonymous environments.
-The core of the RLN is in the [circuit logic](https://github.com/Rate-Limiting-Nullifier/rln-circuits). RLNjs provides easy management of the registry and proof creation.
+
+The core of RLN is in the [circuit logic](https://github.com/Rate-Limiting-Nullifier/rln-circuits), documentation [here](https://rate-limiting-nullifier.github.io/rln-docs/protocol_spec.html#technical-side-of-rln). RLNjs provides easy management of the registry and proof creation.
+
+This library provides three main classes: `RLN`, `Registry`, and `Cache`.
+
+### RLN
+
+The `RLN` class provides the core functionality of the RLN protocol. It provides the ability to generate a proof and verify a proof.
+
+### Registry
+
+The `Registry` class provides the ability to manage the registry. It provides the ability to add, remove, and slash members from the registry.
+
+### Cache
+
+The `Cache` class provides the ability to cache proofs by epoch and automatically recovers secrets if the rate limit is exceeded.
 
 ## Install
 
-```bash
-git clone https://github.com/Rate-Limiting-Nullifier/rlnjs.git
-```
+### Building the circuits
 
-And install the dependencies:
+> Circom needs to be installed, please see this [link](https://docs.circom.io/getting-started/installation/) for installation instructions.
 
-```bash
-cd rlnjs && npm i
-```
-
-## Usage
-
-### RLNjs
-
-#### Building the circuits
+> The default merkle tree depth for the circuits is 20. If you want to change this, you will need to rebuild the circuits, and be sure to change the merkle tree depth in the `Registry` class.
 
 ```bash
 git clone https://github.com/Rate-Limiting-Nullifier/rln-circuits.git &&
@@ -51,9 +62,29 @@ npm i &&
 npm run build
 ```
 
+The previous step should have produced the following files:
+
+```bash
+./build/zkeyFiles/verification_key.json
+./build/zkeyFiles/rln.wasm
+./build/zkeyFiles/rln_final.zkey
+```
+
+### Copy ZKeyFiles to Your Project
+
+Copy those files into the `zkeyFiles` folder in your project directory.
+
+### Add RLNjs to your project
+TODO! Change this path to the npm package once it is published
+`npm install "https://github.com/Rate-Limiting-Nullifier/rlnjs.git#refactor/v2" --save`
+
+## Usage
+
+### RLN
+
 ### Registry
 
-#### Create RLNRegistry
+#### Create a Registry
 
 ```js
 // generate default RLN registry
@@ -137,6 +168,8 @@ const fullProof = await RLN.genProof(witness, wasmFilePath, finalZkeyPath)
 ```js
 const proofResult = await RLN.verifyProof(vKey, fullProof)
 ```
+
+### Cache
 
 ## Tests
 
