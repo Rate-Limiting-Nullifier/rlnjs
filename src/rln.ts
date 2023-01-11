@@ -3,10 +3,12 @@ import { keccak256 } from '@ethersproject/solidity';
 import { toUtf8Bytes } from '@ethersproject/strings';
 import { MerkleProof } from '@zk-kit/incremental-merkle-tree';
 import { groth16 } from 'snarkjs';
-import { RLNFullProof, StrBigInt } from './types';
 import { Fq } from './utils';
 import poseidon from 'poseidon-lite'
 import { Identity } from '@semaphore-protocol/identity';
+
+// Types
+import { RLNFullProof, StrBigInt } from './types/rlnjs';
 
 export default class RLN {
   private wasmFilePath: string;
@@ -22,6 +24,8 @@ export default class RLN {
     this.finalZkeyPath = finalZkeyPath
     this.verificationKey = verificationKey
     this.rlnIdentifier = rlnIdentifier ? rlnIdentifier : RLN._genIdentifier()
+
+    // Todo! Identity that is passed in needs to be initialized through Semaphore
     this.identity = identity ? identity : new Identity()
     this.commitment = this.identity.commitment
     this._getSecretHash().then((secretHash) => {
@@ -29,7 +33,6 @@ export default class RLN {
     })
     console.info(`RLN identity commitment created: ${this.commitment}`)
   }
-
 
   /**
    * Generates an RLN Proof.
@@ -39,6 +42,7 @@ export default class RLN {
    * @returns The full SnarkJS proof.
    */
   public async genProof(signal: string, merkleProof: MerkleProof, epoch?: StrBigInt): Promise<RLNFullProof> {
+    // TODO! what is this time???
     const _epoch = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000))
     const witness = this._genWitness(merkleProof, _epoch, signal)
     //console.debug("Witness:", witness)
@@ -154,24 +158,25 @@ export default class RLN {
    * @param identitySecret identity secret
    * @param epoch epoch on which signal is broadcasted
    * @param rlnIdentifier unique identifier of rln dapp
-   * @param x signal hash
-   * @returns y (share) & slashing nullfier
+   * @param signalHash signal hash
+   * @returns y_share (share) & slashing nullfier
    */
   public async _calculateOutput(
     epoch: bigint,
-    x: bigint
+    signalHash: bigint
   ): Promise<bigint[]> {
-    const external_nullifier = await RLN._genNullifier(epoch, this.rlnIdentifier);
-    const a1 = poseidon([this.secretIdentity, external_nullifier]);
-    const y = Fq.normalize(a1 * x + this.secretIdentity);
-    const nullifier = await RLN._genNullifier(a1, this.rlnIdentifier);
+    const externalNullifier = await RLN._genNullifier(epoch, this.rlnIdentifier);
+    const a1 = poseidon([this.secretIdentity, externalNullifier]);
+    // TODO! Check if this is zero/the identity secret
+    const yShare = Fq.normalize(a1 * signalHash + this.secretIdentity);
+    const internalNullifier = await RLN._genNullifier(a1, this.rlnIdentifier);
 
-    return [y, nullifier];
+    return [yShare, internalNullifier];
   }
 
   /**
    *
-   * @param a1 y = a1 * x + a0 (a1 = poseidon(identity secret, epoch, rlnIdentifier))
+   * @param a1 y = a1 * signalHash + a0 (a1 = poseidon(identity secret, epoch, rlnIdentifier))
    * @param rlnIdentifier unique identifier of rln dapp
    * @returns rln slashing nullifier
    */
@@ -235,4 +240,25 @@ export default class RLN {
   public static _genIdentifier(): bigint {
     return Fq.random();
   }
+
+  public static _bigintToUint8Array(input: bigint): Uint8Array {
+    // const bigIntAsStr = input.toString()
+    // return Uint8Array.from(Array.from(bigIntAsStr).map(letter => letter.charCodeAt(0)));
+    return new Uint8Array(new BigUint64Array([input]).buffer);
+  }
+
+  // public static _uint8ArrayToBigint(input: Uint8Array): bigint {
+  //   // const decoder = new TextDecoder();
+  //   // return BigInt(decoder.decode(input));
+  //   return BigUint64Array.from(input)[0];
+  // }
+
+  // public encodeProofIntoUint8Array(): Uint8Array {
+  //   const data = [];
+  //   data.push();
+  //   return new Uint8Array(data);
+
+  // }
+
+  // public decodeProofFromUint8Array(): RLN { }
 }

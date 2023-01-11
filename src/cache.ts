@@ -1,4 +1,4 @@
-import { RLNFullProof, StrBigInt } from './types';
+import { RLNFullProof, StrBigInt } from './types/rlnjs';
 import RLN from './rln';
 
 type EpochCacheT = {

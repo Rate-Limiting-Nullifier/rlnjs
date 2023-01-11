@@ -1,5 +1,5 @@
 import { MerkleProof } from "@zk-kit/incremental-merkle-tree";
-import { StrBigInt } from './types';
+import { StrBigInt } from './types/rlnjs';
 export default class Registry {
     private _registry;
     private _slashed;

@@ -17,4 +17,4 @@ export {
   RLNFullProof,
   Proof,
   RLNPublicSignals
-} from "./types"
+} from "./types/rlnjs"

@@ -25,6 +25,7 @@
       - [Verifying a proof](#verifying-a-proof)
     - [Cache](#cache-1)
   - [Tests](#tests)
+  - [Bugs, Questions \& Features](#bugs-questions--features)
   - [License](#license)
 
 ## Description
@@ -176,6 +177,10 @@ const proofResult = await RLN.verifyProof(vKey, fullProof)
 ```bash
 npm run tests
 ```
+
+## Bugs, Questions & Features
+
+If you find any bugs, have any questions, or would like to propose new features, feel free to open an [issue](https://github.com/Rate-Limiting-Nullifier/RLNjs/issues/new/).
 
 ## License
 

@@ -2,7 +2,7 @@ import {
   IncrementalMerkleTree, MerkleProof,
 } from "@zk-kit/incremental-merkle-tree";
 import poseidon from 'poseidon-lite'
-import { StrBigInt } from './types';
+import { StrBigInt } from './types/rlnjs';
 
 export default class Registry {
   private _registry: IncrementalMerkleTree;
@@ -128,6 +128,7 @@ export default class Registry {
    * @param idCommitment The leaf for which Merkle proof should be created.
    * @returns The Merkle proof.
    */
+  // TODO - IDcommitment should be optional if you instantiate this class with the RLN class where it already has the IDcommitment.
   public async generateMerkleProof(
     idCommitment: StrBigInt
   ): Promise<MerkleProof> {

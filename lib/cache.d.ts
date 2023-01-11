@@ -1,4 +1,4 @@
-import { RLNFullProof, StrBigInt } from './types';
+import { RLNFullProof, StrBigInt } from './types/rlnjs';
 type EpochCacheT = {
     nullifiers?: RLNFullProof[];
 };

@@ -1,6 +1,6 @@
 import { MerkleProof } from '@zk-kit/incremental-merkle-tree';
-import { RLNFullProof, StrBigInt } from './types';
 import { Identity } from '@semaphore-protocol/identity';
+import { RLNFullProof, StrBigInt } from './types/rlnjs';
 export default class RLN {
     private wasmFilePath;
     private finalZkeyPath;
@@ -51,13 +51,13 @@ export default class RLN {
      * @param identitySecret identity secret
      * @param epoch epoch on which signal is broadcasted
      * @param rlnIdentifier unique identifier of rln dapp
-     * @param x signal hash
-     * @returns y (share) & slashing nullfier
+     * @param signalHash signal hash
+     * @returns y_share (share) & slashing nullfier
      */
-    _calculateOutput(epoch: bigint, x: bigint): Promise<bigint[]>;
+    _calculateOutput(epoch: bigint, signalHash: bigint): Promise<bigint[]>;
     /**
      *
-     * @param a1 y = a1 * x + a0 (a1 = poseidon(identity secret, epoch, rlnIdentifier))
+     * @param a1 y = a1 * signalHash + a0 (a1 = poseidon(identity secret, epoch, rlnIdentifier))
      * @param rlnIdentifier unique identifier of rln dapp
      * @returns rln slashing nullifier
      */
@@ -89,4 +89,5 @@ export default class RLN {
      * @returns unique identifier of the rln dapp
      */
     static _genIdentifier(): bigint;
+    static _bigintToUint8Array(input: bigint): Uint8Array;
 }
