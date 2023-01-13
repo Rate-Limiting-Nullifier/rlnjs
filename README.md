@@ -16,7 +16,7 @@
     - [RLN](#rln-1)
     - [Registry](#registry-1)
       - [Create a Registry](#create-a-registry)
-      - [Generate identity commitment](#generate-identity-commitment)
+      - [Accessing and Generating Identity Commitments](#accessing-and-generating-identity-commitments)
       - [Add members to the Registry](#add-members-to-the-registry)
       - [Slash member from the Registry](#slash-member-from-the-registry)
       - [Remove members from the Registry](#remove-members-from-the-registry)
@@ -82,6 +82,18 @@ TODO! Change this path to the npm package once it is published
 ## Usage
 
 ### RLN
+```js
+// Import RLN
+import { RLN } from "rlnjs"
+
+
+const wasmFilePath = path.join("./zkeyFiles", "rln", "rln.wasm")
+const finalZkeyPath = path.join("./zkeyFiles", "rln", "rln_final.zkey")
+const vKey = JSON.parse(fs.readFileSync(path.join("./zkeyFiles", "rln", "verification_key.json"), "utf-8"))
+
+// Initialize RLN with the wasm file, final zkey file, and verification key
+const rln_instance = new RLN(wasmFilePath, finalZkeyPath, vKey)
+```
 
 ### Registry
 
@@ -92,12 +104,22 @@ TODO! Change this path to the npm package once it is published
 const registry = new Registry()
 
 // generate RLN registry that contains slashed registry
+const registry = new Registry() // default tree depth is 20
+
+// generate RLN registry that contains slashed registry with a custom tree depth
 const registry = new Registry(
-  20, // Merkle Tree Depth
+  18, // Merkle Tree Depth
 )
 ```
 
-#### Generate identity commitment
+#### Accessing and Generating Identity Commitments
+
+When an instance of RLNjs is initialized, it creates an identity commitment which you can access by calling `rln.commitment`.
+
+```js
+  # Example of accessing the generated identity commitment
+  const identityCommitment = rln.commitment()
+```
 
 Using [Semaphore](https://github.com/semaphore-protocol/semaphore/tree/main/packages/identity) to generate the identity:
 
@@ -105,13 +127,6 @@ Using [Semaphore](https://github.com/semaphore-protocol/semaphore/tree/main/pack
 from { Identity } from '@semaphore-protocol/identity'
 const identity = new Identity()
 const identityCommitment = identity.commitment()
-```
-
-Using RLNjs to get the identity commitment:
-
-```js
-  # Generate identity
-  const identityCommitment = rln.commitment()
 ```
 
 #### Add members to the Registry
