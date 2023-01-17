@@ -10,6 +10,9 @@ import { Identity } from '@semaphore-protocol/identity';
 // Types
 import { RLNFullProof, StrBigInt } from './types/rlnjs';
 
+/**
+RLN is a class that represents a single RLN identity.
+**/
 export default class RLN {
   private wasmFilePath: string;
   private finalZkeyPath: string;

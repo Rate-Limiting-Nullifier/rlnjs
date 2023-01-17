@@ -1,6 +1,9 @@
 import { MerkleProof } from '@zk-kit/incremental-merkle-tree';
 import { Identity } from '@semaphore-protocol/identity';
 import { RLNFullProof, StrBigInt } from './types/rlnjs';
+/**
+RLN is a class that represents a single RLN identity.
+**/
 export default class RLN {
     private wasmFilePath;
     private finalZkeyPath;
