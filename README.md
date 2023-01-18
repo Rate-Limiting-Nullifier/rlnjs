@@ -14,16 +14,18 @@
     - [Add RLNjs to your project](#add-rlnjs-to-your-project)
   - [Usage](#usage)
     - [RLN](#rln-1)
+      - [Initializing an RLN instance](#initializing-an-rln-instance)
+      - [Accessing Identity and Identity Commitment](#accessing-identity-and-identity-commitment)
+      - [Generating a proof](#generating-a-proof)
+      - [Verifying a proof](#verifying-a-proof)
     - [Registry](#registry-1)
       - [Create a Registry](#create-a-registry)
-      - [Accessing and Generating Identity Commitments](#accessing-and-generating-identity-commitments)
       - [Add members to the Registry](#add-members-to-the-registry)
       - [Slash member from the Registry](#slash-member-from-the-registry)
       - [Remove members from the Registry](#remove-members-from-the-registry)
-      - [Initializing an RLN instance](#initializing-an-rln-instance)
-      - [Generating a proof](#generating-a-proof)
-      - [Verifying a proof](#verifying-a-proof)
     - [Cache](#cache-1)
+      - [Create a Cache](#create-a-cache)
+      - [Add a Proof to the Cache](#add-a-proof-to-the-cache)
   - [Tests](#tests)
   - [Bugs, Questions \& Features](#bugs-questions--features)
   - [License](#license)
@@ -82,17 +84,70 @@ TODO! Change this path to the npm package once it is published
 ## Usage
 
 ### RLN
+
+#### Initializing an RLN instance
+
 ```js
-// Import RLN
 import { RLN } from "rlnjs"
 
-
+# This assumes you have built the circom circuits and placed them into the zkeyFiles folder
+const vkeyPath = path.join("./zkeyFiles", "rln", "verification_key.json")
+const vKey = JSON.parse(fs.readFileSync(vkeyPath, "utf-8"))
 const wasmFilePath = path.join("./zkeyFiles", "rln", "rln.wasm")
 const finalZkeyPath = path.join("./zkeyFiles", "rln", "rln_final.zkey")
-const vKey = JSON.parse(fs.readFileSync(path.join("./zkeyFiles", "rln", "verification_key.json"), "utf-8"))
 
-// Initialize RLN with the wasm file, final zkey file, and verification key
+# Instantiate RLN
 const rln_instance = new RLN(wasmFilePath, finalZkeyPath, vKey)
+```
+
+#### Accessing Identity and Identity Commitment
+
+When an instance of RLNjs is initialized, it creates an identity commitment which you can access by calling `rln_instance.commitment`.
+
+```js
+  # Example of accessing the generated identity commitment
+  const identity = rln_instance.identity()
+  const identityCommitment = rln_instance.commitment()
+```
+
+#### Generating a proof
+
+From the `rln_instance` you can generate a proof by calling `rln_instance.generateProof()`.
+
+Using RLN Registry:
+```js
+const epoch = genExternalNullifier("test-epoch")
+const signal "This is a test signal"
+const merkleProof = await registry_instance.generateMerkleProof(rln_instance.commitment) // Read more about creating a registry_instance below
+const proof = rln_instance.generateProof(signal, merkleProof, epoch)
+```
+
+Without RLN Registry:
+```js
+const tree_depth = 20
+const zeroValue = BigInt(0)
+const epoch = BigInt(Math.floor(Date.now() / 1000)) // This epoch example is the nearest second
+const signal "This is a test signal" // Example Message
+const leaves = [] // Array of identity commitments
+const merkleProof = await Registry.generateMerkleProof(tree_depth, zeroValue, leaves, rln_instance.commitment)
+const proof = rln_instance.generateProof(signal, merkleProof, epoch)
+```
+
+Without RLN Registry or an RLN Instance:
+```js
+const tree_depth = 20
+const zeroValue = BigInt(0)
+const epoch = BigInt(Math.floor(Date.now() / 1000)) // This epoch example is the nearest second
+const signal "This is a test signal" // Example Message
+const leaves = [] // Array of identity commitments
+const merkleProof = await Registry.generateMerkleProof(tree_depth, zeroValue, leaves, identityCommitment)
+const proof = RLN.generateProof(signal, merkleProof, epoch)
+```
+
+#### Verifying a proof
+
+```js
+const proofResult = await RLN.verifyProof(vKey, proof)
 ```
 
 ### Registry
@@ -100,9 +155,6 @@ const rln_instance = new RLN(wasmFilePath, finalZkeyPath, vKey)
 #### Create a Registry
 
 ```js
-// generate default RLN registry
-const registry = new Registry()
-
 // generate RLN registry that contains slashed registry
 const registry = new Registry() // default tree depth is 20
 
@@ -110,23 +162,6 @@ const registry = new Registry() // default tree depth is 20
 const registry = new Registry(
   18, // Merkle Tree Depth
 )
-```
-
-#### Accessing and Generating Identity Commitments
-
-When an instance of RLNjs is initialized, it creates an identity commitment which you can access by calling `rln.commitment`.
-
-```js
-  # Example of accessing the generated identity commitment
-  const identityCommitment = rln.commitment()
-```
-
-Using [Semaphore](https://github.com/semaphore-protocol/semaphore/tree/main/packages/identity) to generate the identity:
-
-```js
-from { Identity } from '@semaphore-protocol/identity'
-const identity = new Identity()
-const identityCommitment = identity.commitment()
 ```
 
 #### Add members to the Registry
@@ -147,45 +182,27 @@ registry.slashMember(identityCommitment)
 registry.removeMember(identityCommitment)
 ```
 
-#### Initializing an RLN instance
-
-```js
-import { RLN } from "rlnjs"
-
-# This assumes you have built the circom circuits and placed them into the zkeyFiles folder
-const vkeyPath = path.join("./zkeyFiles", "rln", "verification_key.json")
-const vKey = JSON.parse(fs.readFileSync(vkeyPath, "utf-8"))
-const wasmFilePath = path.join("./zkeyFiles", "rln", "rln.wasm")
-const finalZkeyPath = path.join("./zkeyFiles", "rln", "rln_final.zkey")
-
-# Instantiate RLN
-const rln = new RLN(wasmFilePath, finalZkeyPath, vKey)
-```
-
-#### Generating a proof
-
-```js
-const secretHash = identity.getSecretHash()
-
-const leaves = Object.assign([], identityCommitments)
-leaves.push(identityCommitment)
-
-const signal = "signal"
-const epoch = genExternalNullifier("test-epoch")
-const rlnIdentifier = RLN.genIdentifier()
-
-const merkleProof = await generateMerkleProof(15, BigInt(0), leaves, identityCommitment)
-const witness = RLN.genWitness(secretHash, merkleProof, epoch, signal, rlnIdentifier)
-const fullProof = await RLN.genProof(witness, wasmFilePath, finalZkeyPath)
-```
-
-#### Verifying a proof
-
-```js
-const proofResult = await RLN.verifyProof(vKey, fullProof)
-```
-
 ### Cache
+
+#### Create a Cache
+
+```js
+const rln_identifier = BigInt(1234567890) // random number as example of RLN Identifier
+// Create empty cache
+const cache = new Cache(rln_identifier)
+```
+
+#### Add a Proof to the Cache
+
+```js
+let result = cache.addProof(proof)
+console.log(result.status) // "added" or "breach" or "invalid"
+```
+
+If the added proof is valid, the result will be `added`.
+
+If the added proof breaches the rate limit, the result will be `breach`, in which case the secret will be recovered and is accessible by accessing `result.secret`.
+
 
 ## Tests
 
