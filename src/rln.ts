@@ -44,11 +44,32 @@ export default class RLN {
    * @param epoch This is the time component for the proof, if no epoch is set, unix epoch time rounded to 1 second will be used.
    * @returns The full SnarkJS proof.
    */
-  public async genProof(signal: string, merkleProof: MerkleProof, epoch?: StrBigInt): Promise<RLNFullProof> {
-    const _epoch = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000))
+  public async generateProof(signal: string, merkleProof: MerkleProof, epoch?: StrBigInt): Promise<RLNFullProof> {
+    const _epoch = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000)) // rounded to nearest second
     const witness = this._genWitness(merkleProof, _epoch, signal)
     //console.debug("Witness:", witness)
     return this._genProof(witness)
+  }
+
+  /**
+   * Generates an RLN Proof.
+   * @param signal This is usually the raw message.
+   * @param merkleProof This is the merkle proof for the identity commitment.
+   * @param epoch This is the time component for the proof, if no epoch is set, unix epoch time rounded to 1 second will be used.
+   * @returns The full SnarkJS proof.
+   */
+  public static async generateProof(signal: string, merkleProof: MerkleProof, epoch: StrBigInt, rlnIdentifier, secretIdentity, wasmFilePath: string, finalZkeyPath: string, shouldHash: boolean = true): Promise<RLNFullProof> {
+    const _epoch = BigInt(epoch)
+    const witness = {
+      identity_secret: secretIdentity,
+      path_elements: merkleProof.siblings,
+      identity_path_index: merkleProof.pathIndices,
+      x: shouldHash ? RLN._genSignalHash(signal) : signal,
+      _epoch,
+      rln_identifier: rlnIdentifier
+    };
+    //console.debug("Witness:", witness)
+    return RLN._genProof(witness, wasmFilePath, finalZkeyPath)
   }
 
 
@@ -64,6 +85,34 @@ export default class RLN {
       witness,
       this.wasmFilePath,
       this.finalZkeyPath,
+      null
+    );
+
+    return {
+      proof,
+      publicSignals: {
+        yShare: publicSignals[0],
+        merkleRoot: publicSignals[1],
+        internalNullifier: publicSignals[2],
+        signalHash: publicSignals[3],
+        epoch: publicSignals[4],
+        rlnIdentifier: publicSignals[5]
+      }
+    };
+  }
+
+  /**
+ * Generates a SnarkJS full proof with Groth16.
+ * @param witness The parameters for creating the proof.
+ * @returns The full SnarkJS proof.
+ */
+  public static async _genProof(
+    witness: any, wasmFilePath: string, finalZkeyPath: string
+  ): Promise<RLNFullProof> {
+    const { proof, publicSignals } = await groth16.fullProve(
+      witness,
+      wasmFilePath,
+      finalZkeyPath,
       null
     );
 
