@@ -168,4 +168,12 @@ export default class Registry {
 
     return merkleProof
   }
+
+  public async export(): Promise<string> {
+    return JSON.stringify(this)
+  }
+
+  public static async import(registry: string): Promise<Registry> {
+    return JSON.parse(registry) as Registry
+  }
 }
