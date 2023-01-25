@@ -26,6 +26,7 @@ describe("Registry", () => {
             expect(registry.members).toHaveLength(0)
         })
     })
+
     describe("Add Member", () => {
         test("Should add a member to a group", async () => {
             const registry = new Registry()
@@ -92,6 +93,7 @@ describe("Registry", () => {
             expect(() => registry.addMember(BigInt(1))).toThrow("Can't add slashed member.")
         })
     })
+
     describe("Merkle Proof", () => {
         test("Should return a merkle proof", async () => {
             const registry = new Registry()
@@ -111,5 +113,15 @@ describe("Registry", () => {
 
             expect(result2).rejects.toThrow("Can't generate a proof for a zero leaf")
         })
+    })
+
+    test.skip("Should export/import to json", async () => {
+        const registry_json_test = new Registry()
+        registry_json_test.addMembers([BigInt(1), BigInt(2)])
+        const json = await registry_json_test.export()
+        const registry_from_json = await Registry.import(json)
+        expect(registry_from_json.members).toHaveLength(2)
+        expect(registry_from_json.root).toEqual(registry_json_test.root)
+        expect(registry_from_json.slashedRoot).toEqual(registry_json_test.slashedRoot)
     })
 })
