@@ -14,23 +14,22 @@ import { RLNFullProof, StrBigInt } from './types/rlnjs';
 RLN is a class that represents a single RLN identity.
 **/
 export default class RLN {
-  private wasmFilePath: string;
-  private finalZkeyPath: string;
+  wasmFilePath: string;
+  finalZkeyPath: string;
   verificationKey: Object;
   rlnIdentifier: bigint;
   identity: Identity;
   commitment: bigint;
   secretIdentity: bigint;
 
-  constructor(wasmFilePath: string, finalZkeyPath: string, verificationKey: Object, rlnIdentifier?: bigint, identity?: Identity) {
+  constructor(wasmFilePath: string, finalZkeyPath: string, verificationKey: Object, rlnIdentifier?: bigint, identity?: string) {
     this.wasmFilePath = wasmFilePath
     this.finalZkeyPath = finalZkeyPath
     this.verificationKey = verificationKey
     this.rlnIdentifier = rlnIdentifier ? rlnIdentifier : RLN._genIdentifier()
 
-    // Todo! Identity that is passed in needs to be initialized through Semaphore
-    this.identity = identity ? identity : new Identity()
-    this.commitment = this.identity.commitment
+    this.identity = identity ? new Identity(identity) : new Identity()
+    this.commitment = this.identity.getCommitment()
     this._getSecretHash().then((secretHash) => {
       this.secretIdentity = secretHash
     })
@@ -313,23 +312,25 @@ export default class RLN {
 
   // public decodeProofFromUint8Array(): RLN { }
 
-  public async export(): Promise<string> {
-    return JSON.stringify({
-      "identity": String(this.identity),
+  public async export(): Promise<Object> {
+    console.debug("Exporting RLN instance")
+    return {
+      "identity": this.identity.toString(),
       "rlnIdentifier": String(this.rlnIdentifier),
-      "verificationKey": this.verificationKey,
+      "verificationKey": JSON.stringify(this.verificationKey),
       "wasmFilePath": this.wasmFilePath,
       "finalZkeyPath": this.finalZkeyPath
-    })
+    }
   }
 
-  public static async import(rln_instance: string): Promise<RLN> {
+  public static async import(rln_instance: Object): Promise<RLN> {
+    console.debug("Importing RLN instance")
     return new RLN(
       rln_instance["wasmFilePath"],
       rln_instance["finalZkeyPath"],
-      rln_instance["verificationKey"],
+      JSON.parse(rln_instance["verificationKey"]),
       BigInt(rln_instance["rlnIdentifier"]),
-      rln_instance["identity"] as Identity
+      rln_instance["identity"]
     )
   }
 }
