@@ -115,6 +115,31 @@ export default class Registry {
   }
 
   /**
+   * Adds a new member to the slahed registry.
+   * If a member exists in the registry, the member can't be added to the slashed.
+   * @param identityCommitment New member.
+   */
+  public addSlashedMember(identityCommitment: BigInt) {
+    if (this._slashed.indexOf(identityCommitment) !== -1) {
+      throw new Error("Member already in slashed registry.")
+    }
+    if (this._zeroValue === identityCommitment) {
+      throw new Error("Can't add zero value as member.")
+    }
+    this._slashed.insert(identityCommitment);
+  }
+
+  /**
+   * Adds new members to the slashed registry.
+   * @param identityCommitments New members.
+   */
+  public addSlashedMembers(identityCommitments: BigInt[]) {
+    for (const identityCommitment of identityCommitments) {
+      this.addSlashedMember(identityCommitment);
+    }
+  }
+
+  /**
   * Removes a member from the registry.
   * @param identityCommitment IdentityCommitment of the member to be removed.
   */
@@ -170,10 +195,18 @@ export default class Registry {
   }
 
   public async export(): Promise<string> {
-    return JSON.stringify(this)
+    return JSON.stringify({
+      "treeDepth": this._treeDepth,
+      "zeroValue": String(this._zeroValue),
+      "registry": this._registry.leaves.map((x) => String(x)),
+      "slashed": this._slashed.leaves.map((x) => String(x)),
+    })
   }
 
   public static async import(registry: string): Promise<Registry> {
-    return JSON.parse(registry) as Registry
+    const _temp_registry = new Registry(registry["treeDepth"], BigInt(registry["zeroValue"]))
+    _temp_registry.addMembers(registry["registry"].map((x) => BigInt(x)))
+    _temp_registry.addSlashedMembers(registry["slashed"].map((x) => BigInt(x)))
+    return _temp_registry
   }
 }
