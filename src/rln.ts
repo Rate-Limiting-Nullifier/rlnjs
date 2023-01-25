@@ -312,4 +312,24 @@ export default class RLN {
   // }
 
   // public decodeProofFromUint8Array(): RLN { }
+
+  public async export(): Promise<string> {
+    return JSON.stringify({
+      "identity": String(this.identity),
+      "rlnIdentifier": String(this.rlnIdentifier),
+      "verificationKey": this.verificationKey,
+      "wasmFilePath": this.wasmFilePath,
+      "finalZkeyPath": this.finalZkeyPath
+    })
+  }
+
+  public static async import(rln_instance: string): Promise<RLN> {
+    return new RLN(
+      rln_instance["wasmFilePath"],
+      rln_instance["finalZkeyPath"],
+      rln_instance["verificationKey"],
+      BigInt(rln_instance["rlnIdentifier"]),
+      rln_instance["identity"] as Identity
+    )
+  }
 }
