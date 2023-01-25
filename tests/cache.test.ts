@@ -43,11 +43,11 @@ describe("Cache", () => {
 
     const merkleProof3 = async () => await Registry.generateMerkleProof(20, BigInt(0), leaves, rln_instance3.commitment)
 
-    proof1 = await rln_instance.genProof(signal1, await merkleProof(), epoch1)
-    proof2 = await rln_instance.genProof(signal2, await merkleProof(), epoch1)
-    proof3 = await rln_instance2.genProof(signal2, await merkleProof2(), epoch1)
-    proof4 = await rln_instance2.genProof(signal2, await merkleProof2(), epoch2)
-    proof5 = await rln_instance3.genProof(signal1, await merkleProof3(), epoch1)
+    proof1 = await rln_instance.generateProof(signal1, await merkleProof(), epoch1)
+    proof2 = await rln_instance.generateProof(signal2, await merkleProof(), epoch1)
+    proof3 = await rln_instance2.generateProof(signal2, await merkleProof2(), epoch1)
+    proof4 = await rln_instance2.generateProof(signal2, await merkleProof2(), epoch2)
+    proof5 = await rln_instance3.generateProof(signal1, await merkleProof3(), epoch1)
   })
 
   test("should be an instance of Cache", async () => {
