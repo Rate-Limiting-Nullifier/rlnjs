@@ -47,7 +47,7 @@ describe("Registry", () => {
     describe("Add Members", () => {
         test("Should add many members to a group", async () => {
             const registry = new Registry()
-
+            // make test to do large batch insertions
             registry.addMembers([BigInt(1), BigInt(3)])
 
             expect(registry.members).toHaveLength(2)
