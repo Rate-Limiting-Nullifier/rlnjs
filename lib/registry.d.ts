@@ -54,6 +54,17 @@ export default class Registry {
     */
     slashMember(identityCommitment: BigInt): void;
     /**
+     * Adds a new member to the slahed registry.
+     * If a member exists in the registry, the member can't be added to the slashed.
+     * @param identityCommitment New member.
+     */
+    addSlashedMember(identityCommitment: BigInt): void;
+    /**
+     * Adds new members to the slashed registry.
+     * @param identityCommitments New members.
+     */
+    addSlashedMembers(identityCommitments: BigInt[]): void;
+    /**
     * Removes a member from the registry.
     * @param identityCommitment IdentityCommitment of the member to be removed.
     */
@@ -73,4 +84,6 @@ export default class Registry {
    * @returns The Merkle proof.
    */
     static generateMerkleProof(depth: number, zeroValue: StrBigInt, leaves: StrBigInt[], leaf: StrBigInt): Promise<MerkleProof>;
+    export(): Promise<string>;
+    static import(registry: string): Promise<Registry>;
 }

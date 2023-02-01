@@ -5,14 +5,14 @@ import { RLNFullProof, StrBigInt } from './types/rlnjs';
 RLN is a class that represents a single RLN identity.
 **/
 export default class RLN {
-    private wasmFilePath;
-    private finalZkeyPath;
+    wasmFilePath: string;
+    finalZkeyPath: string;
     verificationKey: Object;
     rlnIdentifier: bigint;
     identity: Identity;
     commitment: bigint;
     secretIdentity: bigint;
-    constructor(wasmFilePath: string, finalZkeyPath: string, verificationKey: Object, rlnIdentifier?: bigint, identity?: Identity);
+    constructor(wasmFilePath: string, finalZkeyPath: string, verificationKey: Object, rlnIdentifier?: bigint, identity?: string);
     /**
      * Generates an RLN Proof.
      * @param signal This is usually the raw message.
@@ -20,13 +20,27 @@ export default class RLN {
      * @param epoch This is the time component for the proof, if no epoch is set, unix epoch time rounded to 1 second will be used.
      * @returns The full SnarkJS proof.
      */
-    genProof(signal: string, merkleProof: MerkleProof, epoch?: StrBigInt): Promise<RLNFullProof>;
+    generateProof(signal: string, merkleProof: MerkleProof, epoch?: StrBigInt): Promise<RLNFullProof>;
+    /**
+     * Generates an RLN Proof.
+     * @param signal This is usually the raw message.
+     * @param merkleProof This is the merkle proof for the identity commitment.
+     * @param epoch This is the time component for the proof, if no epoch is set, unix epoch time rounded to 1 second will be used.
+     * @returns The full SnarkJS proof.
+     */
+    static generateProof(signal: string, merkleProof: MerkleProof, epoch: StrBigInt, rlnIdentifier: any, secretIdentity: any, wasmFilePath: string, finalZkeyPath: string, shouldHash?: boolean): Promise<RLNFullProof>;
     /**
      * Generates a SnarkJS full proof with Groth16.
      * @param witness The parameters for creating the proof.
      * @returns The full SnarkJS proof.
      */
     _genProof(witness: any): Promise<RLNFullProof>;
+    /**
+   * Generates a SnarkJS full proof with Groth16.
+   * @param witness The parameters for creating the proof.
+   * @returns The full SnarkJS proof.
+   */
+    static _genProof(witness: any, wasmFilePath: string, finalZkeyPath: string): Promise<RLNFullProof>;
     /**
      * Verifies a zero-knowledge SnarkJS proof.
      * @param fullProof The SnarkJS full proof.
@@ -93,4 +107,6 @@ export default class RLN {
      */
     static _genIdentifier(): bigint;
     static _bigintToUint8Array(input: bigint): Uint8Array;
+    export(): Promise<Object>;
+    static import(rln_instance: Object): Promise<RLN>;
 }
