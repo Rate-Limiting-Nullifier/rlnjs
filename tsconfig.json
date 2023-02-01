@@ -1,11 +1,9 @@
 {
   "compilerOptions": {
+    "rootDir": "./src",
     "outDir": "./lib/",
-    "target": "ES2017",
-    "module": "ES2020",
-    "lib": [
-      "es2017"
-    ],
+    "target": "ES6",
+    "module": "esnext",
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
@@ -15,7 +13,24 @@
     "inlineSources": true,
     "esModuleInterop": true,
     "declaration": true,
-    "moduleResolution": "Node"
+    "moduleResolution": "Node",
+    "typeRoots": [
+      "node_modules/@types",
+      "src/types",
+    ],
+    "paths": {
+      "ffjavascript": [
+        "./src/types/ffjavascript"
+      ],
+      "snarkjs": [
+        "./src/types/snarkjs"
+      ],
+    }
   },
-  "include": ["src", "tests"],
+  "include": [
+    "src",
+  ],
+  "exclude": [
+    "node_modules",
+  ]
 }

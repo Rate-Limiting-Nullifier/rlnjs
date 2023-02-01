@@ -1,8 +1,5 @@
 import { keccak256 } from "@ethersproject/solidity"
-import { IncrementalMerkleTree, MerkleProof } from "@zk-kit/incremental-merkle-tree"
-import { ZqField } from "ffjavascript"
-import { StrBigInt } from "./types"
-import poseidon from 'poseidon-lite'
+import { ZqField } from 'ffjavascript'
 
 /*
   This is the "Baby Jubjub" curve described here:
@@ -12,7 +9,6 @@ export const SNARK_FIELD_SIZE = BigInt("2188824287183927522224640574525727508854
 
 // Creates the finite field
 export const Fq = new ZqField(SNARK_FIELD_SIZE)
-
 
 /**
  * Generates an External Nullifier for use with RLN.
@@ -26,52 +22,4 @@ export function genExternalNullifier(plaintext: string): string {
   const h = hexStr.slice(2, len + 2)
 
   return `0x${h.padStart(len, "0")}`
-}
-
-/**
- * Creates a Merkle Tree.
- * @param depth The depth of the tree.
- * @param zeroValue The zero value of the tree.
- * @param leaves The list of the leaves of the tree.
- * @returns The Merkle tree.
- */
-export async function generateMerkleTree(depth: number, zeroValue: StrBigInt, leaves: StrBigInt[]): Promise<IncrementalMerkleTree> {
-  const tree = new IncrementalMerkleTree(poseidon, depth, zeroValue, 2)
-
-  for (const leaf of leaves) {
-    tree.insert(BigInt(leaf))
-  }
-
-  return tree
-}
-
-/**
- * Creates a Merkle Proof.
- * @param depth The depth of the tree.
- * @param zeroValue The zero value of the tree.
- * @param leaves The list of the leaves of the tree.
- * @param leaf The leaf for which Merkle proof should be created.
- * @returns The Merkle proof.
- */
-export async function generateMerkleProof(
-  depth: number,
-  zeroValue: StrBigInt,
-  leaves: StrBigInt[],
-  leaf: StrBigInt
-): Promise<MerkleProof> {
-  if (leaf === zeroValue) throw new Error("Can't generate a proof for a zero leaf")
-
-  const tree = await generateMerkleTree(depth, zeroValue, leaves)
-
-  const leafIndex = tree.leaves.indexOf(BigInt(leaf))
-
-  if (leafIndex === -1) {
-    throw new Error("The leaf does not exist")
-  }
-
-  const merkleProof = tree.createProof(leafIndex)
-
-  merkleProof.siblings = merkleProof.siblings.map((s) => s[0])
-
-  return merkleProof
 }

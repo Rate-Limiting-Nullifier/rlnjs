@@ -1,33 +1,23 @@
-
 // Imports
 import RLN from "./rln"
-
-import {
-  generateMerkleProof,
-  generateMerkleTree,
-  genExternalNullifier
-} from "./utils"
-
 import Registry from './registry'
-import poseidon from 'poseidon-lite'
+import Cache from './cache'
+import { genExternalNullifier } from "./utils"
 
-import { MerkleProof } from "@zk-kit/incremental-merkle-tree"
-
-// Exports
+// Exports for RLN
 export {
   RLN,
-  generateMerkleProof,
-  generateMerkleTree,
-  genExternalNullifier,
-  MerkleProof,
   Registry,
-  poseidon as hash
+  Cache,
+  genExternalNullifier
 }
 
-// Export Types
+
+
+// Export RLN types
 export {
   StrBigInt,
-  Proof,
   RLNFullProof,
+  Proof,
   RLNPublicSignals
-} from "./types"
+} from "./types/rlnjs"
