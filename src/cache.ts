@@ -65,6 +65,7 @@ export default class Cache {
     this.cache[_epoch][_nullifier] = this.cache[_epoch][_nullifier] || [];
 
     // Add proof to cache
+    // TODO! Check if this proof has already been added
     this.cache[_epoch][_nullifier].push(proof);
 
     // Check if there is more than 1 proof for this nullifier for this epoch
