@@ -75,11 +75,11 @@ The previous step should have produced the following files:
 
 ### Copy ZKeyFiles to Your Project
 
-Copy those files into the `zkeyFiles` folder in your project directory.
+Copy those files into the `zkeyFiles/rln` folder in your project directory.
 
 ### Add RLNjs to your project
 TODO! Change this path to the npm package once it is published
-`npm install "https://github.com/Rate-Limiting-Nullifier/rlnjs.git#refactor/v2" --save`
+`npm install "https://github.com/Rate-Limiting-Nullifier/rlnjs.git" --save`
 
 ## Usage
 
@@ -90,13 +90,13 @@ TODO! Change this path to the npm package once it is published
 ```js
 import { RLN } from "rlnjs"
 
-# This assumes you have built the circom circuits and placed them into the zkeyFiles folder
+// This assumes you have built the circom circuits and placed them into the zkeyFiles folder
 const vkeyPath = path.join("./zkeyFiles", "rln", "verification_key.json")
 const vKey = JSON.parse(fs.readFileSync(vkeyPath, "utf-8"))
 const wasmFilePath = path.join("./zkeyFiles", "rln", "rln.wasm")
 const finalZkeyPath = path.join("./zkeyFiles", "rln", "rln_final.zkey")
 
-# Instantiate RLN
+// Instantiate RLN
 const rln_instance = new RLN(wasmFilePath, finalZkeyPath, vKey)
 ```
 
@@ -105,7 +105,7 @@ const rln_instance = new RLN(wasmFilePath, finalZkeyPath, vKey)
 When an instance of RLNjs is initialized, it creates an identity commitment which you can access by calling `rln_instance.commitment`.
 
 ```js
-  # Example of accessing the generated identity commitment
+  // Example of accessing the generated identity commitment
   const identity = rln_instance.identity()
   const identityCommitment = rln_instance.commitment()
 ```
@@ -117,7 +117,7 @@ From the `rln_instance` you can generate a proof by calling `rln_instance.genera
 Using RLN Registry:
 ```js
 const epoch = genExternalNullifier("test-epoch")
-const signal "This is a test signal"
+const signal = "This is a test signal"
 const merkleProof = await registry_instance.generateMerkleProof(rln_instance.commitment) // Read more about creating a registry_instance below
 const proof = rln_instance.generateProof(signal, merkleProof, epoch)
 ```
@@ -127,7 +127,7 @@ Without RLN Registry:
 const tree_depth = 20
 const zeroValue = BigInt(0)
 const epoch = BigInt(Math.floor(Date.now() / 1000)) // This epoch example is the nearest second
-const signal "This is a test signal" // Example Message
+const signal = "This is a test signal" // Example Message
 const leaves = [] // Array of identity commitments
 const merkleProof = await Registry.generateMerkleProof(tree_depth, zeroValue, leaves, rln_instance.commitment)
 const proof = rln_instance.generateProof(signal, merkleProof, epoch)
@@ -138,7 +138,7 @@ Without RLN Registry or an RLN Instance:
 const tree_depth = 20
 const zeroValue = BigInt(0)
 const epoch = BigInt(Math.floor(Date.now() / 1000)) // This epoch example is the nearest second
-const signal "This is a test signal" // Example Message
+const signal = "This is a test signal" // Example Message
 const leaves = [] // Array of identity commitments
 const merkleProof = await Registry.generateMerkleProof(tree_depth, zeroValue, leaves, identityCommitment)
 const proof = RLN.generateProof(signal, merkleProof, epoch)
