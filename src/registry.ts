@@ -2,7 +2,7 @@ import {
   IncrementalMerkleTree, MerkleProof,
 } from "@zk-kit/incremental-merkle-tree";
 import poseidon from 'poseidon-lite'
-import { StrBigInt } from './types/rlnjs';
+import { StrBigInt } from './types';
 
 export default class Registry {
   private _registry: IncrementalMerkleTree;

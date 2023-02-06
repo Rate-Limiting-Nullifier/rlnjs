@@ -2,13 +2,13 @@ import { hexlify } from '@ethersproject/bytes';
 import { keccak256 } from '@ethersproject/solidity';
 import { toUtf8Bytes } from '@ethersproject/strings';
 import { MerkleProof } from '@zk-kit/incremental-merkle-tree';
-import { groth16 } from 'snarkjs';
+const { groth16 } = require("snarkjs");
 import { Fq } from './utils';
 import poseidon from 'poseidon-lite'
 import { Identity } from '@semaphore-protocol/identity';
 
 // Types
-import { RLNFullProof, StrBigInt } from './types/rlnjs';
+import { RLNFullProof, StrBigInt } from './types';
 
 /**
 RLN is a class that represents a single RLN identity.
@@ -30,11 +30,13 @@ export default class RLN {
 
     this.identity = identity ? new Identity(identity) : new Identity()
     this.commitment = this.identity.getCommitment()
-    this._getSecretHash().then((secretHash) => {
-      this.secretIdentity = secretHash
-    })
+    this.secretIdentity = poseidon([
+      this.identity.getNullifier(),
+      this.identity.getTrapdoor()
+    ])
     console.info(`RLN identity commitment created: ${this.commitment}`)
   }
+
 
   /**
    * Generates an RLN Proof.
@@ -195,12 +197,6 @@ export default class RLN {
       epoch,
       rln_identifier: this.rlnIdentifier
     };
-  }
-
-  private async _getSecretHash(): Promise<bigint> {
-    const nullifier = this.identity.getNullifier()
-    const trapdoor = this.identity.getTrapdoor()
-    return poseidon([nullifier, trapdoor])
   }
 
   /**

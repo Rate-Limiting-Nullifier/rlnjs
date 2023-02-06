@@ -12,12 +12,10 @@ export {
   genExternalNullifier
 }
 
-
-
 // Export RLN types
 export {
   StrBigInt,
   RLNFullProof,
   Proof,
   RLNPublicSignals
-} from "./types/rlnjs"
+} from "./types"
