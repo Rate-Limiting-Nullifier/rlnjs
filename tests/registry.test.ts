@@ -115,10 +115,11 @@ describe("Registry", () => {
         })
     })
 
-    test.skip("Should export/import to json", async () => {
+    test("Should export/import to json", async () => {
         const registry_json_test = new Registry()
         registry_json_test.addMembers([BigInt(1), BigInt(2)])
         const json = await registry_json_test.export()
+        console.debug(json)
         const registry_from_json = await Registry.import(json)
         expect(registry_from_json.members).toHaveLength(2)
         expect(registry_from_json.root).toEqual(registry_json_test.root)

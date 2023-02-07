@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "rootDir": "./src",
+  "outDir": "./dist",
+  "files": [
+    "src/index.ts",
+  ]
+}

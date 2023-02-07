@@ -1,8 +1,5 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
-    "rootDir": "./src",
-    "outDir": "./dist/",
     "target": "ES6",
     "module": "esnext",
     "moduleResolution": "nodenext",
@@ -32,8 +29,5 @@
         "./src/types/snarkjs"
       ],
     }
-  },
-  "files": [
-    "src/index.ts",
-  ]
+  }
 }

@@ -75,7 +75,7 @@ describe("RLN", () => {
       expect(retrievedSecret).toEqual(rln_instance.secretIdentity)
     })
 
-    test.skip("Should generate and verify RLN proof", async () => {
+    test("Should generate and verify RLN proof", async () => {
       const leaves = Object.assign([], identityCommitments)
       leaves.push(rln_instance.commitment)
 
@@ -91,7 +91,7 @@ describe("RLN", () => {
       expect(response).toBe(true)
     }, 30000)
 
-    test.skip("Should retrieve user secret using full proofs", async () => {
+    test("Should retrieve user secret using full proofs", async () => {
       const leaves = Object.assign([], identityCommitments)
       leaves.push(rln_instance.commitment)
 

@@ -11,7 +11,8 @@
   },
   "scripts": {
     "build": "rollup --config rollup.config.mjs",
-    "tests": "jest"
+    "test": "jest",
+    "test:debug": "jest --silent=false"
   },
   "keywords": [
     "rln",
@@ -26,10 +27,10 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "./dist/rln.js",
-  "types": "dist/rln.d.ts",
+  "main": "./dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
-    "import": "./dist/rln.js"
+    "import": "./dist/index.js"
   },
   "directories": {
     "dist": "./dist",

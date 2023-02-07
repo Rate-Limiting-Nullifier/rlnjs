@@ -14,7 +14,7 @@ export default {
         './dist/'
       ]
     }),
-    typescript(/*{ plugin options }*/),
+    typescript({tsconfig: 'tsconfig.build.json'}),
     visualizer({
       emitFile: true,
       filename: "stats.html",
