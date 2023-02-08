@@ -3,7 +3,6 @@
 # Clone rln-circuits and build params
 #
 
-default_rln_merkle_tree_depth=15
 rlnjs_merkle_tree_depth=20
 install_circom_script='./scripts/install-circom.sh'
 
@@ -37,7 +36,7 @@ git clone $rln_circuits_repo_url $rln_circuits_repo
 cd $rln_circuits_repo
 git checkout $rln_circuits_version
 # Change the default merkle tree depth of the circuit
-sed -i.bak "s/RLN(${default_rln_merkle_tree_depth})/RLN(${rlnjs_merkle_tree_depth})/" $rln_circuits_relative_path
+sed -i.bak "s/RLN([1-9][0-9]*)/RLN(${rlnjs_merkle_tree_depth})/" $rln_circuits_relative_path
 # Install the deps and the project
 npm install
 # Replace "snarkjs" with "npx snarkjs" to use the locally installed snarkjs
