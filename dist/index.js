@@ -460,19 +460,24 @@ class Registry {
     }
     export() {
         return __awaiter(this, void 0, void 0, function* () {
-            return JSON.stringify({
+            console.debug("Exporting: ");
+            const out = JSON.stringify({
                 "treeDepth": this._treeDepth,
                 "zeroValue": String(this._zeroValue),
                 "registry": this._registry.leaves.map((x) => String(x)),
                 "slashed": this._slashed.leaves.map((x) => String(x)),
             });
+            console.debug(out);
+            return out;
         });
     }
     static import(registry) {
         return __awaiter(this, void 0, void 0, function* () {
-            const _temp_registry = new Registry(registry["treeDepth"], BigInt(registry["zeroValue"]));
-            _temp_registry.addMembers(registry["registry"].map((x) => BigInt(x)));
-            _temp_registry.addSlashedMembers(registry["slashed"].map((x) => BigInt(x)));
+            const _registryObject = JSON.parse(registry);
+            console.debug(_registryObject);
+            const _temp_registry = new Registry(_registryObject['treeDepth'], BigInt(_registryObject['zeroValue']));
+            _temp_registry.addMembers(_registryObject["registry"].map((x) => BigInt(x)));
+            _temp_registry.addSlashedMembers(_registryObject["slashed"].map((x) => BigInt(x)));
             return _temp_registry;
         });
     }
