@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "target": "ES6",
-    "module": "esnext",
-    "moduleResolution": "nodenext",
+    "target": "ES5",
+    "module": "ES6",
+    "moduleResolution": "node",
     "allowJs": true,
     "allowSyntheticDefaultImports": true,
     "noUnusedLocals": true,

@@ -4,11 +4,16 @@
   "description": "Client library for generating and using RLN ZK proofs.",
   "license": "MIT",
   "repository": "https://github.com/Rate-Limiting-Nullifier/rlnjs",
-  "homepage": "https://github.com/Rate-Limiting-Nullifier/",
+  "homepage": "https://github.com/Rate-Limiting-Nullifier/rlnjs",
   "author": {
     "name": "AtHeartEngineer",
     "email": "atheartengineer@gmail.com"
   },
+  "contributors": [
+    {"name": "Mai-Hsuan (Kevin) Chia"},
+    {"name":"bdim1"},
+    {"name": "Seohee Park"}
+  ],
   "scripts": {
     "build": "rollup --config rollup.config.mjs",
     "test": "jest",
@@ -28,9 +33,12 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "./dist/index.js",
+  "main": "./dist/index.node.js",
   "types": "dist/index.d.ts",
-  "exports": "./dist/index.js",
+  "exports": {
+    "import": "./dist/index.mjs",
+    "require": "./dist/index.node.js"
+},
   "directories": {
     "dist": "./dist",
     "src": "./src",
@@ -39,6 +47,7 @@
   "files": [
     "dist/",
     "src/",
+    "LICENSE",
     "README.md"
   ],
   "dependencies": {
