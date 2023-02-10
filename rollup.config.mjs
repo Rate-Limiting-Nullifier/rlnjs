@@ -6,7 +6,7 @@ import { visualizer } from "rollup-plugin-visualizer";
 export default {
   input: 'src/index.ts',
   output: {
-    file: 'dist/rln.js'
+    file: 'dist/index.js'
   },
   plugins: [
     cleaner({
