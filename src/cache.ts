@@ -14,7 +14,7 @@ export enum Status {
 export type EvaluatedProof = {
   status: Status,
   nullifier?: StrBigInt,
-  secret?: StrBigInt,
+  secret?: BigInt,
   msg?: string,
 }
 
