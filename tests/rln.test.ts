@@ -1,7 +1,7 @@
 import { Identity } from '@semaphore-protocol/identity'
 import * as fs from "fs"
 import * as path from "path"
-import { Registry, RLN } from "../src"
+import { Registry, RLN  } from "../src"
 import { genExternalNullifier } from "../src/utils"
 
 jest.setTimeout(60000)
@@ -84,6 +84,15 @@ describe("RLN", () => {
       const merkleProof = async () => await Registry.generateMerkleProof(20, BigInt(0), leaves, rln_instance.commitment)
 
       const fullProof = await rln_instance.generateProof(signal, await merkleProof(), epoch)
+      const proof = fullProof.proof
+      // const pi_a = proof.pi_a
+      const pi_b = proof.pi_b
+      // const pi_b_g2 = bn128.G2.fromRprCompressed(pi_b, 0)
+      // const pi_c = proof.pi_c
+      for (let i = 0; i < pi_b.length; i++) {
+        console.log(`!@# pi_b[${i}] = `, pi_b[i])
+      }
+      console.log("!@# fullProof=", fullProof);
       expect(typeof fullProof).toBe("object")
 
       const response = await rln_instance.verifyProof(fullProof)

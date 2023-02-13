@@ -9,6 +9,7 @@ import { Identity } from '@semaphore-protocol/identity';
 
 // Types
 import { RLNFullProof, StrBigInt } from './types';
+import { instantiateBn254, deserializeJSRLNProof, serializeJSRLNProof } from './waku';
 
 /**
 RLN is a class that represents a single RLN identity.
@@ -328,5 +329,15 @@ export default class RLN {
       BigInt(rln_instance["rlnIdentifier"]),
       rln_instance["identity"]
     )
+  }
+
+  public static async fromJSRLNProof(bytes: Uint8Array): Promise<RLNFullProof> {
+    const bn254 = await instantiateBn254();
+    return deserializeJSRLNProof(bn254, bytes);
+  }
+
+  public static async toJSRLNProof(rlnFullProof: RLNFullProof): Promise<Uint8Array> {
+    const bn254 = await instantiateBn254();
+    return serializeJSRLNProof(bn254, rlnFullProof);
   }
 }
