@@ -1,6 +1,10 @@
+/**
+ * This module contains code to [de]serialize SNARK proof (groth16 w/ bn254 curve) in the
+ * js-rln format. ffjavascript is used under the hood since it compresses points in the
+ * same way as js-rln (ark-serialize underneath).
+ */
 import { utils, buildBn128 } from 'ffjavascript';
 import { Proof, RLNFullProof, RLNPublicSignals, StrBigInt } from './types';
-
 
 const SNARKJS_PROTOCOL = "groth16";
 const SNARKJS_CURVE = "bn128";
@@ -43,6 +47,9 @@ type EngineT = {
 type CurveT = any;
 
 
+export const errInvalidCompression = new Error("invalid compression");
+
+
 export async function instantiateBn254(): Promise<EngineT> {
     return await buildBn128(undefined, undefined);
 }
@@ -52,17 +59,53 @@ export async function instantiateBn254(): Promise<EngineT> {
 // [de]serialization of bigint (field elements)
 //
 
+/**
+ * Serializes a field element into a Uint8Array.
+ * @param field Field element to serialize.
+ * @returns Serialized field element.
+ */
 export function serializeFieldLE(field: bigint): Uint8Array {
     return utils.leInt2Buff(field, SIZE_FIELD);
 }
 
+/**
+ * Deserializes a field element from a Uint8Array.
+ * @param bytesLE Serialized field element.
+ * @returns Deserialized field element.
+ */
 function deserializeFieldLE(bytesLE: Uint8Array): bigint {
     return utils.leBuff2int(bytesLE);
 }
 
 
+/**
+ * Flag bits used in point compression.
+ */
+export enum PointCompressionFlags {
+    // `y` is the greatest square root of `y^2 = x^3 + 3` given a `x`.
+    isGreatestRoot = 1 << 7,
+    // the point is at infinity, i.e. zero.
+    isInfinity = 1 << 6,
+}
+
+
+// 4 possible cases for (isGreatestRoot, isInfinity)
+// (0, 0): valid, it's not the greatest root
+// (0, 1): valid, it's 0
+// (1, 0): valid, the greatest root
+// (1, 1): invalid, ref: https://github.com/arkworks-rs/algebra/blob/6292e0c7ac49c6b7bd34fee5ecfc9dd57b1c28d4/serialize/src/flags.rs#L129-L131
+function isCompressionValid(bytes: Uint8Array) {
+    // little-endian
+    const largestByte = bytes[bytes.length - 1];
+    const flagGreatestRoot = largestByte & PointCompressionFlags.isGreatestRoot;
+    const flagInfinity = largestByte & PointCompressionFlags.isInfinity;
+    // only invalid when both flags are set
+    return (flagGreatestRoot === 0 || flagInfinity === 0);
+}
+
+
 //
-// [de]serialization of points. It can be used for G1 and G2
+// [de]serialization of points. Can be used for both G1 and G2
 //
 
 function serializePointCompressed(curve: CurveT, point: any, sizeCompressed: number): Uint8Array {
@@ -82,6 +125,9 @@ function deserializePointCompressed(curve: CurveT, bytesLE: Uint8Array, sizeComp
             `bytesLE.length=${bytesLE.length}, sizeCompressed=${sizeCompressed}`
         );
     }
+    if (!isCompressionValid(bytesLE)) {
+        throw errInvalidCompression;
+    }
     // Convert to big-endian which is the format used by the curve API
     const bytesBE = bytesLE.reverse();
     const uncompressed = curve.fromRprCompressed(bytesBE, 0);
@@ -89,32 +135,56 @@ function deserializePointCompressed(curve: CurveT, bytesLE: Uint8Array, sizeComp
 }
 
 
-// [de]serialization of G1
-
-function serializeG1LECompressed(engine: EngineT, point: StrBigInt[]): Uint8Array {
+/**
+ * Serializes a G1 point in the js-rln format (little-endian, compressed, 32 bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param point G1 point to serialize.
+ * @returns Serialized G1 point.
+ */
+export function serializeG1LECompressed(engine: EngineT, point: StrBigInt[]): Uint8Array {
     return serializePointCompressed(engine.G1, point, SIZE_BN254_G1_COMPRESSED);
 }
 
-
-function deserializeG1LECompressed(engine: EngineT, bytesLE: Uint8Array): string[] {
+/**
+ * Deserializes a G1 point in the js-rln format (little-endian, compressed, 32 bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param bytesLE Serialized G1 point.
+ * @returns Deserialized G1 point.
+ */
+export function deserializeG1LECompressed(engine: EngineT, bytesLE: Uint8Array): string[] {
     return deserializePointCompressed(engine.G1, bytesLE, SIZE_BN254_G1_COMPRESSED);
 }
 
 
-//
-// [de]serialization of G2
-//
-
-function serializeG2LECompressed(engine: EngineT, point: StrBigInt[][]): Uint8Array {
+/**
+ * Serializes a G2 point in the js-rln format (little-endian, compressed, 64 bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param point G2 point to serialize.
+ * @returns Serialized G2 point.
+ */
+export function serializeG2LECompressed(engine: EngineT, point: StrBigInt[][]): Uint8Array {
     return serializePointCompressed(engine.G2, point, SIZE_BN254_G2_COMPRESSED);
 }
 
 
-function deserializeG2LECompressed(engine: EngineT, bytesLE: Uint8Array): (string[])[] {
+/**
+ * Deserializes a G2 point in the js-rln format (little-endian, compressed, 64 bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param bytesLE Serialized G2 point.
+ * @returns Deserialized G2 point.
+ */
+export function deserializeG2LECompressed(engine: EngineT, bytesLE: Uint8Array): (string[])[] {
     return deserializePointCompressed(engine.G2, bytesLE, SIZE_BN254_G2_COMPRESSED);
 }
 
 
+/**
+ * Serialize a SNARK proof: pi_a (G1), pi_b (G2), and pi_c (G1) in the js-rln format
+ * (little-endian, compressed, 128 (=32+64+32) bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param snarkProof SNARK proof to serialize.
+ * @returns Serialized SNARK proof.
+ */
 function serializeSNARKProof(engine: EngineT, snarkProof: Proof): Uint8Array {
     const piABytes = serializeG1LECompressed(engine, snarkProof.pi_a);
     const piBBytes = serializeG2LECompressed(engine, snarkProof.pi_b);
@@ -123,9 +193,16 @@ function serializeSNARKProof(engine: EngineT, snarkProof: Proof): Uint8Array {
 }
 
 
+/**
+ * Deserialize a SNARK proof: pi_a (G1), pi_b (G2), and pi_c (G1) in the js-rln format
+ * (little-endian, compressed, 128 (=32+64+32) bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param snarkProof Serialized SNARK proof.
+ * @returns Deserialized SNARK proof.
+ */
 function deserializeSNARKProof(engine: EngineT, snarkProof: Uint8Array): Proof {
     if (snarkProof.length !== SIZE_SNARK_PROOF) {
-      throw new Error('Invalid snark proof size');
+      throw new Error('invalid snark proof size');
     }
     const offsetPiA = 0
     const offsetPiB = offsetPiA + SIZE_BN254_G1_COMPRESSED
@@ -142,34 +219,13 @@ function deserializeSNARKProof(engine: EngineT, snarkProof: Uint8Array): Proof {
     };
   }
 
-export function deserializeJSRLNProof(engine: EngineT, bytes: Uint8Array): RLNFullProof {
-    if (bytes.length !== SIZE_JS_RLN_PROOF) {
-        throw new Error('Invalid proof size');
-    }
-    const snarkProof = deserializeSNARKProof(engine, bytes.slice(OFFSET_SNARK_PROOF, OFFSET_SHARE_Y));
-    const shareY = deserializeFieldLE(bytes.slice(OFFSET_SHARE_Y, OFFSET_NULLIFIER));
-    const nullifier = deserializeFieldLE(bytes.slice(OFFSET_NULLIFIER, OFFSET_MERKLE_ROOT));
-    const merkleRoot = deserializeFieldLE(bytes.slice(OFFSET_MERKLE_ROOT, OFFSET_EPOCH));
-    const epoch = deserializeFieldLE(bytes.slice(OFFSET_EPOCH, OFFSET_SHARE_X));
-    const shareX = deserializeFieldLE(bytes.slice(OFFSET_SHARE_X, OFFSET_RLN_NULLIFIER));
-    const rlnIdentifier = deserializeFieldLE(bytes.slice(OFFSET_RLN_NULLIFIER, OFFSET_RLN_NULLIFIER + SIZE_FIELD));
 
-    console.log(`epoch = ${epoch}, merkleRoot = ${merkleRoot}, nullifier = ${nullifier}, rlnIdentifier = ${rlnIdentifier}, shareX = ${shareX}, shareY = ${shareY}`);
-
-    const publicSignals: RLNPublicSignals = {
-      yShare: shareY,
-      merkleRoot,
-      internalNullifier: nullifier,
-      signalHash: shareX,
-      epoch: epoch,
-      rlnIdentifier,
-    }
-    return {
-      proof: snarkProof,
-      publicSignals,
-    };
-}
-
+/**
+ * Serialize a RLNFullProof (SNARK proof w/ public signals) in the js-rln format (little-endian, compressed, 320 bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param proof RLNFullProof to serialize.
+ * @returns Serialized RLNFullProof.
+ */
 export function serializeJSRLNProof(engine: EngineT, proof: RLNFullProof): Uint8Array {
     const snarkProofBytes = serializeSNARKProof(engine, proof.proof);
     const shareYBytes = serializeFieldLE(BigInt(proof.publicSignals.yShare));
@@ -187,4 +243,36 @@ export function serializeJSRLNProof(engine: EngineT, proof: RLNFullProof): Uint8
         ...shareXBytes,
         ...rlnIdentifierBytes,
     ]);
+}
+
+
+/**
+ * Deserialize a RLNFullProof (SNARK proof w/ public signals) in the js-rln format (little-endian, compressed, 320 bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param bytes Serialized RLNFullProof.
+ * @returns Deserialized RLNFullProof.
+ */
+export function deserializeJSRLNProof(engine: EngineT, bytes: Uint8Array): RLNFullProof {
+    if (bytes.length !== SIZE_JS_RLN_PROOF) {
+        throw new Error('invalid RLN full proof size');
+    }
+    const snarkProof = deserializeSNARKProof(engine, bytes.slice(OFFSET_SNARK_PROOF, OFFSET_SHARE_Y));
+    const shareY = deserializeFieldLE(bytes.slice(OFFSET_SHARE_Y, OFFSET_NULLIFIER));
+    const nullifier = deserializeFieldLE(bytes.slice(OFFSET_NULLIFIER, OFFSET_MERKLE_ROOT));
+    const merkleRoot = deserializeFieldLE(bytes.slice(OFFSET_MERKLE_ROOT, OFFSET_EPOCH));
+    const epoch = deserializeFieldLE(bytes.slice(OFFSET_EPOCH, OFFSET_SHARE_X));
+    const shareX = deserializeFieldLE(bytes.slice(OFFSET_SHARE_X, OFFSET_RLN_NULLIFIER));
+    const rlnIdentifier = deserializeFieldLE(bytes.slice(OFFSET_RLN_NULLIFIER, OFFSET_RLN_NULLIFIER + SIZE_FIELD));
+    const publicSignals: RLNPublicSignals = {
+      yShare: shareY,
+      merkleRoot,
+      internalNullifier: nullifier,
+      signalHash: shareX,
+      epoch: epoch,
+      rlnIdentifier,
+    }
+    return {
+      proof: snarkProof,
+      publicSignals,
+    };
 }
