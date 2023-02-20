@@ -1,7 +1,7 @@
 import { Identity } from '@semaphore-protocol/identity'
 import * as fs from "fs"
 import * as path from "path"
-import { Registry, RLN } from "../src"
+import { Registry, RLN  } from "../src"
 import { genExternalNullifier } from "../src/utils"
 
 jest.setTimeout(60000)
