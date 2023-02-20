@@ -5,6 +5,7 @@
  */
 import { utils, buildBn128 } from 'ffjavascript';
 import { Proof, RLNFullProof, RLNPublicSignals, StrBigInt } from './types';
+import { concatUint8Arrays } from './utils';
 
 const SNARKJS_PROTOCOL = "groth16";
 const SNARKJS_CURVE = "bn128";
@@ -189,7 +190,7 @@ function serializeSNARKProof(engine: EngineT, snarkProof: Proof): Uint8Array {
     const piABytes = serializeG1LECompressed(engine, snarkProof.pi_a);
     const piBBytes = serializeG2LECompressed(engine, snarkProof.pi_b);
     const piCBytes = serializeG1LECompressed(engine, snarkProof.pi_c);
-    return new Uint8Array([...piABytes, ...piBBytes, ...piCBytes]);
+    return concatUint8Arrays(piABytes, piBBytes, piCBytes);
 }
 
 
@@ -234,15 +235,15 @@ export function serializeJSRLNProof(engine: EngineT, proof: RLNFullProof): Uint8
     const epochBytes = serializeFieldLE(BigInt(proof.publicSignals.epoch));
     const shareXBytes = serializeFieldLE(BigInt(proof.publicSignals.signalHash));
     const rlnIdentifierBytes = serializeFieldLE(BigInt(proof.publicSignals.rlnIdentifier));
-    return new Uint8Array([
-        ...snarkProofBytes,
-        ...shareYBytes,
-        ...nullifierBytes,
-        ...merkleRootBytes,
-        ...epochBytes,
-        ...shareXBytes,
-        ...rlnIdentifierBytes,
-    ]);
+    return concatUint8Arrays(
+        snarkProofBytes,
+        shareYBytes,
+        nullifierBytes,
+        merkleRootBytes,
+        epochBytes,
+        shareXBytes,
+        rlnIdentifierBytes,
+    );
 }
 
 
