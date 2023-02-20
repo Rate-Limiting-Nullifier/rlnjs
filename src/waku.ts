@@ -15,7 +15,7 @@ const SIZE_BN254_G2_COMPRESSED = 64;
 const SIZE_FIELD = 32;
 
 //
-// JS RLN Proof layout
+// JS RLN Proof layout, ref: https://github.com/waku-org/js-rln/blob/d77370fbece089fb45fa99ad8f2988c0cc9cf0ff/src/rln.ts#L103
 //  - snark_proof<128> | share_y<32> | nullifier<32> | root<32> | epoch<32> | share_x<32> | rln_identifier<32>
 // snark_proof<128>: G1<32>, G2<64>, G1<32>
 const SIZE_SNARK_PROOF = SIZE_BN254_G1_COMPRESSED + SIZE_BN254_G2_COMPRESSED + SIZE_BN254_G1_COMPRESSED
