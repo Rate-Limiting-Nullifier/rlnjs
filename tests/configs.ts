@@ -1,9 +1,20 @@
 import * as path from "path"
-import * as fs from "fs"
 
 
-const zkeyFiles = "./zkeyFiles"
-const vkeyPath = path.join(zkeyFiles, "rln", "verification_key.json")
-export const vKey = JSON.parse(fs.readFileSync(vkeyPath, "utf-8"))
-export const wasmFilePath = path.join(zkeyFiles, "rln", "rln.wasm")
-export const finalZkeyPath = path.join(zkeyFiles, "rln", "rln_final.zkey")
+const thisFileDirname = __dirname
+
+
+function getParamsPath(paramsDir: string) {
+    return {
+        vkeyPath: path.join(paramsDir, "verification_key.json"),
+        wasmFilePath: path.join(paramsDir, "rln.wasm"),
+        finalZkeyPath: path.join(paramsDir, "rln_final.zkey"),
+    }
+}
+
+
+const defaultParamsDirname = path.join(thisFileDirname, "..", "zkeyFiles", "rln");
+const jsRLNParamsDirname = path.join(thisFileDirname, "..", "zkeyFiles", "js-rln");
+
+export const defaultParamsPath = getParamsPath(defaultParamsDirname)
+export const jsRLNParamsPath = getParamsPath(jsRLNParamsDirname)

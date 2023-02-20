@@ -1,9 +1,9 @@
 // import * as rln from "../node_modules/@waku/rln/dist/index.js";
 // import * as rln from "@waku/rln";
+import * as fs from "fs";
 import { RLN, RLNFullProof } from "../src";
 import { deserializeG1LECompressed, deserializeG2LECompressed, errInvalidCompression, instantiateBn254, PointCompressionFlags, serializeG1LECompressed, serializeG2LECompressed } from "../src/waku";
-
-import { vKey, wasmFilePath, finalZkeyPath } from "./configs";
+import { jsRLNParamsPath } from "./configs";
 
 
 describe("points [de]serialization with compression in little-endian", () => {
@@ -102,7 +102,8 @@ describe("js-rln proof [de]serialization", () => {
 //
 
 function rlnInstanceFactory () {
-  return new RLN(wasmFilePath, finalZkeyPath, vKey)
+  const vKey = JSON.parse(fs.readFileSync(jsRLNParamsPath.vkeyPath, "utf-8"))
+  return new RLN(jsRLNParamsPath.wasmFilePath, jsRLNParamsPath.finalZkeyPath, vKey)
 }
 
 

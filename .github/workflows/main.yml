@@ -36,7 +36,7 @@ jobs:
         # Since the version of circom is specified in `scripts/install-circom.sh`,
         # as long as the file doesn't change we can reuse the circom binary.
         key: ${{ runner.os }}-${{ matrix.node-version }}-circom-${{ hashFiles('./scripts/install-circom.sh') }}
-    - name: Cache zkeyFiles
+    - name: Cache built zkeyFiles
       id: cache-zkeyFiles
       uses: actions/cache@v3
       with:
@@ -44,6 +44,16 @@ jobs:
         # Since the version of rln-circuits is specified in `scripts/build-zkeys.sh`,
         # as long as the file doesn't change we can reuse the zkeyFiles.
         key: ${{ runner.os }}-${{ matrix.node-version }}-zkeyFiles-${{ hashFiles('./scripts/build-zkeys.sh') }}
+    - name: Cache cloned js-rln zkeyFiles
+      id: cache-js-rln-zkeyFiles
+      uses: actions/cache@v3
+      with:
+        path: ./zkeyFiles/js-rln
+        # Since the version of js-rln is specified in `scripts/clone-js-rln-zkeys.sh`,
+        # as long as the file doesn't change we can reuse the zkeyFiles from js-rln.
+        key: ${{ runner.os }}-${{ matrix.node-version }}-zkeyFiles-${{ hashFiles('./scripts/clone-js-rln-zkeys.sh') }}
     - name: Build circuit params
       run: ./scripts/build-zkeys.sh
+    - name: Clone js-rln params
+      run: ./scripts/clone-js-rln-zkeys.sh
     - run: npm test
