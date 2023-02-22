@@ -7,3 +7,4 @@ export declare const Fq: ZqField;
  * @returns External Nullifier in a string.
  */
 export declare function genExternalNullifier(plaintext: string): string;
+export declare function concatUint8Arrays(...arrays: Uint8Array[]): Uint8Array;

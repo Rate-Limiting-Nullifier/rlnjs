@@ -41,7 +41,7 @@ export default class Cache {
     private evaluateNullifierAtEpoch;
     private evaluateEpoch;
     private removeEpoch;
-    export(): Promise<string>;
-    static import(cache: string): Promise<Cache>;
+    export(): string;
+    static import(cache: string): Cache;
 }
 export {};

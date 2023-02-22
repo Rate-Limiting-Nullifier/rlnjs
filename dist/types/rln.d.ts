@@ -28,7 +28,7 @@ export default class RLN {
      * @param epoch This is the time component for the proof, if no epoch is set, unix epoch time rounded to 1 second will be used.
      * @returns The full SnarkJS proof.
      */
-    static generateProof(signal: string, merkleProof: MerkleProof, epoch: StrBigInt, rlnIdentifier: any, secretIdentity: any, wasmFilePath: string, finalZkeyPath: string, shouldHash?: boolean): Promise<RLNFullProof>;
+    static generateProof(signal: string, merkleProof: MerkleProof, epoch: StrBigInt, rlnIdentifier: bigint, secretIdentity: any, wasmFilePath: string, finalZkeyPath: string, shouldHash?: boolean): Promise<RLNFullProof>;
     /**
      * Generates a SnarkJS full proof with Groth16.
      * @param witness The parameters for creating the proof.
@@ -38,6 +38,8 @@ export default class RLN {
     /**
    * Generates a SnarkJS full proof with Groth16.
    * @param witness The parameters for creating the proof.
+   * @param wasmFilePath The path to the wasm file.
+   * @param finalZkeyPath The path to the final zkey file.
    * @returns The full SnarkJS proof.
    */
     static _genProof(witness: any, wasmFilePath: string, finalZkeyPath: string): Promise<RLNFullProof>;
@@ -46,7 +48,7 @@ export default class RLN {
      * @param fullProof The SnarkJS full proof.
      * @returns True if the proof is valid, false otherwise.
      */
-    verifyProof(this: any, { proof, publicSignals }: RLNFullProof): Promise<boolean>;
+    verifyProof({ proof, publicSignals }: RLNFullProof): Promise<boolean>;
     /**
    * Verifies a zero-knowledge SnarkJS proof.
    * @param fullProof The SnarkJS full proof.
@@ -68,16 +70,16 @@ export default class RLN {
      * @param epoch epoch on which signal is broadcasted
      * @param rlnIdentifier unique identifier of rln dapp
      * @param signalHash signal hash
-     * @returns y_share (share) & slashing nullfier
+     * @returns y_share (share) & slashing nullifier
      */
-    _calculateOutput(epoch: bigint, signalHash: bigint): Promise<bigint[]>;
+    _calculateOutput(epoch: bigint, signalHash: bigint): bigint[];
     /**
      *
      * @param a1 y = a1 * signalHash + a0 (a1 = poseidon(identity secret, epoch, rlnIdentifier))
      * @param rlnIdentifier unique identifier of rln dapp
      * @returns rln slashing nullifier
      */
-    static _genNullifier(a1: bigint, rlnIdentifier: bigint): Promise<bigint>;
+    static _genNullifier(a1: bigint, rlnIdentifier: bigint): bigint;
     /**
      * Hashes a signal string with Keccak256.
      * @param signal The RLN signal.
@@ -99,13 +101,15 @@ export default class RLN {
      * @param proof2 x2
      * @returns identity secret
      */
-    static retreiveSecret(proof1: RLNFullProof, proof2: RLNFullProof): bigint;
+    static retrieveSecret(proof1: RLNFullProof, proof2: RLNFullProof): bigint;
     /**
      *
      * @returns unique identifier of the rln dapp
      */
     static _genIdentifier(): bigint;
     static _bigintToUint8Array(input: bigint): Uint8Array;
-    export(): Promise<Object>;
-    static import(rln_instance: Object): Promise<RLN>;
+    export(): Object;
+    static import(rln_instance: Object): RLN;
+    static fromJSRLNProof(bytes: Uint8Array): Promise<RLNFullProof>;
+    static toJSRLNProof(rlnFullProof: RLNFullProof): Promise<Uint8Array>;
 }
