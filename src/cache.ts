@@ -102,11 +102,11 @@ export default class Cache {
     this.epochs.shift();
   }
 
-  public async export(): Promise<string> {
+  public export(): string {
     return JSON.stringify(this)
   }
 
-  public static async import(cache: string): Promise<Cache> {
+  public static import(cache: string): Cache {
     return JSON.parse(cache) as Cache
   }
 }

@@ -120,8 +120,8 @@ Using RLN Registry:
 ```js
 const epoch = genExternalNullifier("test-epoch")
 const signal = "This is a test signal"
-const merkleProof = await registry_instance.generateMerkleProof(rlnInstance.commitment) // Read more about creating a registry_instance below
-const proof = rlnInstance.generateProof(signal, merkleProof, epoch)
+const merkleProof = registryInstance.generateMerkleProof(rlnInstance.commitment) // Read more about creating a registryInstance below
+const proof = await rlnInstance.generateProof(signal, merkleProof, epoch)
 ```
 
 Without RLN Registry:
@@ -131,18 +131,18 @@ const zeroValue = BigInt(0)
 const epoch = BigInt(Math.floor(Date.now() / 1000)) // This epoch example is the nearest second
 const signal = "This is a test signal" // Example Message
 const leaves = [] // Array of identity commitments
-const merkleProof = await Registry.generateMerkleProof(treeDepth, zeroValue, leaves, rlnInstance.commitment)
+const merkleProof = Registry.generateMerkleProof(treeDepth, zeroValue, leaves, rlnInstance.commitment)
 const proof = await rlnInstance.generateProof(signal, merkleProof, epoch)
 ```
 
 Without RLN Registry or an RLN Instance:
 ```js
-const tree_depth = 20
+const treeDepth = 20
 const zeroValue = BigInt(0)
 const epoch = BigInt(Math.floor(Date.now() / 1000)) // This epoch example is the nearest second
 const signal = "This is a test signal" // Example Message
 const leaves = [] // Array of identity commitments
-const merkleProof = await Registry.generateMerkleProof(tree_depth, zeroValue, leaves, identityCommitment)
+const merkleProof = Registry.generateMerkleProof(treeDepth, zeroValue, leaves, identityCommitment)
 const proof = await RLN.generateProof(signal, merkleProof, epoch)
 ```
 
@@ -189,9 +189,9 @@ registry.removeMember(identityCommitment)
 #### Create a Cache
 
 ```js
-const rln_identifier = BigInt(1234567890) // random number as example of RLN Identifier
+const rlnIdentifier = BigInt(1234567890) // random number as example of RLN Identifier
 // Create empty cache
-const cache = new Cache(rln_identifier)
+const cache = new Cache(rlnIdentifier)
 ```
 
 #### Add a Proof to the Cache

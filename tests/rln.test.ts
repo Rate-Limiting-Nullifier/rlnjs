@@ -23,7 +23,7 @@ describe("RLN", () => {
   const rln_instance = new RLN(wasmFilePath, finalZkeyPath, vKey)
   const rln_instance2 = new RLN(wasmFilePath, finalZkeyPath, vKey)
 
-  beforeAll(async () => {
+  beforeAll(() => {
 
     const numberOfLeaves = 3
 
@@ -36,7 +36,7 @@ describe("RLN", () => {
   })
 
   describe("RLN functionalities", () => {
-    test("Should generate rln witness", async () => {
+    test("Should generate rln witness", () => {
 
       const identityCommitment = rln_instance.commitment
 
@@ -47,7 +47,7 @@ describe("RLN", () => {
       // TODO: Refactor genExternalNullifier
       const epoch: string = genExternalNullifier("test-epoch")
 
-      const merkleProof = await Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, identityCommitment)
+      const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, identityCommitment)
       const witness = rln_instance._genWitness(merkleProof, epoch, signal)
 
       expect(typeof witness).toBe("object")
@@ -58,12 +58,12 @@ describe("RLN", () => {
       const leaves = Object.assign([], identityCommitments)
       leaves.push(zeroIdCommitment)
 
-      const result = async () => await Registry.generateMerkleProof(defaultTreeDepth, zeroIdCommitment, leaves, zeroIdCommitment)
+      const result = () => Registry.generateMerkleProof(defaultTreeDepth, zeroIdCommitment, leaves, zeroIdCommitment)
 
-      expect(result).rejects.toThrow("Can't generate a proof for a zero leaf")
+      expect(result).toThrow("Can't generate a proof for a zero leaf")
     })
 
-    test("Should retrieve user secret using _shamirRecovery", async () => {
+    test("Should retrieve user secret using _shamirRecovery", () => {
       const signal1 = "hey hey"
       const signalHash1 = RLN._genSignalHash(signal1)
       const signal2 = "hey hey again"
@@ -85,9 +85,9 @@ describe("RLN", () => {
 
       const signal = "hey hey"
       const epoch = genExternalNullifier("test-epoch")
-      const merkleProof = async () => await Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance.commitment)
+      const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance.commitment)
 
-      const fullProof = await rln_instance.generateProof(signal, await merkleProof(), epoch)
+      const fullProof = await rln_instance.generateProof(signal, merkleProof, epoch)
       expect(typeof fullProof).toBe("object")
 
       const response = await rln_instance.verifyProof(fullProof)
@@ -104,35 +104,35 @@ describe("RLN", () => {
 
       const epoch1 = genExternalNullifier("1")
       const epoch2 = genExternalNullifier("2")
-      const merkleProof = async () => await Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance.commitment)
+      const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance.commitment)
 
       const identityCommitment2 = rln_instance2.commitment
       leaves.push(identityCommitment2)
-      const merkleProof2 = async () => await Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance2.commitment)
+      const merkleProof2 = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance2.commitment)
 
-      const proof1 = await rln_instance.generateProof(signal1, await merkleProof(), epoch1)
-      const proof2 = await rln_instance.generateProof(signal2, await merkleProof(), epoch1)
-      const proof3 = await rln_instance2.generateProof(signal2, await merkleProof2(), epoch1)
-      const proof4 = await rln_instance2.generateProof(signal2, await merkleProof2(), epoch2)
+      const proof1 = await rln_instance.generateProof(signal1, merkleProof, epoch1)
+      const proof2 = await rln_instance.generateProof(signal2, merkleProof, epoch1)
+      const proof3 = await rln_instance2.generateProof(signal2, merkleProof2, epoch1)
+      const proof4 = await rln_instance2.generateProof(signal2, merkleProof2, epoch2)
 
       // Same epoch, different signals
-      const retrievedSecret1 = await RLN.retreiveSecret(proof1, proof2)
+      const retrievedSecret1 = RLN.retreiveSecret(proof1, proof2)
       expect(retrievedSecret1).toEqual(rln_instance.secretIdentity)
 
       // Same Signal, Same Epoch, Different Identities
-      const result1 = async () => await RLN.retreiveSecret(proof2, proof3)
+      const result1 = () => RLN.retreiveSecret(proof2, proof3)
 
-      expect(result1).rejects.toThrow('Internal Nullifiers do not match! Cannot recover secret.')
+      expect(result1).toThrow('Internal Nullifiers do not match! Cannot recover secret.')
 
       // Same Signal, Different Epoch, Same Identities
-      const result2 = async () => await RLN.retreiveSecret(proof3, proof4)
+      const result2 = () => RLN.retreiveSecret(proof3, proof4)
 
-      expect(result2).rejects.toThrow('Internal Nullifiers do not match! Cannot recover secret.')
+      expect(result2).toThrow('Internal Nullifiers do not match! Cannot recover secret.')
     })
 
-    test("Should export/import to json", async () => {
-      const rln_instance_json = await rln_instance.export();
-      const rln_instance_from_json = await RLN.import(rln_instance_json);
+    test("Should export/import to json", () => {
+      const rln_instance_json = rln_instance.export();
+      const rln_instance_from_json = RLN.import(rln_instance_json);
       expect(rln_instance_from_json.identity.commitment).toEqual(rln_instance.identity.commitment);
       expect(rln_instance_from_json.rlnIdentifier).toEqual(rln_instance.rlnIdentifier);
       expect(rln_instance_from_json.wasmFilePath).toEqual(rln_instance.wasmFilePath);
