@@ -4,6 +4,8 @@ import {
 import poseidon from 'poseidon-lite'
 import { StrBigInt } from './types';
 
+export const DEFAULT_REGISTRY_TREE_DEPTH = 20;
+
 export default class Registry {
   private _registry: IncrementalMerkleTree;
   private _slashed: IncrementalMerkleTree;
@@ -16,7 +18,7 @@ export default class Registry {
    * @param zeroValue Zero values for zeroes.
    */
   constructor(
-    treeDepth: number = 20,
+    treeDepth: number = DEFAULT_REGISTRY_TREE_DEPTH,
     zeroValue?: BigInt,
   ) {
     if (treeDepth < 16 || treeDepth > 32) {
@@ -115,7 +117,7 @@ export default class Registry {
   }
 
   /**
-   * Adds a new member to the slahed registry.
+   * Adds a new member to the slashed registry.
    * If a member exists in the registry, the member can't be added to the slashed.
    * @param identityCommitment New member.
    */
@@ -154,9 +156,9 @@ export default class Registry {
    * @returns The Merkle proof.
    */
   // TODO - IDcommitment should be optional if you instantiate this class with the RLN class where it already has the IDcommitment.
-  public async generateMerkleProof(
+  public generateMerkleProof(
     idCommitment: StrBigInt
-  ): Promise<MerkleProof> {
+  ): MerkleProof {
     return Registry.generateMerkleProof(this._treeDepth, this._zeroValue as StrBigInt, this.members, idCommitment)
   }
 
@@ -168,12 +170,12 @@ export default class Registry {
  * @param leaf The leaf for which Merkle proof should be created.
  * @returns The Merkle proof.
  */
-  public static async generateMerkleProof(
+  public static generateMerkleProof(
     depth: number,
     zeroValue: StrBigInt,
     leaves: StrBigInt[],
     leaf: StrBigInt
-  ): Promise<MerkleProof> {
+  ): MerkleProof {
     if (leaf === zeroValue) throw new Error("Can't generate a proof for a zero leaf")
 
     const tree = new IncrementalMerkleTree(poseidon, depth, zeroValue, 2)
@@ -194,7 +196,7 @@ export default class Registry {
     return merkleProof
   }
 
-  public async export(): Promise<string> {
+  public export(): string {
     console.debug("Exporting: ")
     const out = JSON.stringify({
       "treeDepth": this._treeDepth,
@@ -206,7 +208,7 @@ export default class Registry {
     return out
   }
 
-  public static async import(registry: string): Promise<Registry> {
+  public static import(registry: string): Registry {
     const _registryObject = JSON.parse(registry)
     console.debug(_registryObject)
     const _temp_registry = new Registry(_registryObject['treeDepth'], BigInt(_registryObject['zeroValue']))

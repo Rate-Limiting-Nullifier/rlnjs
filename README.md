@@ -10,7 +10,6 @@
     - [Cache](#cache)
   - [Install](#install)
     - [Building the circuits](#building-the-circuits)
-    - [Copy ZKeyFiles to Your Project](#copy-zkeyfiles-to-your-project)
     - [Add RLNjs to your project](#add-rlnjs-to-your-project)
   - [Usage](#usage)
     - [RLN](#rln-1)
@@ -52,15 +51,21 @@ The `Cache` class provides the ability to cache proofs by epoch and automaticall
 
 ## Install
 
+Circuit related files `verification_key.json`, `rln.wasm`, and `rln_final.zkey` are needed when instantiating a [RLN](src/rln.ts) instance. They can be built from [rln-circuit](ttps://github.com/Rate-Limiting-Nullifier/rln-circuits.git) with the following steps.
+
 ### Building the circuits
 
 > Circom needs to be installed, please see this [link](https://docs.circom.io/getting-started/installation/) for installation instructions.
 
-> The default merkle tree depth for the circuits is 20. If you want to change this, you will need to rebuild the circuits, and be sure to change the merkle tree depth in the `Registry` class.
-
 ```bash
 git clone https://github.com/Rate-Limiting-Nullifier/rln-circuits.git &&
-cd rln-circuits &&
+cd rln-circuits
+```
+
+> The default merkle tree depth in rlnjs is [20](src/registry.ts), while it's [15 in rln-circuits](https://github.com/Rate-Limiting-Nullifier/rln-circuits/blob/86cbf5a5851176cbe3210f9a5111033798464768/circuits/rln.circom#L5). Change `15` to `20`.
+> Make sure the depth in both rlnjs and rln-circuits are the same, otherwise verification might not be working. You will need to rebuild the circuits every time you change the tree depth.
+
+```bash
 npm i &&
 npm run build
 ```
@@ -72,10 +77,6 @@ The previous step should have produced the following files:
 ./build/zkeyFiles/rln.wasm
 ./build/zkeyFiles/rln_final.zkey
 ```
-
-### Copy ZKeyFiles to Your Project
-
-Copy those files into the `zkeyFiles/rln` folder in your project directory.
 
 ### Add RLNjs to your project
 TODO! Change this path to the npm package once it is published
@@ -90,58 +91,59 @@ TODO! Change this path to the npm package once it is published
 ```js
 import { RLN } from "rlnjs"
 
-// This assumes you have built the circom circuits and placed them into the zkeyFiles folder
-const vkeyPath = path.join("./zkeyFiles", "rln", "verification_key.json")
+// This assumes you have built the circom circuits and placed them into the folder ./zkeyFiles
+const zkeyFilesPath = "./zkeyFiles";
+const vkeyPath = path.join(zkeyFilesPath, "verification_key.json")
 const vKey = JSON.parse(fs.readFileSync(vkeyPath, "utf-8"))
-const wasmFilePath = path.join("./zkeyFiles", "rln", "rln.wasm")
-const finalZkeyPath = path.join("./zkeyFiles", "rln", "rln_final.zkey")
+const wasmFilePath = path.join(zkeyFilesPath, "rln.wasm")
+const finalZkeyPath = path.join(zkeyFilesPath, "rln_final.zkey")
 
 // Instantiate RLN
-const rln_instance = new RLN(wasmFilePath, finalZkeyPath, vKey)
+const rlnInstance = new RLN(wasmFilePath, finalZkeyPath, vKey)
 ```
 
 #### Accessing Identity and Identity Commitment
 
-When an instance of RLNjs is initialized, it creates an identity commitment which you can access by calling `rln_instance.commitment`.
+When an instance of RLNjs is initialized, it creates an identity commitment which you can access by calling `rlnInstance.commitment`.
 
 ```js
   // Example of accessing the generated identity commitment
-  const identity = rln_instance.identity()
-  const identityCommitment = rln_instance.commitment()
+  const identity = rlnInstance.identity()
+  const identityCommitment = rlnInstance.commitment()
 ```
 
 #### Generating a proof
 
-From the `rln_instance` you can generate a proof by calling `rln_instance.generateProof()`.
+From the `rlnInstance` you can generate a proof by calling `rlnInstance.generateProof()`.
 
 Using RLN Registry:
 ```js
 const epoch = genExternalNullifier("test-epoch")
 const signal = "This is a test signal"
-const merkleProof = await registry_instance.generateMerkleProof(rln_instance.commitment) // Read more about creating a registry_instance below
-const proof = rln_instance.generateProof(signal, merkleProof, epoch)
+const merkleProof = registryInstance.generateMerkleProof(rlnInstance.commitment) // Read more about creating a registryInstance below
+const proof = await rlnInstance.generateProof(signal, merkleProof, epoch)
 ```
 
 Without RLN Registry:
 ```js
-const tree_depth = 20
+const treeDepth = 20
 const zeroValue = BigInt(0)
 const epoch = BigInt(Math.floor(Date.now() / 1000)) // This epoch example is the nearest second
 const signal = "This is a test signal" // Example Message
 const leaves = [] // Array of identity commitments
-const merkleProof = await Registry.generateMerkleProof(tree_depth, zeroValue, leaves, rln_instance.commitment)
-const proof = rln_instance.generateProof(signal, merkleProof, epoch)
+const merkleProof = Registry.generateMerkleProof(treeDepth, zeroValue, leaves, rlnInstance.commitment)
+const proof = await rlnInstance.generateProof(signal, merkleProof, epoch)
 ```
 
 Without RLN Registry or an RLN Instance:
 ```js
-const tree_depth = 20
+const treeDepth = 20
 const zeroValue = BigInt(0)
 const epoch = BigInt(Math.floor(Date.now() / 1000)) // This epoch example is the nearest second
 const signal = "This is a test signal" // Example Message
 const leaves = [] // Array of identity commitments
-const merkleProof = await Registry.generateMerkleProof(tree_depth, zeroValue, leaves, identityCommitment)
-const proof = RLN.generateProof(signal, merkleProof, epoch)
+const merkleProof = Registry.generateMerkleProof(treeDepth, zeroValue, leaves, identityCommitment)
+const proof = await RLN.generateProof(signal, merkleProof, epoch)
 ```
 
 #### Verifying a proof
@@ -156,7 +158,7 @@ const proofResult = await RLN.verifyProof(vKey, proof)
 
 ```js
 // generate RLN registry that contains slashed registry
-const registry = new Registry() // default tree depth is 20
+const registry = new Registry() // using the default tree depth
 
 // generate RLN registry that contains slashed registry with a custom tree depth
 const registry = new Registry(
@@ -187,9 +189,9 @@ registry.removeMember(identityCommitment)
 #### Create a Cache
 
 ```js
-const rln_identifier = BigInt(1234567890) // random number as example of RLN Identifier
+const rlnIdentifier = BigInt(1234567890) // random number as example of RLN Identifier
 // Create empty cache
-const cache = new Cache(rln_identifier)
+const cache = new Cache(rlnIdentifier)
 ```
 
 #### Add a Proof to the Cache
@@ -207,7 +209,7 @@ If the added proof breaches the rate limit, the result will be `breach`, in whic
 ## Tests
 
 ```bash
-npm run tests
+npm test
 ```
 
 ## Bugs, Questions & Features

@@ -9,7 +9,7 @@
 import { hexlify } from '@ethersproject/bytes';
 import { keccak256 } from '@ethersproject/solidity';
 import { toUtf8Bytes } from '@ethersproject/strings';
-import { ZqField } from 'ffjavascript';
+import { ZqField, buildBn128, utils } from 'ffjavascript';
 import poseidon from 'poseidon-lite';
 import { Identity } from '@semaphore-protocol/identity';
 import { IncrementalMerkleTree } from '@zk-kit/incremental-merkle-tree';
@@ -86,6 +86,244 @@ function genExternalNullifier(plaintext) {
     var h = hexStr.slice(2, len + 2);
     return "0x".concat(h.padStart(len, "0"));
 }
+function concatUint8Arrays() {
+    var arrays = [];
+    for (var _i = 0; _i < arguments.length; _i++) {
+        arrays[_i] = arguments[_i];
+    }
+    var totalLength = arrays.reduce(function (acc, arr) { return acc + arr.length; }, 0);
+    var result = new Uint8Array(totalLength);
+    var offset = 0;
+    for (var _a = 0, arrays_1 = arrays; _a < arrays_1.length; _a++) {
+        var arr = arrays_1[_a];
+        result.set(arr, offset);
+        offset += arr.length;
+    }
+    return result;
+}
+
+var SNARKJS_PROTOCOL = "groth16";
+var SNARKJS_CURVE = "bn128";
+var SIZE_BN254_G1_COMPRESSED = 32;
+var SIZE_BN254_G2_COMPRESSED = 64;
+var SIZE_FIELD = 32;
+//
+// JS RLN Proof layout, ref: https://github.com/waku-org/js-rln/blob/d77370fbece089fb45fa99ad8f2988c0cc9cf0ff/src/rln.ts#L103
+//  - snark_proof<128> | share_y<32> | nullifier<32> | root<32> | epoch<32> | share_x<32> | rln_identifier<32>
+// snark_proof<128>: G1<32>, G2<64>, G1<32>
+var SIZE_SNARK_PROOF = SIZE_BN254_G1_COMPRESSED + SIZE_BN254_G2_COMPRESSED + SIZE_BN254_G1_COMPRESSED;
+var OFFSET_SNARK_PROOF = 0;
+// share_y<32>: field element
+var OFFSET_SHARE_Y = OFFSET_SNARK_PROOF + SIZE_SNARK_PROOF;
+// nullifier<32>: field element
+var OFFSET_NULLIFIER = OFFSET_SHARE_Y + SIZE_FIELD;
+// root<32>: field element
+var OFFSET_MERKLE_ROOT = OFFSET_NULLIFIER + SIZE_FIELD;
+// epoch<32>: field element
+var OFFSET_EPOCH = OFFSET_MERKLE_ROOT + SIZE_FIELD;
+// share_x<32>: field element
+var OFFSET_SHARE_X = OFFSET_EPOCH + SIZE_FIELD;
+// rln_identifier<32>: field element
+var OFFSET_RLN_NULLIFIER = OFFSET_SHARE_X + SIZE_FIELD;
+// Size of the whole proof from js-rln
+var SIZE_JS_RLN_PROOF = OFFSET_RLN_NULLIFIER + SIZE_FIELD;
+var errInvalidCompression = new Error("invalid compression");
+function instantiateBn254() {
+    return __awaiter(this, void 0, void 0, function () {
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, buildBn128(undefined, undefined)];
+                case 1: return [2 /*return*/, _a.sent()];
+            }
+        });
+    });
+}
+//
+// [de]serialization of bigint (field elements)
+//
+/**
+ * Serializes a field element into a Uint8Array.
+ * @param field Field element to serialize.
+ * @returns Serialized field element.
+ */
+function serializeFieldLE(field) {
+    return utils.leInt2Buff(field, SIZE_FIELD);
+}
+/**
+ * Deserializes a field element from a Uint8Array.
+ * @param bytesLE Serialized field element.
+ * @returns Deserialized field element.
+ */
+function deserializeFieldLE(bytesLE) {
+    return utils.leBuff2int(bytesLE);
+}
+/**
+ * Flag bits used in point compression.
+ */
+var PointCompressionFlags;
+(function (PointCompressionFlags) {
+    // `y` is the greatest square root of `y^2 = x^3 + 3` given a `x`.
+    PointCompressionFlags[PointCompressionFlags["isGreatestRoot"] = 128] = "isGreatestRoot";
+    // the point is at infinity, i.e. zero.
+    PointCompressionFlags[PointCompressionFlags["isInfinity"] = 64] = "isInfinity";
+})(PointCompressionFlags || (PointCompressionFlags = {}));
+// 4 possible cases for (isGreatestRoot, isInfinity)
+// (0, 0): valid, it's not the greatest root
+// (0, 1): valid, it's 0
+// (1, 0): valid, the greatest root
+// (1, 1): invalid, ref: https://github.com/arkworks-rs/algebra/blob/6292e0c7ac49c6b7bd34fee5ecfc9dd57b1c28d4/serialize/src/flags.rs#L129-L131
+function isCompressionValid(bytes) {
+    // little-endian
+    var largestByte = bytes[bytes.length - 1];
+    var flagGreatestRoot = largestByte & PointCompressionFlags.isGreatestRoot;
+    var flagInfinity = largestByte & PointCompressionFlags.isInfinity;
+    // only invalid when both flags are set
+    return (flagGreatestRoot === 0 || flagInfinity === 0);
+}
+//
+// [de]serialization of points. Can be used for both G1 and G2
+//
+function serializePointCompressed(curve, point, sizeCompressed) {
+    var pointBigInt = utils.unstringifyBigInts(point);
+    var pointUncompressed = curve.fromObject(pointBigInt);
+    var buff = new Uint8Array(sizeCompressed);
+    curve.toRprCompressed(buff, 0, pointUncompressed);
+    // Convert to little-endian which is the format used by js-rln
+    return buff.reverse();
+}
+function deserializePointCompressed(curve, bytesLE, sizeCompressed) {
+    if (bytesLE.length !== sizeCompressed) {
+        throw new Error("bytes length is not equal to `sizeCompressed: " +
+            "bytesLE.length=".concat(bytesLE.length, ", sizeCompressed=").concat(sizeCompressed));
+    }
+    if (!isCompressionValid(bytesLE)) {
+        throw errInvalidCompression;
+    }
+    // Convert to big-endian which is the format used by the curve API
+    var bytesBE = bytesLE.reverse();
+    var uncompressed = curve.fromRprCompressed(bytesBE, 0);
+    return utils.stringifyBigInts(curve.toObject(uncompressed));
+}
+/**
+ * Serializes a G1 point in the js-rln format (little-endian, compressed, 32 bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param point G1 point to serialize.
+ * @returns Serialized G1 point.
+ */
+function serializeG1LECompressed(engine, point) {
+    return serializePointCompressed(engine.G1, point, SIZE_BN254_G1_COMPRESSED);
+}
+/**
+ * Deserializes a G1 point in the js-rln format (little-endian, compressed, 32 bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param bytesLE Serialized G1 point.
+ * @returns Deserialized G1 point.
+ */
+function deserializeG1LECompressed(engine, bytesLE) {
+    return deserializePointCompressed(engine.G1, bytesLE, SIZE_BN254_G1_COMPRESSED);
+}
+/**
+ * Serializes a G2 point in the js-rln format (little-endian, compressed, 64 bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param point G2 point to serialize.
+ * @returns Serialized G2 point.
+ */
+function serializeG2LECompressed(engine, point) {
+    return serializePointCompressed(engine.G2, point, SIZE_BN254_G2_COMPRESSED);
+}
+/**
+ * Deserializes a G2 point in the js-rln format (little-endian, compressed, 64 bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param bytesLE Serialized G2 point.
+ * @returns Deserialized G2 point.
+ */
+function deserializeG2LECompressed(engine, bytesLE) {
+    return deserializePointCompressed(engine.G2, bytesLE, SIZE_BN254_G2_COMPRESSED);
+}
+/**
+ * Serialize a SNARK proof: pi_a (G1), pi_b (G2), and pi_c (G1) in the js-rln format
+ * (little-endian, compressed, 128 (=32+64+32) bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param snarkProof SNARK proof to serialize.
+ * @returns Serialized SNARK proof.
+ */
+function serializeSNARKProof(engine, snarkProof) {
+    var piABytes = serializeG1LECompressed(engine, snarkProof.pi_a);
+    var piBBytes = serializeG2LECompressed(engine, snarkProof.pi_b);
+    var piCBytes = serializeG1LECompressed(engine, snarkProof.pi_c);
+    return concatUint8Arrays(piABytes, piBBytes, piCBytes);
+}
+/**
+ * Deserialize a SNARK proof: pi_a (G1), pi_b (G2), and pi_c (G1) in the js-rln format
+ * (little-endian, compressed, 128 (=32+64+32) bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param snarkProof Serialized SNARK proof.
+ * @returns Deserialized SNARK proof.
+ */
+function deserializeSNARKProof(engine, snarkProof) {
+    if (snarkProof.length !== SIZE_SNARK_PROOF) {
+        throw new Error('invalid snark proof size');
+    }
+    var offsetPiA = 0;
+    var offsetPiB = offsetPiA + SIZE_BN254_G1_COMPRESSED;
+    var offsetPiC = offsetPiB + SIZE_BN254_G2_COMPRESSED;
+    var piABytes = snarkProof.slice(offsetPiA, offsetPiB);
+    var piBBytes = snarkProof.slice(offsetPiB, offsetPiC);
+    var piCBytes = snarkProof.slice(offsetPiC, offsetPiC + SIZE_BN254_G1_COMPRESSED);
+    return {
+        pi_a: deserializeG1LECompressed(engine, piABytes),
+        pi_b: deserializeG2LECompressed(engine, piBBytes),
+        pi_c: deserializeG1LECompressed(engine, piCBytes),
+        protocol: SNARKJS_PROTOCOL,
+        curve: SNARKJS_CURVE,
+    };
+}
+/**
+ * Serialize a RLNFullProof (SNARK proof w/ public signals) in the js-rln format (little-endian, compressed, 320 bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param proof RLNFullProof to serialize.
+ * @returns Serialized RLNFullProof.
+ */
+function serializeJSRLNProof(engine, proof) {
+    var snarkProofBytes = serializeSNARKProof(engine, proof.proof);
+    var shareYBytes = serializeFieldLE(BigInt(proof.publicSignals.yShare));
+    var nullifierBytes = serializeFieldLE(BigInt(proof.publicSignals.internalNullifier));
+    var merkleRootBytes = serializeFieldLE(BigInt(proof.publicSignals.merkleRoot));
+    var epochBytes = serializeFieldLE(BigInt(proof.publicSignals.epoch));
+    var shareXBytes = serializeFieldLE(BigInt(proof.publicSignals.signalHash));
+    var rlnIdentifierBytes = serializeFieldLE(BigInt(proof.publicSignals.rlnIdentifier));
+    return concatUint8Arrays(snarkProofBytes, shareYBytes, nullifierBytes, merkleRootBytes, epochBytes, shareXBytes, rlnIdentifierBytes);
+}
+/**
+ * Deserialize a RLNFullProof (SNARK proof w/ public signals) in the js-rln format (little-endian, compressed, 320 bytes)
+ * @param engine BN254 engine in ffjavascript.
+ * @param bytes Serialized RLNFullProof.
+ * @returns Deserialized RLNFullProof.
+ */
+function deserializeJSRLNProof(engine, bytes) {
+    if (bytes.length !== SIZE_JS_RLN_PROOF) {
+        throw new Error('invalid RLN full proof size');
+    }
+    var snarkProof = deserializeSNARKProof(engine, bytes.slice(OFFSET_SNARK_PROOF, OFFSET_SHARE_Y));
+    var shareY = deserializeFieldLE(bytes.slice(OFFSET_SHARE_Y, OFFSET_NULLIFIER));
+    var nullifier = deserializeFieldLE(bytes.slice(OFFSET_NULLIFIER, OFFSET_MERKLE_ROOT));
+    var merkleRoot = deserializeFieldLE(bytes.slice(OFFSET_MERKLE_ROOT, OFFSET_EPOCH));
+    var epoch = deserializeFieldLE(bytes.slice(OFFSET_EPOCH, OFFSET_SHARE_X));
+    var shareX = deserializeFieldLE(bytes.slice(OFFSET_SHARE_X, OFFSET_RLN_NULLIFIER));
+    var rlnIdentifier = deserializeFieldLE(bytes.slice(OFFSET_RLN_NULLIFIER, OFFSET_RLN_NULLIFIER + SIZE_FIELD));
+    var publicSignals = {
+        yShare: shareY,
+        merkleRoot: merkleRoot,
+        internalNullifier: nullifier,
+        signalHash: shareX,
+        epoch: epoch,
+        rlnIdentifier: rlnIdentifier,
+    };
+    return {
+        proof: snarkProof,
+        publicSignals: publicSignals,
+    };
+}
 
 var groth16 = require("snarkjs").groth16;
 /**
@@ -116,11 +354,14 @@ var RLN = /** @class */ (function () {
         return __awaiter(this, void 0, void 0, function () {
             var _epoch, witness;
             return __generator(this, function (_a) {
-                _epoch = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000)) // rounded to nearest second
-                ;
-                witness = this._genWitness(merkleProof, _epoch, signal);
-                //console.debug("Witness:", witness)
-                return [2 /*return*/, this._genProof(witness)];
+                switch (_a.label) {
+                    case 0:
+                        _epoch = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000)) // rounded to nearest second
+                        ;
+                        witness = this._genWitness(merkleProof, _epoch, signal);
+                        return [4 /*yield*/, this._genProof(witness)];
+                    case 1: return [2 /*return*/, _a.sent()];
+                }
             });
         });
     };
@@ -136,17 +377,20 @@ var RLN = /** @class */ (function () {
         return __awaiter(this, void 0, void 0, function () {
             var _epoch, witness;
             return __generator(this, function (_a) {
-                _epoch = BigInt(epoch);
-                witness = {
-                    identity_secret: secretIdentity,
-                    path_elements: merkleProof.siblings,
-                    identity_path_index: merkleProof.pathIndices,
-                    x: shouldHash ? RLN._genSignalHash(signal) : signal,
-                    _epoch: _epoch,
-                    rln_identifier: rlnIdentifier
-                };
-                //console.debug("Witness:", witness)
-                return [2 /*return*/, RLN._genProof(witness, wasmFilePath, finalZkeyPath)];
+                switch (_a.label) {
+                    case 0:
+                        _epoch = BigInt(epoch);
+                        witness = {
+                            identity_secret: secretIdentity,
+                            path_elements: merkleProof.siblings,
+                            identity_path_index: merkleProof.pathIndices,
+                            x: shouldHash ? RLN._genSignalHash(signal) : signal,
+                            _epoch: _epoch,
+                            rln_identifier: rlnIdentifier
+                        };
+                        return [4 /*yield*/, RLN._genProof(witness, wasmFilePath, finalZkeyPath)];
+                    case 1: return [2 /*return*/, _a.sent()];
+                }
             });
         });
     };
@@ -157,23 +401,10 @@ var RLN = /** @class */ (function () {
      */
     RLN.prototype._genProof = function (witness) {
         return __awaiter(this, void 0, void 0, function () {
-            var _a, proof, publicSignals;
-            return __generator(this, function (_b) {
-                switch (_b.label) {
-                    case 0: return [4 /*yield*/, groth16.fullProve(witness, this.wasmFilePath, this.finalZkeyPath, null)];
-                    case 1:
-                        _a = _b.sent(), proof = _a.proof, publicSignals = _a.publicSignals;
-                        return [2 /*return*/, {
-                                proof: proof,
-                                publicSignals: {
-                                    yShare: publicSignals[0],
-                                    merkleRoot: publicSignals[1],
-                                    internalNullifier: publicSignals[2],
-                                    signalHash: publicSignals[3],
-                                    epoch: publicSignals[4],
-                                    rlnIdentifier: publicSignals[5]
-                                }
-                            }];
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, RLN._genProof(witness, this.wasmFilePath, this.finalZkeyPath)];
+                    case 1: return [2 /*return*/, _a.sent()];
                 }
             });
         });
@@ -181,6 +412,8 @@ var RLN = /** @class */ (function () {
     /**
    * Generates a SnarkJS full proof with Groth16.
    * @param witness The parameters for creating the proof.
+   * @param wasmFilePath The path to the wasm file.
+   * @param finalZkeyPath The path to the final zkey file.
    * @returns The full SnarkJS proof.
    */
     RLN._genProof = function (witness, wasmFilePath, finalZkeyPath) {
@@ -211,17 +444,16 @@ var RLN = /** @class */ (function () {
      * @param fullProof The SnarkJS full proof.
      * @returns True if the proof is valid, false otherwise.
      */
-    // TODO: Make async
     RLN.prototype.verifyProof = function (_a) {
         var proof = _a.proof, publicSignals = _a.publicSignals;
-        return groth16.verify(this.verificationKey, [
-            publicSignals.yShare,
-            publicSignals.merkleRoot,
-            publicSignals.internalNullifier,
-            publicSignals.signalHash,
-            publicSignals.epoch,
-            publicSignals.rlnIdentifier
-        ], proof);
+        return __awaiter(this, void 0, void 0, function () {
+            return __generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0: return [4 /*yield*/, RLN.verifyProof(this.verificationKey, { proof: proof, publicSignals: publicSignals })];
+                    case 1: return [2 /*return*/, _b.sent()];
+                }
+            });
+        });
     };
     /**
    * Verifies a zero-knowledge SnarkJS proof.
@@ -230,14 +462,21 @@ var RLN = /** @class */ (function () {
    */
     RLN.verifyProof = function (verificationKey, _a) {
         var proof = _a.proof, publicSignals = _a.publicSignals;
-        return groth16.verify(verificationKey, [
-            publicSignals.yShare,
-            publicSignals.merkleRoot,
-            publicSignals.internalNullifier,
-            publicSignals.signalHash,
-            publicSignals.epoch,
-            publicSignals.rlnIdentifier
-        ], proof);
+        return __awaiter(this, void 0, void 0, function () {
+            return __generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0: return [4 /*yield*/, groth16.verify(verificationKey, [
+                            publicSignals.yShare,
+                            publicSignals.merkleRoot,
+                            publicSignals.internalNullifier,
+                            publicSignals.signalHash,
+                            publicSignals.epoch,
+                            publicSignals.rlnIdentifier
+                        ], proof)];
+                    case 1: return [2 /*return*/, _b.sent()];
+                }
+            });
+        });
     };
     /**
      * Creates witness for rln proof
@@ -264,25 +503,15 @@ var RLN = /** @class */ (function () {
      * @param epoch epoch on which signal is broadcasted
      * @param rlnIdentifier unique identifier of rln dapp
      * @param signalHash signal hash
-     * @returns y_share (share) & slashing nullfier
+     * @returns y_share (share) & slashing nullifier
      */
     RLN.prototype._calculateOutput = function (epoch, signalHash) {
-        return __awaiter(this, void 0, void 0, function () {
-            var externalNullifier, a1, yShare, internalNullifier;
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0: return [4 /*yield*/, RLN._genNullifier(epoch, this.rlnIdentifier)];
-                    case 1:
-                        externalNullifier = _a.sent();
-                        a1 = poseidon([this.secretIdentity, externalNullifier]);
-                        yShare = Fq.normalize(a1 * signalHash + this.secretIdentity);
-                        return [4 /*yield*/, RLN._genNullifier(a1, this.rlnIdentifier)];
-                    case 2:
-                        internalNullifier = _a.sent();
-                        return [2 /*return*/, [yShare, internalNullifier]];
-                }
-            });
-        });
+        var externalNullifier = RLN._genNullifier(epoch, this.rlnIdentifier);
+        var a1 = poseidon([this.secretIdentity, externalNullifier]);
+        // TODO! Check if this is zero/the identity secret
+        var yShare = Fq.normalize(a1 * signalHash + this.secretIdentity);
+        var internalNullifier = RLN._genNullifier(a1, this.rlnIdentifier);
+        return [yShare, internalNullifier];
     };
     /**
      *
@@ -291,11 +520,7 @@ var RLN = /** @class */ (function () {
      * @returns rln slashing nullifier
      */
     RLN._genNullifier = function (a1, rlnIdentifier) {
-        return __awaiter(this, void 0, void 0, function () {
-            return __generator(this, function (_a) {
-                return [2 /*return*/, poseidon([a1, rlnIdentifier])];
-            });
-        });
+        return poseidon([a1, rlnIdentifier]);
     };
     /**
      * Hashes a signal string with Keccak256.
@@ -325,7 +550,7 @@ var RLN = /** @class */ (function () {
      * @param proof2 x2
      * @returns identity secret
      */
-    RLN.retreiveSecret = function (proof1, proof2) {
+    RLN.retrieveSecret = function (proof1, proof2) {
         if (proof1.publicSignals.internalNullifier !== proof2.publicSignals.internalNullifier) {
             // The internalNullifier is made up of the identityCommitment + epoch + rlnappID,
             // so if they are different, the proofs are from:
@@ -360,30 +585,49 @@ var RLN = /** @class */ (function () {
     // }
     // public decodeProofFromUint8Array(): RLN { }
     RLN.prototype.export = function () {
+        console.debug("Exporting RLN instance");
+        return {
+            "identity": this.identity.toString(),
+            "rlnIdentifier": String(this.rlnIdentifier),
+            "verificationKey": JSON.stringify(this.verificationKey),
+            "wasmFilePath": this.wasmFilePath,
+            "finalZkeyPath": this.finalZkeyPath
+        };
+    };
+    RLN.import = function (rln_instance) {
+        console.debug("Importing RLN instance");
+        return new RLN(rln_instance["wasmFilePath"], rln_instance["finalZkeyPath"], JSON.parse(rln_instance["verificationKey"]), BigInt(rln_instance["rlnIdentifier"]), rln_instance["identity"]);
+    };
+    RLN.fromJSRLNProof = function (bytes) {
         return __awaiter(this, void 0, void 0, function () {
+            var bn254;
             return __generator(this, function (_a) {
-                console.debug("Exporting RLN instance");
-                return [2 /*return*/, {
-                        "identity": this.identity.toString(),
-                        "rlnIdentifier": String(this.rlnIdentifier),
-                        "verificationKey": JSON.stringify(this.verificationKey),
-                        "wasmFilePath": this.wasmFilePath,
-                        "finalZkeyPath": this.finalZkeyPath
-                    }];
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, instantiateBn254()];
+                    case 1:
+                        bn254 = _a.sent();
+                        return [2 /*return*/, deserializeJSRLNProof(bn254, bytes)];
+                }
             });
         });
     };
-    RLN.import = function (rln_instance) {
+    RLN.toJSRLNProof = function (rlnFullProof) {
         return __awaiter(this, void 0, void 0, function () {
+            var bn254;
             return __generator(this, function (_a) {
-                console.debug("Importing RLN instance");
-                return [2 /*return*/, new RLN(rln_instance["wasmFilePath"], rln_instance["finalZkeyPath"], JSON.parse(rln_instance["verificationKey"]), BigInt(rln_instance["rlnIdentifier"]), rln_instance["identity"])];
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, instantiateBn254()];
+                    case 1:
+                        bn254 = _a.sent();
+                        return [2 /*return*/, serializeJSRLNProof(bn254, rlnFullProof)];
+                }
             });
         });
     };
     return RLN;
 }());
 
+var DEFAULT_REGISTRY_TREE_DEPTH = 20;
 var Registry = /** @class */ (function () {
     /**
      * Initializes the registry with the tree depth and the zero value.
@@ -391,7 +635,7 @@ var Registry = /** @class */ (function () {
      * @param zeroValue Zero values for zeroes.
      */
     function Registry(treeDepth, zeroValue) {
-        if (treeDepth === void 0) { treeDepth = 20; }
+        if (treeDepth === void 0) { treeDepth = DEFAULT_REGISTRY_TREE_DEPTH; }
         if (treeDepth < 16 || treeDepth > 32) {
             throw new Error("The tree depth must be between 16 and 32");
         }
@@ -486,7 +730,7 @@ var Registry = /** @class */ (function () {
         this._slashed.insert(identityCommitment);
     };
     /**
-     * Adds a new member to the slahed registry.
+     * Adds a new member to the slashed registry.
      * If a member exists in the registry, the member can't be added to the slashed.
      * @param identityCommitment New member.
      */
@@ -524,11 +768,7 @@ var Registry = /** @class */ (function () {
      */
     // TODO - IDcommitment should be optional if you instantiate this class with the RLN class where it already has the IDcommitment.
     Registry.prototype.generateMerkleProof = function (idCommitment) {
-        return __awaiter(this, void 0, void 0, function () {
-            return __generator(this, function (_a) {
-                return [2 /*return*/, Registry.generateMerkleProof(this._treeDepth, this._zeroValue, this.members, idCommitment)];
-            });
-        });
+        return Registry.generateMerkleProof(this._treeDepth, this._zeroValue, this.members, idCommitment);
     };
     /**
    * Creates a Merkle Proof.
@@ -539,54 +779,39 @@ var Registry = /** @class */ (function () {
    * @returns The Merkle proof.
    */
     Registry.generateMerkleProof = function (depth, zeroValue, leaves, leaf) {
-        return __awaiter(this, void 0, void 0, function () {
-            var tree, _i, leaves_1, leaf_1, leafIndex, merkleProof;
-            return __generator(this, function (_a) {
-                if (leaf === zeroValue)
-                    throw new Error("Can't generate a proof for a zero leaf");
-                tree = new IncrementalMerkleTree(poseidon, depth, zeroValue, 2);
-                for (_i = 0, leaves_1 = leaves; _i < leaves_1.length; _i++) {
-                    leaf_1 = leaves_1[_i];
-                    tree.insert(BigInt(leaf_1));
-                }
-                leafIndex = tree.leaves.indexOf(BigInt(leaf));
-                if (leafIndex === -1) {
-                    throw new Error("The leaf does not exist");
-                }
-                merkleProof = tree.createProof(leafIndex);
-                merkleProof.siblings = merkleProof.siblings.map(function (s) { return s[0]; });
-                return [2 /*return*/, merkleProof];
-            });
-        });
+        if (leaf === zeroValue)
+            throw new Error("Can't generate a proof for a zero leaf");
+        var tree = new IncrementalMerkleTree(poseidon, depth, zeroValue, 2);
+        for (var _i = 0, leaves_1 = leaves; _i < leaves_1.length; _i++) {
+            var leaf_1 = leaves_1[_i];
+            tree.insert(BigInt(leaf_1));
+        }
+        var leafIndex = tree.leaves.indexOf(BigInt(leaf));
+        if (leafIndex === -1) {
+            throw new Error("The leaf does not exist");
+        }
+        var merkleProof = tree.createProof(leafIndex);
+        merkleProof.siblings = merkleProof.siblings.map(function (s) { return s[0]; });
+        return merkleProof;
     };
     Registry.prototype.export = function () {
-        return __awaiter(this, void 0, void 0, function () {
-            var out;
-            return __generator(this, function (_a) {
-                console.debug("Exporting: ");
-                out = JSON.stringify({
-                    "treeDepth": this._treeDepth,
-                    "zeroValue": String(this._zeroValue),
-                    "registry": this._registry.leaves.map(function (x) { return String(x); }),
-                    "slashed": this._slashed.leaves.map(function (x) { return String(x); }),
-                });
-                console.debug(out);
-                return [2 /*return*/, out];
-            });
+        console.debug("Exporting: ");
+        var out = JSON.stringify({
+            "treeDepth": this._treeDepth,
+            "zeroValue": String(this._zeroValue),
+            "registry": this._registry.leaves.map(function (x) { return String(x); }),
+            "slashed": this._slashed.leaves.map(function (x) { return String(x); }),
         });
+        console.debug(out);
+        return out;
     };
     Registry.import = function (registry) {
-        return __awaiter(this, void 0, void 0, function () {
-            var _registryObject, _temp_registry;
-            return __generator(this, function (_a) {
-                _registryObject = JSON.parse(registry);
-                console.debug(_registryObject);
-                _temp_registry = new Registry(_registryObject['treeDepth'], BigInt(_registryObject['zeroValue']));
-                _temp_registry.addMembers(_registryObject["registry"].map(function (x) { return BigInt(x); }));
-                _temp_registry.addSlashedMembers(_registryObject["slashed"].map(function (x) { return BigInt(x); }));
-                return [2 /*return*/, _temp_registry];
-            });
-        });
+        var _registryObject = JSON.parse(registry);
+        console.debug(_registryObject);
+        var _temp_registry = new Registry(_registryObject['treeDepth'], BigInt(_registryObject['zeroValue']));
+        _temp_registry.addMembers(_registryObject["registry"].map(function (x) { return BigInt(x); }));
+        _temp_registry.addSlashedMembers(_registryObject["slashed"].map(function (x) { return BigInt(x); }));
+        return _temp_registry;
     };
     return Registry;
 }());
@@ -632,7 +857,7 @@ var Cache = /** @class */ (function () {
      */
     Cache.prototype.addProof = function (proof) {
         // Check if proof is for this rln_identifier
-        if (BigInt(proof.publicSignals.rlnIdentifier) !== this.rln_identifier) {
+        if (BigInt(proof.publicSignals.rlnIdentifier) !== BigInt(this.rln_identifier)) {
             //console.error('Proof is not for this rln_identifier', proof.publicSignals.rlnIdentifier, this.rln_identifier);
             return { status: Status.INVALID, msg: 'Proof is not for this rln_identifier' };
         }
@@ -651,7 +876,7 @@ var Cache = /** @class */ (function () {
     Cache.prototype.evaluateNullifierAtEpoch = function (nullifier, epoch) {
         if (this.cache[epoch][nullifier].length > 1) {
             // If there is more than 1 proof, return breach and secret
-            var _secret = RLN.retreiveSecret(this.cache[epoch][nullifier][0], this.cache[epoch][nullifier][1]);
+            var _secret = RLN.retrieveSecret(this.cache[epoch][nullifier][0], this.cache[epoch][nullifier][1]);
             return { status: Status.BREACH, nullifier: nullifier, secret: _secret, msg: 'Rate limit breach, secret attached' };
         }
         else {
@@ -677,18 +902,10 @@ var Cache = /** @class */ (function () {
         this.epochs.shift();
     };
     Cache.prototype.export = function () {
-        return __awaiter(this, void 0, void 0, function () {
-            return __generator(this, function (_a) {
-                return [2 /*return*/, JSON.stringify(this)];
-            });
-        });
+        return JSON.stringify(this);
     };
     Cache.import = function (cache) {
-        return __awaiter(this, void 0, void 0, function () {
-            return __generator(this, function (_a) {
-                return [2 /*return*/, JSON.parse(cache)];
-            });
-        });
+        return JSON.parse(cache);
     };
     return Cache;
 }());

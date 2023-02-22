@@ -1,5 +1,6 @@
 import { MerkleProof } from "@zk-kit/incremental-merkle-tree";
 import { StrBigInt } from './types';
+export declare const DEFAULT_REGISTRY_TREE_DEPTH = 20;
 export default class Registry {
     private _registry;
     private _slashed;
@@ -54,7 +55,7 @@ export default class Registry {
     */
     slashMember(identityCommitment: BigInt): void;
     /**
-     * Adds a new member to the slahed registry.
+     * Adds a new member to the slashed registry.
      * If a member exists in the registry, the member can't be added to the slashed.
      * @param identityCommitment New member.
      */
@@ -74,7 +75,7 @@ export default class Registry {
      * @param idCommitment The leaf for which Merkle proof should be created.
      * @returns The Merkle proof.
      */
-    generateMerkleProof(idCommitment: StrBigInt): Promise<MerkleProof>;
+    generateMerkleProof(idCommitment: StrBigInt): MerkleProof;
     /**
    * Creates a Merkle Proof.
    * @param depth The depth of the tree.
@@ -83,7 +84,7 @@ export default class Registry {
    * @param leaf The leaf for which Merkle proof should be created.
    * @returns The Merkle proof.
    */
-    static generateMerkleProof(depth: number, zeroValue: StrBigInt, leaves: StrBigInt[], leaf: StrBigInt): Promise<MerkleProof>;
-    export(): Promise<string>;
-    static import(registry: string): Promise<Registry>;
+    static generateMerkleProof(depth: number, zeroValue: StrBigInt, leaves: StrBigInt[], leaf: StrBigInt): MerkleProof;
+    export(): string;
+    static import(registry: string): Registry;
 }

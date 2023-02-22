@@ -52,7 +52,7 @@ export default class Cache {
    */
   addProof(proof: RLNFullProof): EvaluatedProof {
     // Check if proof is for this rln_identifier
-    if (BigInt(proof.publicSignals.rlnIdentifier) !== this.rln_identifier) {
+    if (BigInt(proof.publicSignals.rlnIdentifier) !== BigInt(this.rln_identifier)) {
       //console.error('Proof is not for this rln_identifier', proof.publicSignals.rlnIdentifier, this.rln_identifier);
       return { status: Status.INVALID, msg: 'Proof is not for this rln_identifier' };
     }
@@ -75,7 +75,7 @@ export default class Cache {
   private evaluateNullifierAtEpoch(nullifier: StrBigInt, epoch: string): EvaluatedProof {
     if (this.cache[epoch][nullifier].length > 1) {
       // If there is more than 1 proof, return breach and secret
-      const _secret = RLN.retreiveSecret(this.cache[epoch][nullifier][0], this.cache[epoch][nullifier][1])
+      const _secret = RLN.retrieveSecret(this.cache[epoch][nullifier][0], this.cache[epoch][nullifier][1])
       return { status: Status.BREACH, nullifier: nullifier, secret: _secret, msg: 'Rate limit breach, secret attached' };
     } else {
       // If there is only 1 proof, return added
@@ -102,11 +102,11 @@ export default class Cache {
     this.epochs.shift();
   }
 
-  public async export(): Promise<string> {
+  public export(): string {
     return JSON.stringify(this)
   }
 
-  public static async import(cache: string): Promise<Cache> {
+  public static import(cache: string): Cache {
     return JSON.parse(cache) as Cache
   }
 }

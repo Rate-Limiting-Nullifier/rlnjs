@@ -2,7 +2,10 @@ import * as fs from "fs"
 import * as path from "path"
 import { Registry, RLN, Cache } from "../src"
 import { Status } from '../src/cache'
+import { DEFAULT_REGISTRY_TREE_DEPTH } from "../src/registry"
 import { genExternalNullifier } from "../src/utils"
+
+const defaultTreeDepth = DEFAULT_REGISTRY_TREE_DEPTH;
 
 jest.setTimeout(60000)
 
@@ -37,36 +40,36 @@ describe("Cache", () => {
     const epoch1 = genExternalNullifier("1")
     const epoch2 = genExternalNullifier("2")
 
-    const merkleProof = async () => await Registry.generateMerkleProof(20, BigInt(0), leaves, rln_instance.commitment)
+    const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance.commitment)
 
-    const merkleProof2 = async () => await Registry.generateMerkleProof(20, BigInt(0), leaves, rln_instance2.commitment)
+    const merkleProof2 = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance2.commitment)
 
-    const merkleProof3 = async () => await Registry.generateMerkleProof(20, BigInt(0), leaves, rln_instance3.commitment)
+    const merkleProof3 = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance3.commitment)
 
-    proof1 = await rln_instance.generateProof(signal1, await merkleProof(), epoch1)
-    proof2 = await rln_instance.generateProof(signal2, await merkleProof(), epoch1)
-    proof3 = await rln_instance2.generateProof(signal2, await merkleProof2(), epoch1)
-    proof4 = await rln_instance2.generateProof(signal2, await merkleProof2(), epoch2)
-    proof5 = await rln_instance3.generateProof(signal1, await merkleProof3(), epoch1)
+    proof1 = await rln_instance.generateProof(signal1, merkleProof, epoch1)
+    proof2 = await rln_instance.generateProof(signal2, merkleProof, epoch1)
+    proof3 = await rln_instance2.generateProof(signal2, merkleProof2, epoch1)
+    proof4 = await rln_instance2.generateProof(signal2, merkleProof2, epoch2)
+    proof5 = await rln_instance3.generateProof(signal1, merkleProof3, epoch1)
   })
 
-  test("should be an instance of Cache", async () => {
+  test("should be an instance of Cache", () => {
     expect(typeof cache).toBe("object")
     expect(cache).toBeInstanceOf(Cache)
   })
 
-  test("should have a cache length of 100", async () => {
+  test("should have a cache length of 100", () => {
     expect(cache.cacheLength).toBe(100)
   })
 
-  test("should successfully add proof", async () => {
+  test("should successfully add proof", () => {
     const result1 = cache.addProof(proof1)
     expect(result1.status).toBe(Status.ADDED)
     expect(Object.keys(cache._cache).length
     ).toBe(1)
   })
 
-  test("should detect breach and return secret", async () => {
+  test("should detect breach and return secret", () => {
     const result2 = cache.addProof(proof2)
     expect(result2.status).toBe(Status.BREACH)
     expect(result2.secret).toBeGreaterThan(0)
@@ -74,17 +77,17 @@ describe("Cache", () => {
     ).toBe(1)
   })
 
-  test("should check proof 3", async () => {
+  test("should check proof 3", () => {
     const result3 = cache.addProof(proof3)
     expect(result3.status).toBe(Status.ADDED)
   })
 
-  test("should check proof 4", async () => {
+  test("should check proof 4", () => {
     const result4 = cache.addProof(proof4)
     expect(result4.status).toBe(Status.ADDED)
   })
 
-  test("should fail for proof 5 (different RLN Identifiers)", async () => {
+  test("should fail for proof 5 (different RLN Identifiers)", () => {
     const result5 = cache.addProof(proof5)
 
     expect(result5.status).toBe(Status.INVALID)
