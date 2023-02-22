@@ -116,16 +116,16 @@ describe("RLN", () => {
       const proof4 = await rln_instance2.generateProof(signal2, merkleProof2, epoch2)
 
       // Same epoch, different signals
-      const retrievedSecret1 = RLN.retreiveSecret(proof1, proof2)
+      const retrievedSecret1 = RLN.retrieveSecret(proof1, proof2)
       expect(retrievedSecret1).toEqual(rln_instance.secretIdentity)
 
       // Same Signal, Same Epoch, Different Identities
-      const result1 = () => RLN.retreiveSecret(proof2, proof3)
+      const result1 = () => RLN.retrieveSecret(proof2, proof3)
 
       expect(result1).toThrow('Internal Nullifiers do not match! Cannot recover secret.')
 
       // Same Signal, Different Epoch, Same Identities
-      const result2 = () => RLN.retreiveSecret(proof3, proof4)
+      const result2 = () => RLN.retrieveSecret(proof3, proof4)
 
       expect(result2).toThrow('Internal Nullifiers do not match! Cannot recover secret.')
     })

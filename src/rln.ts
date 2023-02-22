@@ -232,7 +232,7 @@ export default class RLN {
    * @param proof2 x2
    * @returns identity secret
    */
-  public static retreiveSecret(proof1: RLNFullProof, proof2: RLNFullProof): bigint {
+  public static retrieveSecret(proof1: RLNFullProof, proof2: RLNFullProof): bigint {
     if (proof1.publicSignals.internalNullifier !== proof2.publicSignals.internalNullifier) {
       // The internalNullifier is made up of the identityCommitment + epoch + rlnappID,
       // so if they are different, the proofs are from:

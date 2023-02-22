@@ -75,7 +75,7 @@ export default class Cache {
   private evaluateNullifierAtEpoch(nullifier: StrBigInt, epoch: string): EvaluatedProof {
     if (this.cache[epoch][nullifier].length > 1) {
       // If there is more than 1 proof, return breach and secret
-      const _secret = RLN.retreiveSecret(this.cache[epoch][nullifier][0], this.cache[epoch][nullifier][1])
+      const _secret = RLN.retrieveSecret(this.cache[epoch][nullifier][0], this.cache[epoch][nullifier][1])
       return { status: Status.BREACH, nullifier: nullifier, secret: _secret, msg: 'Rate limit breach, secret attached' };
     } else {
       // If there is only 1 proof, return added
