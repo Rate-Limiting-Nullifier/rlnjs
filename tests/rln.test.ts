@@ -2,7 +2,11 @@ import { Identity } from '@semaphore-protocol/identity'
 import * as fs from "fs"
 import * as path from "path"
 import { Registry, RLN  } from "../src"
+import { DEFAULT_REGISTRY_TREE_DEPTH } from '../src/registry'
 import { genExternalNullifier } from "../src/utils"
+
+
+const defaultTreeDepth = DEFAULT_REGISTRY_TREE_DEPTH;
 
 jest.setTimeout(60000)
 
@@ -43,7 +47,7 @@ describe("RLN", () => {
       // TODO: Refactor genExternalNullifier
       const epoch: string = genExternalNullifier("test-epoch")
 
-      const merkleProof = await Registry.generateMerkleProof(20, BigInt(0), leaves, identityCommitment)
+      const merkleProof = await Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, identityCommitment)
       const witness = rln_instance._genWitness(merkleProof, epoch, signal)
 
       expect(typeof witness).toBe("object")
@@ -54,7 +58,7 @@ describe("RLN", () => {
       const leaves = Object.assign([], identityCommitments)
       leaves.push(zeroIdCommitment)
 
-      const result = async () => await Registry.generateMerkleProof(20, zeroIdCommitment, leaves, zeroIdCommitment)
+      const result = async () => await Registry.generateMerkleProof(defaultTreeDepth, zeroIdCommitment, leaves, zeroIdCommitment)
 
       expect(result).rejects.toThrow("Can't generate a proof for a zero leaf")
     })
@@ -81,7 +85,7 @@ describe("RLN", () => {
 
       const signal = "hey hey"
       const epoch = genExternalNullifier("test-epoch")
-      const merkleProof = async () => await Registry.generateMerkleProof(20, BigInt(0), leaves, rln_instance.commitment)
+      const merkleProof = async () => await Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance.commitment)
 
       const fullProof = await rln_instance.generateProof(signal, await merkleProof(), epoch)
       expect(typeof fullProof).toBe("object")
@@ -100,11 +104,11 @@ describe("RLN", () => {
 
       const epoch1 = genExternalNullifier("1")
       const epoch2 = genExternalNullifier("2")
-      const merkleProof = async () => await Registry.generateMerkleProof(20, BigInt(0), leaves, rln_instance.commitment)
+      const merkleProof = async () => await Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance.commitment)
 
       const identityCommitment2 = rln_instance2.commitment
       leaves.push(identityCommitment2)
-      const merkleProof2 = async () => await Registry.generateMerkleProof(20, BigInt(0), leaves, rln_instance2.commitment)
+      const merkleProof2 = async () => await Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance2.commitment)
 
       const proof1 = await rln_instance.generateProof(signal1, await merkleProof(), epoch1)
       const proof2 = await rln_instance.generateProof(signal2, await merkleProof(), epoch1)

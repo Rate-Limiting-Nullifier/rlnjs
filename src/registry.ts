@@ -4,6 +4,8 @@ import {
 import poseidon from 'poseidon-lite'
 import { StrBigInt } from './types';
 
+export const DEFAULT_REGISTRY_TREE_DEPTH = 20;
+
 export default class Registry {
   private _registry: IncrementalMerkleTree;
   private _slashed: IncrementalMerkleTree;
@@ -16,7 +18,7 @@ export default class Registry {
    * @param zeroValue Zero values for zeroes.
    */
   constructor(
-    treeDepth: number = 20,
+    treeDepth: number = DEFAULT_REGISTRY_TREE_DEPTH,
     zeroValue?: BigInt,
   ) {
     if (treeDepth < 16 || treeDepth > 32) {

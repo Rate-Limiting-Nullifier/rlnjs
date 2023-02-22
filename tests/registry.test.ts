@@ -1,4 +1,5 @@
-import Registry from "../src/registry"
+import Registry, { DEFAULT_REGISTRY_TREE_DEPTH } from "../src/registry"
+
 
 describe("Registry", () => {
     describe("Registry Creation", () => {
@@ -6,7 +7,7 @@ describe("Registry", () => {
             const registry = new Registry()
 
             expect(registry.root.toString()).toContain("150197")
-            expect(registry._treeDepth).toBe(20)
+            expect(registry._treeDepth).toBe(DEFAULT_REGISTRY_TREE_DEPTH)
             expect(registry._zeroValue).toBe(BigInt(0))
             expect(registry.members).toHaveLength(0)
         })
@@ -104,12 +105,13 @@ describe("Registry", () => {
         test("Should throw error when given invalid leaf", async () => {
             const registry = new Registry()
             registry.addMember(BigInt(1))
+            const treeDepth = registry._treeDepth;
 
-            const result = async () => await Registry.generateMerkleProof(20, BigInt(0), [BigInt(1), BigInt(2)], BigInt(3))
+            const result = async () => await Registry.generateMerkleProof(treeDepth, BigInt(0), [BigInt(1), BigInt(2)], BigInt(3))
 
             expect(result).rejects.toThrow("The leaf does not exist")
 
-            const result2 = async () => await Registry.generateMerkleProof(20, BigInt(0), [BigInt(1), BigInt(2)], BigInt(0))
+            const result2 = async () => await Registry.generateMerkleProof(treeDepth, BigInt(0), [BigInt(1), BigInt(2)], BigInt(0))
 
             expect(result2).rejects.toThrow("Can't generate a proof for a zero leaf")
         })

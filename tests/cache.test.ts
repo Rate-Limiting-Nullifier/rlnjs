@@ -2,7 +2,10 @@ import * as fs from "fs"
 import * as path from "path"
 import { Registry, RLN, Cache } from "../src"
 import { Status } from '../src/cache'
+import { DEFAULT_REGISTRY_TREE_DEPTH } from "../src/registry"
 import { genExternalNullifier } from "../src/utils"
+
+const defaultTreeDepth = DEFAULT_REGISTRY_TREE_DEPTH;
 
 jest.setTimeout(60000)
 
@@ -37,11 +40,11 @@ describe("Cache", () => {
     const epoch1 = genExternalNullifier("1")
     const epoch2 = genExternalNullifier("2")
 
-    const merkleProof = async () => await Registry.generateMerkleProof(20, BigInt(0), leaves, rln_instance.commitment)
+    const merkleProof = async () => await Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance.commitment)
 
-    const merkleProof2 = async () => await Registry.generateMerkleProof(20, BigInt(0), leaves, rln_instance2.commitment)
+    const merkleProof2 = async () => await Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance2.commitment)
 
-    const merkleProof3 = async () => await Registry.generateMerkleProof(20, BigInt(0), leaves, rln_instance3.commitment)
+    const merkleProof3 = async () => await Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance3.commitment)
 
     proof1 = await rln_instance.generateProof(signal1, await merkleProof(), epoch1)
     proof2 = await rln_instance.generateProof(signal2, await merkleProof(), epoch1)
