@@ -859,7 +859,7 @@ var Cache = /** @class */ (function () {
      */
     Cache.prototype.addProof = function (proof) {
         // Check if proof is for this rln_identifier
-        if (BigInt(proof.publicSignals.rlnIdentifier) !== this.rln_identifier) {
+        if (BigInt(proof.publicSignals.rlnIdentifier) !== BigInt(this.rln_identifier)) {
             //console.error('Proof is not for this rln_identifier', proof.publicSignals.rlnIdentifier, this.rln_identifier);
             return { status: Status.INVALID, msg: 'Proof is not for this rln_identifier' };
         }
