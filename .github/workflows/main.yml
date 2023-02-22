@@ -56,4 +56,5 @@ jobs:
       run: ./scripts/build-zkeys.sh
     - name: Clone js-rln params
       run: ./scripts/clone-js-rln-zkeys.sh
+    - run: npm run lint
     - run: npm test
