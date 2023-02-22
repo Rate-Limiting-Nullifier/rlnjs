@@ -71,8 +71,8 @@ describe("RLN", () => {
 
       const epoch = genExternalNullifier("test-epoch")
 
-      const [y1] = await rln_instance._calculateOutput(BigInt(epoch), signalHash1)
-      const [y2] = await rln_instance._calculateOutput(BigInt(epoch), signalHash2)
+      const [y1] = rln_instance._calculateOutput(BigInt(epoch), signalHash1)
+      const [y2] = rln_instance._calculateOutput(BigInt(epoch), signalHash2)
 
       const retrievedSecret = RLN._shamirRecovery(signalHash1, signalHash2, y1, y2)
 
