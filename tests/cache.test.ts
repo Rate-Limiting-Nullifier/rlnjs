@@ -1,9 +1,10 @@
+import { utils } from "ffjavascript"
 import * as fs from "fs"
-import * as path from "path"
 import { Registry, RLN, Cache } from "../src"
 import { Status } from '../src/cache'
 import { DEFAULT_REGISTRY_TREE_DEPTH } from "../src/registry"
 import { genExternalNullifier } from "../src/utils"
+import { defaultParamsPath } from "./configs"
 
 const defaultTreeDepth = DEFAULT_REGISTRY_TREE_DEPTH;
 
@@ -19,12 +20,8 @@ describe("Cache", () => {
   let proof5: any;
 
   beforeAll(async () => {
-    const zkeyFiles = "./zkeyFiles"
-    const vkeyPath = path.join(zkeyFiles, "rln", "verification_key.json")
+    const { wasmFilePath, finalZkeyPath, vkeyPath } = defaultParamsPath;
     const vKey = JSON.parse(fs.readFileSync(vkeyPath, "utf-8"))
-
-    const wasmFilePath = path.join(zkeyFiles, "rln", "rln.wasm")
-    const finalZkeyPath = path.join(zkeyFiles, "rln", "rln_final.zkey")
     const identityCommitments: bigint[] = []
     const rln_instance = new RLN(wasmFilePath, finalZkeyPath, vKey, RLN_IDENTIFIER)
     const rln_instance2 = new RLN(wasmFilePath, finalZkeyPath, vKey, RLN_IDENTIFIER)
@@ -41,9 +38,7 @@ describe("Cache", () => {
     const epoch2 = genExternalNullifier("2")
 
     const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance.commitment)
-
     const merkleProof2 = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance2.commitment)
-
     const merkleProof3 = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance3.commitment)
 
     proof1 = await rln_instance.generateProof(signal1, merkleProof, epoch1)
@@ -65,7 +60,7 @@ describe("Cache", () => {
   test("should successfully add proof", () => {
     const result1 = cache.addProof(proof1)
     expect(result1.status).toBe(Status.ADDED)
-    expect(Object.keys(cache._cache).length
+    expect(Object.keys(cache.cache).length
     ).toBe(1)
   })
 
@@ -73,7 +68,7 @@ describe("Cache", () => {
     const result2 = cache.addProof(proof2)
     expect(result2.status).toBe(Status.BREACH)
     expect(result2.secret).toBeGreaterThan(0)
-    expect(Object.keys(cache._cache).length
+    expect(Object.keys(cache.cache).length
     ).toBe(1)
   })
 
@@ -89,7 +84,14 @@ describe("Cache", () => {
 
   test("should fail for proof 5 (different RLN Identifiers)", () => {
     const result5 = cache.addProof(proof5)
-
     expect(result5.status).toBe(Status.INVALID)
+  })
+
+  test("should be able to export and import cache", () => {
+    const exportedCacheString = cache.export()
+    const importedCache = Cache.import(exportedCacheString)
+    // Since exported string is unstringified when importing, we also need to unstringifyBigInts
+    // the original cache to ensure the types of the bigints in `importedCache` and `cache` match
+    expect(importedCache).toEqual(utils.unstringifyBigInts(cache))
   })
 })
