@@ -23,6 +23,29 @@ export type EvaluatedProof = {
   msg?: string,
 }
 
+
+/**
+ * Checks if two RLN proofs are the same.
+ * @param proof1 RLNFullProof 1
+ * @param proof2 RLNFullProof 2
+ * @returns
+ */
+function isSameProof(proof1: RLNFullProof, proof2: RLNFullProof): boolean {
+  // We only compare the public inputs but the SNARK proof itself since the SNARK proof can
+  // be different even if public inputs are the same.
+  const publicSignals1 = proof1.publicSignals;
+  const publicSignals2 = proof2.publicSignals;
+  // We compare all public inputs but `merkleRoot` since it's possible that merkle root is changed
+  // (e.g. new leaf is inserted to the merkle tree) within the same epoch.
+  return (
+    BigInt(publicSignals1.yShare) === BigInt(publicSignals2.yShare) &&
+    BigInt(publicSignals1.internalNullifier) === BigInt(publicSignals2.internalNullifier) &&
+    BigInt(publicSignals1.signalHash) === BigInt(publicSignals2.signalHash) &&
+    BigInt(publicSignals1.epoch) === BigInt(publicSignals2.epoch) &&
+    BigInt(publicSignals1.rlnIdentifier) === BigInt(publicSignals2.rlnIdentifier)
+  )
+}
+
 /**
  * Cache for storing proofs and automatically evaluating them for rate limit breaches
  */
@@ -62,8 +85,14 @@ export default class Cache {
     // If nullifier doesn't exist for this epoch, create an empty array
     this.cache[_epoch][_nullifier] = this.cache[_epoch][_nullifier] || [];
 
+    // Check if the proof already exists. It's O(n) but it's not a big deal since n is exactly the
+    // rate limit and it's usually small.
+    const sameProofs = this.cache[_epoch][_nullifier].filter(p => isSameProof(p, proof));
+    if (sameProofs.length > 0) {
+      return { status: Status.INVALID, msg: 'Proof already exists' };
+    }
+
     // Add proof to cache
-    // TODO! Check if this proof has already been added
     this.cache[_epoch][_nullifier].push(proof);
 
     // Check if there is more than 1 proof for this nullifier for this epoch
