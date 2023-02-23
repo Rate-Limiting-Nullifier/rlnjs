@@ -1,8 +1,13 @@
+import { utils } from 'ffjavascript';
 import { RLNFullProof, StrBigInt } from './types';
 import RLN from './rln';
 
 type EpochCacheT = {
-  nullifiers?: RLNFullProof[]
+  [nullifier: string]: RLNFullProof[];
+}
+
+type CacheT = {
+  [epoch: string]: EpochCacheT;
 }
 
 export enum Status {
@@ -22,27 +27,20 @@ export type EvaluatedProof = {
  * Cache for storing proofs and automatically evaluating them for rate limit breaches
  */
 export default class Cache {
-  cache: { string?: EpochCacheT };
-  epochs: string[];
   cacheLength: number;
-  rln_identifier: StrBigInt;
+  rlnIdentifier: bigint;
+  cache: CacheT;
+  epochs: string[];
   /**
-   *
+   * @param rlnIdentifier the RLN identifier for this cache
    * @param cacheLength the maximum number of epochs to store in the cache, default is 100, set to 0 to automatic pruning
+   * @param cache the cache object to use, default is an empty object
    */
-  constructor(rln_identifier: StrBigInt, cacheLength?: number) {
-    this.cache = {};
-    this.rln_identifier = rln_identifier;
-    this.epochs = [];
+  constructor(rlnIdentifier: StrBigInt, cacheLength?: number) {
+    this.rlnIdentifier = BigInt(rlnIdentifier);
     this.cacheLength = cacheLength ? cacheLength : 100;
-  }
-
-  public get _cache() {
-    return this.cache;
-  }
-
-  public get _epochs() {
-    return this.epochs;
+    this.cache = {};
+    this.epochs = [];
   }
 
   /**
@@ -51,16 +49,16 @@ export default class Cache {
    * @returns an object with the status of the proof and the nullifier and secret if the proof is a breach
    */
   addProof(proof: RLNFullProof): EvaluatedProof {
-    // Check if proof is for this rln_identifier
-    if (BigInt(proof.publicSignals.rlnIdentifier) !== BigInt(this.rln_identifier)) {
-      //console.error('Proof is not for this rln_identifier', proof.publicSignals.rlnIdentifier, this.rln_identifier);
-      return { status: Status.INVALID, msg: 'Proof is not for this rln_identifier' };
+    // Check if proof is for this rlnIdentifier
+    if (BigInt(proof.publicSignals.rlnIdentifier) !== this.rlnIdentifier) {
+      //console.error('Proof is not for this rlnIdentifier', proof.publicSignals.rlnIdentifier, this.rlnIdentifier);
+      return { status: Status.INVALID, msg: 'Proof is not for this rlnIdentifier' };
     }
 
-    // Convert epoch to string, can't use BigInt as a key
+    // Convert epoch and nullifier to string, can't use BigInt as a key
     const _epoch = String(proof.publicSignals.epoch);
+    const _nullifier = String(proof.publicSignals.internalNullifier);
     this.evaluateEpoch(_epoch);
-    const _nullifier = proof.publicSignals.internalNullifier;
     // If nullifier doesn't exist for this epoch, create an empty array
     this.cache[_epoch][_nullifier] = this.cache[_epoch][_nullifier] || [];
 
@@ -69,13 +67,14 @@ export default class Cache {
     this.cache[_epoch][_nullifier].push(proof);
 
     // Check if there is more than 1 proof for this nullifier for this epoch
-    return this.evaluateNullifierAtEpoch(_nullifier, _epoch);
+    return this.evaluateNullifierAtEpoch(_epoch, _nullifier);
   }
 
-  private evaluateNullifierAtEpoch(nullifier: StrBigInt, epoch: string): EvaluatedProof {
-    if (this.cache[epoch][nullifier].length > 1) {
+  private evaluateNullifierAtEpoch(epoch: string, nullifier: string): EvaluatedProof {
+    const proofs = this.cache[epoch][nullifier];
+    if (proofs.length > 1) {
       // If there is more than 1 proof, return breach and secret
-      const _secret = RLN.retrieveSecret(this.cache[epoch][nullifier][0], this.cache[epoch][nullifier][1])
+      const _secret = RLN.retrieveSecret(proofs[0], proofs[1])
       return { status: Status.BREACH, nullifier: nullifier, secret: _secret, msg: 'Rate limit breach, secret attached' };
     } else {
       // If there is only 1 proof, return added
@@ -102,11 +101,33 @@ export default class Cache {
     this.epochs.shift();
   }
 
+  /**
+   * Exports the cache instance
+   * @returns the exported cache in JSON format string
+   */
   public export(): string {
-    return JSON.stringify(this)
+    // Stringify all BigInts
+    const stringified = utils.stringifyBigInts(this);
+    return JSON.stringify(stringified)
   }
 
-  public static import(cache: string): Cache {
-    return JSON.parse(cache) as Cache
+  /**
+   * Imports a cache instance from a exported previously exported cache
+   * @param exportedString exported string from `export` method
+   * @returns the cache instance
+   * @throws Error if the cache object is invalid
+   **/
+  public static import(cacheString: string): Cache {
+    const bigintsStringified = JSON.parse(cacheString)
+    const cacheObj = utils.unstringifyBigInts(bigintsStringified)
+    // All fields must exist
+    if (!cacheObj.rlnIdentifier || !cacheObj.cacheLength || !cacheObj.cache || !cacheObj.epochs) {
+      throw new Error('Invalid cache object')
+    }
+
+    const _cache = new Cache(cacheObj.rlnIdentifier, cacheObj.cacheLength)
+    _cache.cache = cacheObj.cache
+    _cache.epochs = cacheObj.epochs
+    return _cache
   }
 }
