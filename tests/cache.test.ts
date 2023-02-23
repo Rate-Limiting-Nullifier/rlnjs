@@ -1,6 +1,6 @@
 import { utils } from "ffjavascript"
 import * as fs from "fs"
-import { Registry, RLN, Cache } from "../src"
+import { Registry, RLN, Cache, RLNFullProof } from "../src"
 import { Status } from '../src/cache'
 import { DEFAULT_REGISTRY_TREE_DEPTH } from "../src/registry"
 import { genExternalNullifier } from "../src/utils"
@@ -13,11 +13,11 @@ jest.setTimeout(60000)
 describe("Cache", () => {
   const RLN_IDENTIFIER = BigInt(1)
   const cache = new Cache(RLN_IDENTIFIER)
-  let proof1: any;
-  let proof2: any;
-  let proof3: any;
-  let proof4: any;
-  let proof5: any;
+  let proof1: RLNFullProof;
+  let proof2: RLNFullProof;
+  let proof3: RLNFullProof;
+  let proof4: RLNFullProof;
+  let proof5: RLNFullProof;
 
   beforeAll(async () => {
     const { wasmFilePath, finalZkeyPath, vkeyPath } = defaultParamsPath;
@@ -86,6 +86,30 @@ describe("Cache", () => {
     const result5 = cache.addProof(proof5)
     expect(result5.status).toBe(Status.INVALID)
   })
+
+  test("should fail for proof 1 (duplicate proof)", () => {
+    // Proof 1 is already in the cache
+    const result1 = cache.addProof(proof1)
+    expect(result1.status).toBe(Status.INVALID)
+
+    // Proof 1 with different merkle root is not in the cache, but is still
+    // deemed the same proof as proof 1
+    const publicSignals1 = proof1.publicSignals
+    // All the same except merkle root
+    const proof1WithDifferentMerkleRoot: RLNFullProof = {
+      proof: proof1.proof,
+      publicSignals: {
+        yShare: publicSignals1.yShare,
+        merkleRoot: BigInt(42),
+        internalNullifier: publicSignals1.internalNullifier,
+        signalHash: publicSignals1.signalHash,
+        epoch: publicSignals1.epoch,
+        rlnIdentifier: publicSignals1.rlnIdentifier,
+      }
+    }
+    const result2 = cache.addProof(proof1WithDifferentMerkleRoot)
+    expect(result2.status).toBe(Status.INVALID)
+  });
 
   test("should be able to export and import cache", () => {
     const exportedCacheString = cache.export()
