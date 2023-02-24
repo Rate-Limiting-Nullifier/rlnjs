@@ -1,6 +1,6 @@
 # This workflow run linters to check code is correctly linted.
 
-name: lint
+name: Lint
 
 on:
   push:

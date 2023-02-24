@@ -1,6 +1,6 @@
 {
   "name": "rlnjs",
-  "version": "2.0.0-alpha.2",
+  "version": "2.0.4",
   "description": "Client library for generating and using RLN ZK proofs.",
   "license": "MIT",
   "repository": "https://github.com/Rate-Limiting-Nullifier/rlnjs",
@@ -10,9 +10,15 @@
     "email": "atheartengineer@gmail.com"
   },
   "contributors": [
-    {"name": "Mai-Hsuan (Kevin) Chia"},
-    {"name":"bdim1"},
-    {"name": "Seohee Park"}
+    {
+      "name": "Mai-Hsuan (Kevin) Chia"
+    },
+    {
+      "name": "bdim1"
+    },
+    {
+      "name": "Seohee Park"
+    }
   ],
   "scripts": {
     "prepare": "husky install",
@@ -36,7 +42,7 @@
     "access": "public"
   },
   "main": "./dist/index.node.js",
-  "types": "dist/index.d.ts",
+  "types": "./dist/types/index.d.ts",
   "exports": {
     "import": "./dist/index.mjs",
     "require": "./dist/index.node.js"

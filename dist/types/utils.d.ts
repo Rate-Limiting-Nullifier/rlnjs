@@ -1,4 +1,5 @@
 import { ZqField } from 'ffjavascript';
+import { VerificationKeyT } from './types';
 export declare const SNARK_FIELD_SIZE: bigint;
 export declare const Fq: ZqField;
 /**
@@ -8,3 +9,4 @@ export declare const Fq: ZqField;
  */
 export declare function genExternalNullifier(plaintext: string): string;
 export declare function concatUint8Arrays(...arrays: Uint8Array[]): Uint8Array;
+export declare function parseVerificationKeyJSON(json: string): VerificationKeyT;
