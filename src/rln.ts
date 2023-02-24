@@ -22,7 +22,8 @@ type RLNExportedT = {
 
 type RLNWitnessT = {
   identity_secret: bigint,
-  path_elements: any[],
+  // Ignore `no-explicit-any` because the type of `identity_path_elements` in zk-kit is `any[]`
+  path_elements: any[], // eslint-disable-line @typescript-eslint/no-explicit-any
   identity_path_index: number[],
   x: string | bigint,
   epoch: bigint,
