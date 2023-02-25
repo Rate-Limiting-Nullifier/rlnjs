@@ -1,10 +1,10 @@
 import { utils } from "ffjavascript"
-import * as fs from "fs"
-import { Registry, RLN, Cache, RLNFullProof } from "../src"
+import { Registry, Cache, RLNFullProof } from "../src"
 import { Status } from '../src/cache'
 import { DEFAULT_REGISTRY_TREE_DEPTH } from "../src/registry"
 import { genExternalNullifier } from "../src/utils"
 import { defaultParamsPath } from "./configs"
+import { rlnInstanceFactory } from "./factories"
 
 const defaultTreeDepth = DEFAULT_REGISTRY_TREE_DEPTH;
 
@@ -20,32 +20,30 @@ describe("Cache", () => {
   let proof5: RLNFullProof;
 
   beforeAll(async () => {
-    const { wasmFilePath, finalZkeyPath, vkeyPath } = defaultParamsPath;
-    const vKey = JSON.parse(fs.readFileSync(vkeyPath, "utf-8"))
     const identityCommitments: bigint[] = []
-    const rln_instance = new RLN(wasmFilePath, finalZkeyPath, vKey, RLN_IDENTIFIER)
-    const rln_instance2 = new RLN(wasmFilePath, finalZkeyPath, vKey, RLN_IDENTIFIER)
-    const rln_instance3 = new RLN(wasmFilePath, finalZkeyPath, vKey, BigInt(2))
+    const rlnInstance = rlnInstanceFactory(defaultParamsPath, RLN_IDENTIFIER)
+    const rlnInstance2 = rlnInstanceFactory(defaultParamsPath, RLN_IDENTIFIER)
+    const rlnInstance3 = rlnInstanceFactory(defaultParamsPath, BigInt(2))
 
     const leaves = Object.assign([], identityCommitments)
-    leaves.push(rln_instance.commitment)
-    leaves.push(rln_instance2.commitment)
-    leaves.push(rln_instance3.commitment)
+    leaves.push(rlnInstance.commitment)
+    leaves.push(rlnInstance2.commitment)
+    leaves.push(rlnInstance3.commitment)
 
     const signal1 = "hey hey"
     const signal2 = "hey hey hey"
     const epoch1 = genExternalNullifier("1")
     const epoch2 = genExternalNullifier("2")
 
-    const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance.commitment)
-    const merkleProof2 = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance2.commitment)
-    const merkleProof3 = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rln_instance3.commitment)
+    const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rlnInstance.commitment)
+    const merkleProof2 = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rlnInstance2.commitment)
+    const merkleProof3 = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rlnInstance3.commitment)
 
-    proof1 = await rln_instance.generateProof(signal1, merkleProof, epoch1)
-    proof2 = await rln_instance.generateProof(signal2, merkleProof, epoch1)
-    proof3 = await rln_instance2.generateProof(signal2, merkleProof2, epoch1)
-    proof4 = await rln_instance2.generateProof(signal2, merkleProof2, epoch2)
-    proof5 = await rln_instance3.generateProof(signal1, merkleProof3, epoch1)
+    proof1 = await rlnInstance.generateProof(signal1, merkleProof, epoch1)
+    proof2 = await rlnInstance.generateProof(signal2, merkleProof, epoch1)
+    proof3 = await rlnInstance2.generateProof(signal2, merkleProof2, epoch1)
+    proof4 = await rlnInstance2.generateProof(signal2, merkleProof2, epoch2)
+    proof5 = await rlnInstance3.generateProof(signal1, merkleProof3, epoch1)
   })
 
   test("should be an instance of Cache", () => {

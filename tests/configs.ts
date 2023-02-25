@@ -1,10 +1,11 @@
 import * as path from "path"
+import { CircuitParamsFilePathT } from "../src/types";
 
 
 const thisFileDirname = __dirname
 
 
-function getParamsPath(paramsDir: string) {
+function getParamsPath(paramsDir: string): CircuitParamsFilePathT {
     return {
         vkeyPath: path.join(paramsDir, "verification_key.json"),
         wasmFilePath: path.join(paramsDir, "rln.wasm"),
