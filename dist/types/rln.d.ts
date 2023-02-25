@@ -1,18 +1,33 @@
 import { MerkleProof } from '@zk-kit/incremental-merkle-tree';
 import { Identity } from '@semaphore-protocol/identity';
-import { RLNFullProof, StrBigInt } from './types';
+import { RLNFullProof, StrBigInt, VerificationKeyT } from './types';
+type RLNExportedT = {
+    identity: string;
+    rlnIdentifier: string;
+    verificationKey: string;
+    wasmFilePath: string;
+    finalZkeyPath: string;
+};
+type RLNWitnessT = {
+    identity_secret: bigint;
+    path_elements: any[];
+    identity_path_index: number[];
+    x: string | bigint;
+    epoch: bigint;
+    rln_identifier: bigint;
+};
 /**
 RLN is a class that represents a single RLN identity.
 **/
 export default class RLN {
     wasmFilePath: string;
     finalZkeyPath: string;
-    verificationKey: Object;
+    verificationKey: VerificationKeyT;
     rlnIdentifier: bigint;
     identity: Identity;
     commitment: bigint;
     secretIdentity: bigint;
-    constructor(wasmFilePath: string, finalZkeyPath: string, verificationKey: Object, rlnIdentifier?: bigint, identity?: string);
+    constructor(wasmFilePath: string, finalZkeyPath: string, verificationKey: VerificationKeyT, rlnIdentifier?: bigint, identity?: string);
     /**
      * Generates an RLN Proof.
      * @param signal This is usually the raw message.
@@ -22,19 +37,11 @@ export default class RLN {
      */
     generateProof(signal: string, merkleProof: MerkleProof, epoch?: StrBigInt): Promise<RLNFullProof>;
     /**
-     * Generates an RLN Proof.
-     * @param signal This is usually the raw message.
-     * @param merkleProof This is the merkle proof for the identity commitment.
-     * @param epoch This is the time component for the proof, if no epoch is set, unix epoch time rounded to 1 second will be used.
-     * @returns The full SnarkJS proof.
-     */
-    static generateProof(signal: string, merkleProof: MerkleProof, epoch: StrBigInt, rlnIdentifier: bigint, secretIdentity: any, wasmFilePath: string, finalZkeyPath: string, shouldHash?: boolean): Promise<RLNFullProof>;
-    /**
      * Generates a SnarkJS full proof with Groth16.
      * @param witness The parameters for creating the proof.
      * @returns The full SnarkJS proof.
      */
-    _genProof(witness: any): Promise<RLNFullProof>;
+    _genProof(witness: RLNWitnessT): Promise<RLNFullProof>;
     /**
    * Generates a SnarkJS full proof with Groth16.
    * @param witness The parameters for creating the proof.
@@ -42,7 +49,7 @@ export default class RLN {
    * @param finalZkeyPath The path to the final zkey file.
    * @returns The full SnarkJS proof.
    */
-    static _genProof(witness: any, wasmFilePath: string, finalZkeyPath: string): Promise<RLNFullProof>;
+    static _genProof(witness: RLNWitnessT, wasmFilePath: string, finalZkeyPath: string): Promise<RLNFullProof>;
     /**
      * Verifies a zero-knowledge SnarkJS proof.
      * @param fullProof The SnarkJS full proof.
@@ -54,7 +61,7 @@ export default class RLN {
    * @param fullProof The SnarkJS full proof.
    * @returns True if the proof is valid, false otherwise.
    */
-    static verifyProof(verificationKey: Object, { proof, publicSignals }: RLNFullProof): Promise<boolean>;
+    static verifyProof(verificationKey: VerificationKeyT, { proof, publicSignals }: RLNFullProof): Promise<boolean>;
     /**
      * Creates witness for rln proof
      * @param merkleProof merkle proof that identity exists in RLN tree
@@ -63,7 +70,7 @@ export default class RLN {
      * @param shouldHash should the signal be hashed, default is true
      * @returns rln witness
      */
-    _genWitness(merkleProof: MerkleProof, epoch: StrBigInt, signal: string, shouldHash?: boolean): any;
+    _genWitness(merkleProof: MerkleProof, epoch: StrBigInt, signal: string, shouldHash?: boolean): RLNWitnessT;
     /**
      * Calculates Output
      * @param identitySecret identity secret
@@ -108,8 +115,9 @@ export default class RLN {
      */
     static _genIdentifier(): bigint;
     static _bigintToUint8Array(input: bigint): Uint8Array;
-    export(): Object;
-    static import(rln_instance: Object): RLN;
+    export(): RLNExportedT;
+    static import(rlnInstance: RLNExportedT): RLN;
     static fromJSRLNProof(bytes: Uint8Array): Promise<RLNFullProof>;
     static toJSRLNProof(rlnFullProof: RLNFullProof): Promise<Uint8Array>;
 }
+export {};

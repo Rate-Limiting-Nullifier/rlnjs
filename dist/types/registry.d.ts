@@ -1,27 +1,27 @@
-import { MerkleProof } from "@zk-kit/incremental-merkle-tree";
+import { MerkleProof } from '@zk-kit/incremental-merkle-tree';
 import { StrBigInt } from './types';
 export declare const DEFAULT_REGISTRY_TREE_DEPTH = 20;
 export default class Registry {
     private _registry;
     private _slashed;
     _treeDepth: number;
-    _zeroValue: BigInt;
+    _zeroValue: bigint;
     /**
      * Initializes the registry with the tree depth and the zero value.
      * @param treeDepth Tree depth (int).
      * @param zeroValue Zero values for zeroes.
      */
-    constructor(treeDepth?: number, zeroValue?: BigInt);
+    constructor(treeDepth?: number, zeroValue?: bigint);
     /**
      * Returns the root hash of the registry merkle tree.
      * @returns Root hash.
      */
-    get root(): BigInt;
+    get root(): bigint;
     /**
      * Returns the root hash of the slashed registry merkle tree.
      * @returns Root hash.
      */
-    get slashedRoot(): BigInt;
+    get slashedRoot(): bigint;
     /**
      * Returns the members (i.e. identity commitments) of the registry.
      * @returns List of members.
@@ -37,39 +37,39 @@ export default class Registry {
      * @param member Registry member.
      * @returns Index of the member.
      */
-    indexOf(member: BigInt): number;
+    indexOf(member: bigint): number;
     /**
      * Adds a new member to the registry.
      * If a member exists in the slashed registry, the member can't be added.
      * @param identityCommitment New member.
      */
-    addMember(identityCommitment: BigInt): void;
+    addMember(identityCommitment: bigint): void;
     /**
      * Adds new members to the registry.
      * @param identityCommitments New members.
      */
-    addMembers(identityCommitments: BigInt[]): void;
+    addMembers(identityCommitments: bigint[]): void;
     /**
     * Removes a member from the registry and adds them to the slashed registry.
     * @param identityCommitment IdentityCommitment of the member to be removed.
     */
-    slashMember(identityCommitment: BigInt): void;
+    slashMember(identityCommitment: bigint): void;
     /**
      * Adds a new member to the slashed registry.
      * If a member exists in the registry, the member can't be added to the slashed.
      * @param identityCommitment New member.
      */
-    addSlashedMember(identityCommitment: BigInt): void;
+    addSlashedMember(identityCommitment: bigint): void;
     /**
      * Adds new members to the slashed registry.
      * @param identityCommitments New members.
      */
-    addSlashedMembers(identityCommitments: BigInt[]): void;
+    addSlashedMembers(identityCommitments: bigint[]): void;
     /**
     * Removes a member from the registry.
     * @param identityCommitment IdentityCommitment of the member to be removed.
     */
-    removeMember(identityCommitment: BigInt): void;
+    removeMember(identityCommitment: bigint): void;
     /**
      * Creates a Merkle Proof.
      * @param idCommitment The leaf for which Merkle proof should be created.
