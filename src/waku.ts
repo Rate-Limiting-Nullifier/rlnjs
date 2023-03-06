@@ -14,9 +14,15 @@ const SIZE_BN254_G1_COMPRESSED = 32
 const SIZE_BN254_G2_COMPRESSED = 64
 const SIZE_FIELD = 32
 
-//
+// FIXME: js-rln is **incompatible** with with our proof since we don't use the same circuit.
+// We should revisit this once js-rln uses the same circuit as us.
+// In our v1 circuit `epoch` and `rlnNullifier` are replaced by a single
+// input `externalNullifier`.
+
 // JS RLN Proof layout, ref: https://github.com/waku-org/js-rln/blob/d77370fbece089fb45fa99ad8f2988c0cc9cf0ff/src/rln.ts#L103
 //  - snark_proof<128> | share_y<32> | nullifier<32> | root<32> | epoch<32> | share_x<32> | rln_identifier<32>
+// Our layout:
+// - snark_proof<128> | share_y<32> | nullifier<32> | root<32> | external_nullifier<32> | share_x<32>
 // snark_proof<128>: G1<32>, G2<64>, G1<32>
 const SIZE_SNARK_PROOF = SIZE_BN254_G1_COMPRESSED + SIZE_BN254_G2_COMPRESSED + SIZE_BN254_G1_COMPRESSED
 const OFFSET_SNARK_PROOF = 0
@@ -26,14 +32,12 @@ const OFFSET_SHARE_Y = OFFSET_SNARK_PROOF + SIZE_SNARK_PROOF
 const OFFSET_NULLIFIER = OFFSET_SHARE_Y + SIZE_FIELD
 // root<32>: field element
 const OFFSET_MERKLE_ROOT = OFFSET_NULLIFIER + SIZE_FIELD
-// epoch<32>: field element
-const OFFSET_EPOCH = OFFSET_MERKLE_ROOT + SIZE_FIELD
+// external_nullifier<32>: field element
+const OFFSET_EXTERNAL_NULLIFIER = OFFSET_MERKLE_ROOT + SIZE_FIELD
 // share_x<32>: field element
-const OFFSET_SHARE_X = OFFSET_EPOCH + SIZE_FIELD
-// rln_identifier<32>: field element
-const OFFSET_RLN_NULLIFIER = OFFSET_SHARE_X + SIZE_FIELD
+const OFFSET_SHARE_X = OFFSET_EXTERNAL_NULLIFIER + SIZE_FIELD
 // Size of the whole proof from js-rln
-const SIZE_JS_RLN_PROOF = OFFSET_RLN_NULLIFIER + SIZE_FIELD
+const SIZE_JS_RLN_PROOF = OFFSET_SHARE_X + SIZE_FIELD
 
 
 // `curve` type returned by `buildEngine` in ffjavascript
@@ -232,17 +236,15 @@ export function serializeJSRLNProof(engine: EngineT, proof: RLNFullProof): Uint8
   const shareYBytes = serializeFieldLE(BigInt(proof.publicSignals.yShare))
   const nullifierBytes = serializeFieldLE(BigInt(proof.publicSignals.internalNullifier))
   const merkleRootBytes = serializeFieldLE(BigInt(proof.publicSignals.merkleRoot))
-  const epochBytes = serializeFieldLE(BigInt(proof.publicSignals.epoch))
+  const externalNullifierBytes = serializeFieldLE(BigInt(proof.publicSignals.externalNullifier))
   const shareXBytes = serializeFieldLE(BigInt(proof.publicSignals.signalHash))
-  const rlnIdentifierBytes = serializeFieldLE(BigInt(proof.publicSignals.rlnIdentifier))
   return concatUint8Arrays(
     snarkProofBytes,
     shareYBytes,
     nullifierBytes,
     merkleRootBytes,
-    epochBytes,
+    externalNullifierBytes,
     shareXBytes,
-    rlnIdentifierBytes,
   )
 }
 
@@ -260,17 +262,15 @@ export function deserializeJSRLNProof(engine: EngineT, bytes: Uint8Array): RLNFu
   const snarkProof = deserializeSNARKProof(engine, bytes.slice(OFFSET_SNARK_PROOF, OFFSET_SHARE_Y))
   const shareY = deserializeFieldLE(bytes.slice(OFFSET_SHARE_Y, OFFSET_NULLIFIER))
   const nullifier = deserializeFieldLE(bytes.slice(OFFSET_NULLIFIER, OFFSET_MERKLE_ROOT))
-  const merkleRoot = deserializeFieldLE(bytes.slice(OFFSET_MERKLE_ROOT, OFFSET_EPOCH))
-  const epoch = deserializeFieldLE(bytes.slice(OFFSET_EPOCH, OFFSET_SHARE_X))
-  const shareX = deserializeFieldLE(bytes.slice(OFFSET_SHARE_X, OFFSET_RLN_NULLIFIER))
-  const rlnIdentifier = deserializeFieldLE(bytes.slice(OFFSET_RLN_NULLIFIER, OFFSET_RLN_NULLIFIER + SIZE_FIELD))
+  const merkleRoot = deserializeFieldLE(bytes.slice(OFFSET_MERKLE_ROOT, OFFSET_EXTERNAL_NULLIFIER))
+  const externalNullifier = deserializeFieldLE(bytes.slice(OFFSET_EXTERNAL_NULLIFIER, OFFSET_SHARE_X))
+  const shareX = deserializeFieldLE(bytes.slice(OFFSET_SHARE_X, OFFSET_SHARE_X + SIZE_FIELD))
   const publicSignals: RLNPublicSignals = {
     yShare: shareY,
     merkleRoot,
     internalNullifier: nullifier,
     signalHash: shareX,
-    epoch: epoch,
-    rlnIdentifier,
+    externalNullifier,
   }
   return {
     proof: snarkProof,

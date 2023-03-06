@@ -1,8 +1,7 @@
 import { Identity } from '@semaphore-protocol/identity'
 import { Registry, RLN  } from "../src"
 import { DEFAULT_REGISTRY_TREE_DEPTH } from '../src/registry'
-import { genExternalNullifier } from "../src/utils"
-import { rlnInstanceFactory } from './factories'
+import { rlnInstanceFactory, epochFactory } from './factories'
 
 
 const defaultTreeDepth = DEFAULT_REGISTRY_TREE_DEPTH;
@@ -37,8 +36,7 @@ describe("RLN", () => {
       leaves.push(identityCommitment)
 
       const signal = "hey hey"
-      // TODO: Refactor genExternalNullifier
-      const epoch: string = genExternalNullifier("test-epoch")
+      const epoch = epochFactory()
 
       const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, identityCommitment)
       const witness = rlnInstance._genWitness(merkleProof, epoch, signal)
@@ -62,10 +60,10 @@ describe("RLN", () => {
       const signal2 = "hey hey again"
       const signalHash2 = RLN._genSignalHash(signal2)
 
-      const epoch = genExternalNullifier("test-epoch")
+      const epoch = epochFactory()
 
-      const [y1] = rlnInstance._calculateOutput(BigInt(epoch), signalHash1)
-      const [y2] = rlnInstance._calculateOutput(BigInt(epoch), signalHash2)
+      const [y1] = rlnInstance._calculateOutput(epoch, signalHash1)
+      const [y2] = rlnInstance._calculateOutput(epoch, signalHash2)
 
       const retrievedSecret = RLN._shamirRecovery(signalHash1, signalHash2, y1, y2)
 
@@ -77,7 +75,7 @@ describe("RLN", () => {
       leaves.push(rlnInstance.commitment)
 
       const signal = "hey hey"
-      const epoch = genExternalNullifier("test-epoch")
+      const epoch = epochFactory()
       const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rlnInstance.commitment)
 
       const fullProof = await rlnInstance.generateProof(signal, merkleProof, epoch)
@@ -95,8 +93,8 @@ describe("RLN", () => {
       const signal1 = "hey hey"
       const signal2 = "hey hey hey"
 
-      const epoch1 = genExternalNullifier("1")
-      const epoch2 = genExternalNullifier("2")
+      const epoch1 = epochFactory()
+      const epoch2 = epochFactory([epoch1])
       const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rlnInstance.commitment)
 
       const identityCommitment2 = rlnInstance2.commitment

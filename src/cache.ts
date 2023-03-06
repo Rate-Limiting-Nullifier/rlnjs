@@ -41,8 +41,7 @@ function isSameProof(proof1: RLNFullProof, proof2: RLNFullProof): boolean {
     BigInt(publicSignals1.yShare) === BigInt(publicSignals2.yShare) &&
     BigInt(publicSignals1.internalNullifier) === BigInt(publicSignals2.internalNullifier) &&
     BigInt(publicSignals1.signalHash) === BigInt(publicSignals2.signalHash) &&
-    BigInt(publicSignals1.epoch) === BigInt(publicSignals2.epoch) &&
-    BigInt(publicSignals1.rlnIdentifier) === BigInt(publicSignals2.rlnIdentifier)
+    BigInt(publicSignals1.externalNullifier) === BigInt(publicSignals2.externalNullifier)
   )
 }
 
@@ -72,35 +71,39 @@ export default class Cache {
 
   /**
    *  Adds a proof to the cache
+   * @param epoch the current epoch
    * @param proof the RLNFullProof to add to the cache
    * @returns an object with the status of the proof and the nullifier and secret if the proof is a breach
    */
-  addProof(proof: RLNFullProof): EvaluatedProof {
-    // Check if proof is for this rlnIdentifier
-    if (BigInt(proof.publicSignals.rlnIdentifier) !== this.rlnIdentifier) {
-      //console.error('Proof is not for this rlnIdentifier', proof.publicSignals.rlnIdentifier, this.rlnIdentifier);
+  addProof(epoch: number | bigint, proof: RLNFullProof): EvaluatedProof {
+    // Make sure epoch is a BigInt
+    const epochBigInt = BigInt(epoch)
+    const expectedExternalNullifier = RLN._genNullifier(epochBigInt, this.rlnIdentifier)
+    // Check the proof matches the epoch and rlnIdentifier
+    if (BigInt(proof.publicSignals.externalNullifier) !== expectedExternalNullifier) {
       return { status: Status.INVALID, msg: 'Proof is not for this rlnIdentifier' }
     }
 
+    // Use epoch as string as key since BigInt can't be used as key
+    const epochString = String(epochBigInt)
     // Convert epoch and nullifier to string, can't use BigInt as a key
-    const epoch = String(proof.publicSignals.epoch)
     const nullifier = String(proof.publicSignals.internalNullifier)
-    this.evaluateEpoch(epoch)
+    this.evaluateEpoch(epochString)
     // If nullifier doesn't exist for this epoch, create an empty array
-    this.cache[epoch][nullifier] = this.cache[epoch][nullifier] || []
+    this.cache[epochString][nullifier] = this.cache[epochString][nullifier] || []
 
     // Check if the proof already exists. It's O(n) but it's not a big deal since n is exactly the
     // rate limit and it's usually small.
-    const sameProofs = this.cache[epoch][nullifier].filter(p => isSameProof(p, proof))
+    const sameProofs = this.cache[epochString][nullifier].filter(p => isSameProof(p, proof))
     if (sameProofs.length > 0) {
       return { status: Status.INVALID, msg: 'Proof already exists' }
     }
 
     // Add proof to cache
-    this.cache[epoch][nullifier].push(proof)
+    this.cache[epochString][nullifier].push(proof)
 
     // Check if there is more than 1 proof for this nullifier for this epoch
-    return this.evaluateNullifierAtEpoch(epoch, nullifier)
+    return this.evaluateNullifierAtEpoch(epochString, nullifier)
   }
 
   private evaluateNullifierAtEpoch(epoch: string, nullifier: string): EvaluatedProof {

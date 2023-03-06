@@ -8,7 +8,7 @@ import poseidon from 'poseidon-lite'
 import { Identity } from '@semaphore-protocol/identity'
 
 // Types
-import { RLNFullProof, StrBigInt, VerificationKeyT } from './types'
+import { RLNFullProof, RLNWitnessT, StrBigInt, VerificationKeyT } from './types'
 import { instantiateBn254, deserializeJSRLNProof, serializeJSRLNProof } from './waku'
 
 
@@ -20,15 +20,6 @@ type RLNExportedT = {
   finalZkeyPath: string,
 }
 
-type RLNWitnessT = {
-  identity_secret: bigint,
-  // Ignore `no-explicit-any` because the type of `identity_path_elements` in zk-kit is `any[]`
-  path_elements: any[], // eslint-disable-line @typescript-eslint/no-explicit-any
-  identity_path_index: number[],
-  x: string | bigint,
-  epoch: bigint,
-  rln_identifier: bigint,
-}
 
 /**
 RLN is a class that represents a single RLN identity.
@@ -112,8 +103,7 @@ export default class RLN {
         merkleRoot: publicSignals[1],
         internalNullifier: publicSignals[2],
         signalHash: publicSignals[3],
-        epoch: publicSignals[4],
-        rlnIdentifier: publicSignals[5],
+        externalNullifier: publicSignals[4],
       },
     }
   }
@@ -142,8 +132,7 @@ export default class RLN {
         publicSignals.merkleRoot,
         publicSignals.internalNullifier,
         publicSignals.signalHash,
-        publicSignals.epoch,
-        publicSignals.rlnIdentifier,
+        publicSignals.externalNullifier,
       ],
       proof,
     )
@@ -164,12 +153,11 @@ export default class RLN {
     shouldHash = true,
   ): RLNWitnessT {
     return {
-      identity_secret: this.secretIdentity,
-      path_elements: merkleProof.siblings,
-      identity_path_index: merkleProof.pathIndices,
+      identitySecret: this.secretIdentity,
+      pathElements: merkleProof.siblings,
+      identityPathIndex: merkleProof.pathIndices,
       x: shouldHash ? RLN._genSignalHash(signal) : signal,
-      epoch: BigInt(epoch),
-      rln_identifier: this.rlnIdentifier,
+      externalNullifier: RLN._genNullifier(BigInt(epoch), this.rlnIdentifier),
     }
   }
 
@@ -266,21 +254,6 @@ export default class RLN {
     // return Uint8Array.from(Array.from(bigIntAsStr).map(letter => letter.charCodeAt(0)));
     return new Uint8Array(new BigUint64Array([input]).buffer)
   }
-
-  // public static _uint8ArrayToBigint(input: Uint8Array): bigint {
-  //   // const decoder = new TextDecoder();
-  //   // return BigInt(decoder.decode(input));
-  //   return BigUint64Array.from(input)[0];
-  // }
-
-  // public encodeProofIntoUint8Array(): Uint8Array {
-  //   const data = [];
-  //   data.push();
-  //   return new Uint8Array(data);
-
-  // }
-
-  // public decodeProofFromUint8Array(): RLN { }
 
   public export(): RLNExportedT {
     console.debug('Exporting RLN instance')

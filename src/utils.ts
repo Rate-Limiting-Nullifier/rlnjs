@@ -1,4 +1,3 @@
-import { keccak256 } from '@ethersproject/solidity'
 import { ZqField } from 'ffjavascript'
 import { VerificationKeyT } from './types'
 
@@ -11,19 +10,6 @@ export const SNARK_FIELD_SIZE = BigInt('2188824287183927522224640574525727508854
 // Creates the finite field
 export const Fq = new ZqField(SNARK_FIELD_SIZE)
 
-/**
- * Generates an External Nullifier for use with RLN.
- * @param plaintext String. //TODO: better description
- * @returns External Nullifier in a string.
- */
-export function genExternalNullifier(plaintext: string): string {
-  const hashed = keccak256(['string'], [plaintext])
-  const hexStr = `0x${hashed.slice(8)}`
-  const len = 32 * 2
-  const h = hexStr.slice(2, len + 2)
-
-  return `0x${h.padStart(len, '0')}`
-}
 
 export function concatUint8Arrays(...arrays: Uint8Array[]): Uint8Array {
   const totalLength = arrays.reduce((acc, arr) => acc + arr.length, 0)
