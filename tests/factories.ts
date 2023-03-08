@@ -14,7 +14,7 @@ export function rlnInstanceFactory (
     return new RLN(paramsPath.wasmFilePath, paramsPath.finalZkeyPath, vKey, rlnIdentifier, identity)
 }
 
-export function epochFactory(excludes?: bigint[], trials: number = 100): bigint {
+export function fieldFactory(excludes?: bigint[], trials: number = 100): bigint {
     if (excludes) {
         for (let i = 0; i < trials; i++) {
             const epoch = Fq.random()

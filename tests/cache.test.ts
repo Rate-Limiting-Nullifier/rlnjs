@@ -3,7 +3,7 @@ import { Registry, Cache, RLNFullProof } from "../src"
 import { Status } from '../src/cache'
 import { DEFAULT_REGISTRY_TREE_DEPTH } from "../src/registry"
 import { defaultParamsPath } from "./configs"
-import { epochFactory, rlnInstanceFactory } from "./factories"
+import { fieldFactory, rlnInstanceFactory } from "./factories"
 
 const defaultTreeDepth = DEFAULT_REGISTRY_TREE_DEPTH;
 
@@ -13,8 +13,8 @@ describe("Cache", () => {
   const RLN_IDENTIFIER = BigInt(1)
   const signal1 = "hey hey"
   const signal2 = "hey hey hey"
-  const epoch1 = epochFactory()
-  const epoch2 = epochFactory([epoch1])
+  const epoch1 = fieldFactory()
+  const epoch2 = fieldFactory([epoch1])
   const cache = new Cache(RLN_IDENTIFIER)
 
   let proof1: RLNFullProof;
@@ -55,14 +55,14 @@ describe("Cache", () => {
   })
 
   test("should successfully add proof", () => {
-    const result1 = cache.addProof(epoch1, proof1)
+    const result1 = cache.addProof(proof1)
     expect(result1.status).toBe(Status.ADDED)
     expect(Object.keys(cache.cache).length
     ).toBe(1)
   })
 
   test("should detect breach and return secret", () => {
-    const result2 = cache.addProof(epoch1, proof2)
+    const result2 = cache.addProof(proof2)
     expect(result2.status).toBe(Status.BREACH)
     expect(result2.secret).toBeGreaterThan(0)
     expect(Object.keys(cache.cache).length
@@ -70,45 +70,54 @@ describe("Cache", () => {
   })
 
   test("should check proof 3", () => {
-    const result3 = cache.addProof(epoch1, proof3)
+    const result3 = cache.addProof(proof3)
     expect(result3.status).toBe(Status.ADDED)
   })
 
   test("should check proof 4", () => {
-    const result4 = cache.addProof(epoch2, proof4)
+    const result4 = cache.addProof(proof4)
     expect(result4.status).toBe(Status.ADDED)
   })
 
   test("should fail for proof 5 (different RLN Identifiers)", () => {
-    const result5 = cache.addProof(epoch1, proof5)
+    const result5 = cache.addProof(proof5)
     expect(result5.status).toBe(Status.INVALID)
   })
 
   test("should fail for proof 1 (external nullifier mismatch epoch and rln identifier)", () => {
-    const result1 = cache.addProof(epoch2, proof1)
+    const proofWrongEpoch: RLNFullProof = {
+      epoch: epoch2,
+      rlnIdentifier: proof1.rlnIdentifier,
+      snarkProof: proof1.snarkProof,
+    }
+    const result1 = cache.addProof(proofWrongEpoch)
     expect(result1.status).toBe(Status.INVALID)
   });
 
   test("should fail for proof 1 (duplicate proof)", () => {
     // Proof 1 is already in the cache
-    const result1 = cache.addProof(epoch1, proof1)
+    const result1 = cache.addProof(proof1)
     expect(result1.status).toBe(Status.INVALID)
 
     // Proof 1 with different merkle root is not in the cache, but is still
     // deemed the same proof as proof 1
-    const publicSignals1 = proof1.publicSignals
+    const publicSignals1 = proof1.snarkProof.publicSignals
     // All the same except merkle root
     const proof1WithDifferentMerkleRoot: RLNFullProof = {
-      proof: proof1.proof,
-      publicSignals: {
-        yShare: publicSignals1.yShare,
-        merkleRoot: BigInt(42),
-        internalNullifier: publicSignals1.internalNullifier,
-        signalHash: publicSignals1.signalHash,
-        externalNullifier: publicSignals1.externalNullifier,
+      epoch: proof1.epoch,
+      rlnIdentifier: proof1.rlnIdentifier,
+      snarkProof: {
+        proof: proof1.snarkProof.proof,
+        publicSignals: {
+          yShare: publicSignals1.yShare,
+          merkleRoot: BigInt(42),
+          internalNullifier: publicSignals1.internalNullifier,
+          signalHash: publicSignals1.signalHash,
+          externalNullifier: publicSignals1.externalNullifier,
+        }
       }
     }
-    const result2 = cache.addProof(epoch1, proof1WithDifferentMerkleRoot)
+    const result2 = cache.addProof(proof1WithDifferentMerkleRoot)
     expect(result2.status).toBe(Status.INVALID)
   });
 

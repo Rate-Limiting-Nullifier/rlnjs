@@ -3,12 +3,12 @@ import { keccak256 } from '@ethersproject/solidity'
 import { toUtf8Bytes } from '@ethersproject/strings'
 import { MerkleProof } from '@zk-kit/incremental-merkle-tree'
 import { groth16 } from 'snarkjs'
-import { Fq } from './utils'
+import { Fq, isProofSameExternalNullifier } from './utils'
 import poseidon from 'poseidon-lite'
 import { Identity } from '@semaphore-protocol/identity'
 
 // Types
-import { RLNFullProof, RLNWitnessT, StrBigInt, VerificationKeyT } from './types'
+import { RLNFullProof, RLNSNARKProof, RLNWitnessT, StrBigInt, VerificationKeyT } from './types'
 import { instantiateBn254, deserializeJSRLNProof, serializeJSRLNProof } from './waku'
 
 
@@ -65,7 +65,7 @@ export default class RLN {
   public async generateProof(signal: string, merkleProof: MerkleProof, epoch?: StrBigInt): Promise<RLNFullProof> {
     const epochBigInt = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000)) // rounded to nearest second
     const witness = this._genWitness(merkleProof, epochBigInt, signal)
-    return this._genProof(witness)
+    return this._genProof(epochBigInt, witness)
   }
 
   /**
@@ -74,9 +74,15 @@ export default class RLN {
    * @returns The full SnarkJS proof.
    */
   public async _genProof(
+    epoch: bigint,
     witness: RLNWitnessT,
   ): Promise<RLNFullProof> {
-    return RLN._genProof(witness, this.wasmFilePath, this.finalZkeyPath)
+    const snarkProof: RLNSNARKProof = await RLN._genSNARKProof(witness, this.wasmFilePath, this.finalZkeyPath)
+    return {
+      snarkProof,
+      epoch,
+      rlnIdentifier: this.rlnIdentifier,
+    }
   }
 
   /**
@@ -86,9 +92,9 @@ export default class RLN {
  * @param finalZkeyPath The path to the final zkey file.
  * @returns The full SnarkJS proof.
  */
-  public static async _genProof(
+  public static async _genSNARKProof(
     witness: RLNWitnessT, wasmFilePath: string, finalZkeyPath: string,
-  ): Promise<RLNFullProof> {
+  ): Promise<RLNSNARKProof> {
     const { proof, publicSignals } = await groth16.fullProve(
       witness,
       wasmFilePath,
@@ -113,8 +119,16 @@ export default class RLN {
    * @param fullProof The SnarkJS full proof.
    * @returns True if the proof is valid, false otherwise.
    */
-  public async verifyProof({ proof, publicSignals }: RLNFullProof): Promise<boolean> {
-    return RLN.verifyProof(this.verificationKey, { proof, publicSignals })
+  public async verifyProof(rlnRullProof: RLNFullProof): Promise<boolean> {
+    if (BigInt(rlnRullProof.rlnIdentifier) !== this.rlnIdentifier) {
+      throw new Error('RLN identifier does not match')
+    }
+    const expectedExternalNullifier = RLN._genNullifier(BigInt(rlnRullProof.epoch), this.rlnIdentifier)
+    if (expectedExternalNullifier !== BigInt(rlnRullProof.snarkProof.publicSignals.externalNullifier)) {
+      throw new Error('External nullifier does not match')
+    }
+
+    return RLN.verifySNARKProof(this.verificationKey, rlnRullProof.snarkProof)
   }
 
   /**
@@ -122,8 +136,8 @@ export default class RLN {
  * @param fullProof The SnarkJS full proof.
  * @returns True if the proof is valid, false otherwise.
  */
-  public static async verifyProof(verificationKey: VerificationKeyT,
-    { proof, publicSignals }: RLNFullProof,
+  public static async verifySNARKProof(verificationKey: VerificationKeyT,
+    { proof, publicSignals }: RLNSNARKProof,
   ): Promise<boolean> {
     return groth16.verify(
       verificationKey,
@@ -225,7 +239,12 @@ export default class RLN {
    * @returns identity secret
    */
   public static retrieveSecret(proof1: RLNFullProof, proof2: RLNFullProof): bigint {
-    if (proof1.publicSignals.internalNullifier !== proof2.publicSignals.internalNullifier) {
+    if (!isProofSameExternalNullifier(proof1, proof2)) {
+      throw new Error('External Nullifiers do not match! Cannot recover secret.')
+    }
+    const snarkProof1 = proof1.snarkProof
+    const snarkProof2 = proof2.snarkProof
+    if (snarkProof1.publicSignals.internalNullifier !== snarkProof2.publicSignals.internalNullifier) {
       // The internalNullifier is made up of the identityCommitment + epoch + rlnappID,
       // so if they are different, the proofs are from:
       // different users,
@@ -234,10 +253,10 @@ export default class RLN {
       throw new Error('Internal Nullifiers do not match! Cannot recover secret.')
     }
     return RLN._shamirRecovery(
-      BigInt(proof1.publicSignals.signalHash),
-      BigInt(proof2.publicSignals.signalHash),
-      BigInt(proof1.publicSignals.yShare),
-      BigInt(proof2.publicSignals.yShare),
+      BigInt(snarkProof1.publicSignals.signalHash),
+      BigInt(snarkProof2.publicSignals.signalHash),
+      BigInt(snarkProof1.publicSignals.yShare),
+      BigInt(snarkProof2.publicSignals.yShare),
     )
   }
 

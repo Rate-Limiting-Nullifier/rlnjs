@@ -1,5 +1,8 @@
 export type StrBigInt = string | bigint
 
+/**
+ * SNARK proof.
+ */
 export type Proof = {
   pi_a: StrBigInt[]
   pi_b: StrBigInt[][]
@@ -8,11 +11,9 @@ export type Proof = {
   curve: string
 }
 
-export type RLNFullProof = {
-  proof: Proof
-  publicSignals: RLNPublicSignals
-}
-
+/**
+ * Public signals of the SNARK proof.
+ */
 export type RLNPublicSignals = {
   yShare: StrBigInt
   merkleRoot: StrBigInt
@@ -20,6 +21,27 @@ export type RLNPublicSignals = {
   signalHash: StrBigInt
   externalNullifier: StrBigInt
 }
+
+/**
+ * SNARK proof that contains both proof and public signals.
+ * Can be verified directly by a SNARK verifier.
+ */
+export type RLNSNARKProof = {
+  proof: Proof
+  publicSignals: RLNPublicSignals
+}
+
+/**
+ * RLN full proof that contains both SNARK proof and other information.
+ * The proof is valid for a RLN user iff the epoch and rlnIdentifier match the user's
+ * and the snarkProof is valid.
+ */
+export type RLNFullProof = {
+  snarkProof: RLNSNARKProof
+  epoch: bigint
+  rlnIdentifier: bigint
+}
+
 
 export type VerificationKeyT = {
   protocol: string,
