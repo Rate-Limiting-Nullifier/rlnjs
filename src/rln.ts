@@ -295,14 +295,4 @@ export default class RLN {
       rlnInstance.identity,
     )
   }
-
-  public static async fromJSRLNProof(bytes: Uint8Array): Promise<RLNFullProof> {
-    const bn254 = await instantiateBn254()
-    return deserializeJSRLNProof(bn254, bytes)
-  }
-
-  public static async toJSRLNProof(rlnFullProof: RLNFullProof): Promise<Uint8Array> {
-    const bn254 = await instantiateBn254()
-    return serializeJSRLNProof(bn254, rlnFullProof)
-  }
 }
