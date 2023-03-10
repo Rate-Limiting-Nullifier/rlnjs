@@ -56,7 +56,7 @@ export default class Cache {
   addProof(fullProof: RLNFullProof): EvaluatedProof {
     // Make sure epoch is a BigInt
     const epochBigInt = BigInt(fullProof.epoch)
-    const expectedExternalNullifier = RLN._genNullifier(epochBigInt, this.rlnIdentifier)
+    const expectedExternalNullifier = RLN.calculateExternalNullifier(epochBigInt, this.rlnIdentifier)
     const snarkProof = fullProof.snarkProof
     // Check the proof matches the epoch and rlnIdentifier
     if (BigInt(snarkProof.publicSignals.externalNullifier) !== expectedExternalNullifier) {

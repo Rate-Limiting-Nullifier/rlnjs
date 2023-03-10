@@ -5,9 +5,9 @@
 
 install_circom_script='./scripts/install-circom.sh'
 
-rln_circuits_version=915c436
-rln_circuits_repo_url='https://github.com/Rate-Limiting-Nullifier/rln-circuits.git'
-rln_circuits_repo='rln-circuits'
+rln_circuits_version=5577cba
+rln_circuits_repo_url='https://github.com/Rate-Limiting-Nullifier/rln-circuits-v2.git'
+rln_circuits_repo='rln-circuits-v2'
 
 rln_circuits_relative_path='./circuits/rln.circom'
 rln_circuits_build_script='./scripts/build-circuits.sh'

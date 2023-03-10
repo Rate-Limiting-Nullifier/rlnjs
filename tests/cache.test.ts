@@ -38,11 +38,12 @@ describe("Cache", () => {
     const merkleProof2 = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rlnInstance2.commitment)
     const merkleProof3 = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rlnInstance3.commitment)
 
-    proof1 = await rlnInstance.generateProof(signal1, merkleProof, epoch1)
-    proof2 = await rlnInstance.generateProof(signal2, merkleProof, epoch1)
-    proof3 = await rlnInstance2.generateProof(signal2, merkleProof2, epoch1)
-    proof4 = await rlnInstance2.generateProof(signal2, merkleProof2, epoch2)
-    proof5 = await rlnInstance3.generateProof(signal1, merkleProof3, epoch1)
+    const messageId = 1
+    proof1 = await rlnInstance.generateProof(signal1, merkleProof, messageId, epoch1)
+    proof2 = await rlnInstance.generateProof(signal2, merkleProof, messageId, epoch1)
+    proof3 = await rlnInstance2.generateProof(signal2, merkleProof2, messageId, epoch1)
+    proof4 = await rlnInstance2.generateProof(signal2, merkleProof2, messageId, epoch2)
+    proof5 = await rlnInstance3.generateProof(signal1, merkleProof3, messageId, epoch1)
   })
 
   test("should be an instance of Cache", () => {
@@ -112,9 +113,10 @@ describe("Cache", () => {
           yShare: publicSignals1.yShare,
           merkleRoot: BigInt(42),
           internalNullifier: publicSignals1.internalNullifier,
-          signalHash: publicSignals1.signalHash,
+          x: publicSignals1.x,
           externalNullifier: publicSignals1.externalNullifier,
-        }
+          messageLimit: publicSignals1.messageLimit,
+        },
       }
     }
     const result2 = cache.addProof(proof1WithDifferentMerkleRoot)

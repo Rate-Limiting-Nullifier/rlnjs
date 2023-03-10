@@ -18,8 +18,9 @@ export type RLNPublicSignals = {
   yShare: StrBigInt
   merkleRoot: StrBigInt
   internalNullifier: StrBigInt
-  signalHash: StrBigInt
+  x: StrBigInt
   externalNullifier: StrBigInt
+  messageLimit: StrBigInt
 }
 
 /**
@@ -56,11 +57,13 @@ export type VerificationKey = {
 
 export type RLNWitness = {
   identitySecret: bigint,
+  messageId: bigint,
   // Ignore `no-explicit-any` because the type of `identity_path_elements` in zk-kit is `any[]`
   pathElements: any[], // eslint-disable-line @typescript-eslint/no-explicit-any
   identityPathIndex: number[],
   x: string | bigint,
   externalNullifier: bigint,
+  messageLimit: bigint,
 }
 
 export type CircuitParamsFilePath = {

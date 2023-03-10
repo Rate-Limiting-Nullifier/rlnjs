@@ -8,10 +8,11 @@ import { defaultParamsPath } from "./configs"
 export function rlnInstanceFactory(
     paramsPath: CircuitParamsFilePath = defaultParamsPath,
     rlnIdentifier?: bigint,
+    messageLimit?: bigint,
     identity?: string,
 ) {
     const vKey = parseVerificationKeyJSON(fs.readFileSync(paramsPath.vkeyPath, "utf-8"))
-    return new RLN(paramsPath.wasmFilePath, paramsPath.finalZkeyPath, vKey, rlnIdentifier, identity)
+    return new RLN(paramsPath.wasmFilePath, paramsPath.finalZkeyPath, vKey, rlnIdentifier, messageLimit, identity)
 }
 
 export function fieldFactory(excludes?: bigint[], trials: number = 100): bigint {

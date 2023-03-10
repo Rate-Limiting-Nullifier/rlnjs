@@ -71,6 +71,6 @@ export function isSameProof(proof1: RLNFullProof, proof2: RLNFullProof): boolean
   return (
     BigInt(publicSignals1.yShare) === BigInt(publicSignals2.yShare) &&
     BigInt(publicSignals1.internalNullifier) === BigInt(publicSignals2.internalNullifier) &&
-    BigInt(publicSignals1.signalHash) === BigInt(publicSignals2.signalHash)
+    BigInt(publicSignals1.x) === BigInt(publicSignals2.x)
   )
 }
