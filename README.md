@@ -136,7 +136,7 @@ const identityCommitment = rlnInstance.commitment()
 
 #### Generating a proof
 
-From the `rlnInstance` you can generate a proof by calling `rlnInstance.generateProof()`. Note that for an epoch, you can only generate `messageLimit` proofs. Each of them must use different `messageId`. If a `messageId` is used twice, your secret can be leaked.
+From the `rlnInstance` you can generate a proof by calling `rlnInstance.generateProof()`. Note that for an epoch, you can only generate up to `messageLimit` proofs, each of them with a unique `messageId` within the range `[1, messageLimit]`. If a `messageId` is used twice, your secret will be leaked.
 
 Using RLN Registry:
 
@@ -187,7 +187,7 @@ const proofResult = await rlnInstance.verifyProof(proof)
 ```
 
 A proof can be rejected in the following conditions:
-- The proof is not for you. you're using a different `rlnIdentifier` or `messageLimit`
+- The proof is not for you. You're using a different `rlnIdentifier` or `messageLimit`
 - The proof is not for the current epoch
 - The snark proof itself is invalid
 
@@ -238,8 +238,8 @@ const cache = new Cache(rlnIdentifier)
 #### Add a Proof to the Cache
 
 ```js
-const epoch = 42424242
-let result = cache.addProof(epoch, proof)
+const epoch  = 42424242
+const result = cache.addProof(epoch, proof)
 console.log(result.status) // "added" or "breach" or "invalid"
 ```
 
