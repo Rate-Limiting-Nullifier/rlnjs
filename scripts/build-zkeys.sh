@@ -12,7 +12,7 @@ rln_circuits_repo='rln-circuits-v2'
 rln_circuits_relative_path='./circuits/rln.circom'
 rln_circuits_build_script='./scripts/build-circuits.sh'
 built_params_relative_path="$rln_circuits_repo/build/zkeyFiles"
-target_zkeyfiles_dir="./zkeyFiles/rln"
+target_zkeyfiles_dir="./zkeyFiles/rln-v2-same"
 target_rln_wasm_path="$target_zkeyfiles_dir/rln.wasm"
 target_rln_zkey_path="$target_zkeyfiles_dir/rln_final.zkey"
 target_rln_verifiation_key_path="$target_zkeyfiles_dir/verification_key.json"
@@ -45,7 +45,10 @@ bash "${rln_circuits_build_script}" rln
 cd ..
 # Copy the built params to the zkeyFiles folder in rlnjs
 mkdir -p $target_zkeyfiles_dir
-cp $built_params_relative_path/* $target_zkeyfiles_dir
+# Copy params
+cp $built_params_relative_path/rln-same.wasm $target_rln_wasm_path
+cp $built_params_relative_path/rln_final.zkey $target_rln_zkey_path
+cp $built_params_relative_path/verification_key.json $target_rln_verifiation_key_path
 ls -al $target_zkeyfiles_dir
 # Remove the circuits repo
 rm -rf $rln_circuits_repo
