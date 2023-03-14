@@ -1,8 +1,8 @@
 import { Identity } from '@semaphore-protocol/identity'
-import { Registry, RLN  } from "../src"
+import { Registry, RLN, RLNFullProof  } from "../src"
 import { DEFAULT_REGISTRY_TREE_DEPTH } from '../src/registry'
-import { genExternalNullifier } from "../src/utils"
-import { rlnInstanceFactory } from './factories'
+import { rlnInstanceFactory, fieldFactory } from './factories'
+import { defaultParamsPath } from "./configs";
 
 
 const defaultTreeDepth = DEFAULT_REGISTRY_TREE_DEPTH;
@@ -13,8 +13,10 @@ jest.setTimeout(60000)
 
 describe("RLN", () => {
   const identityCommitments: bigint[] = []
-  const rlnInstance = rlnInstanceFactory()
-  const rlnInstance2 = rlnInstanceFactory()
+  const paramsPath = defaultParamsPath
+  const rlnInstance = rlnInstanceFactory(paramsPath)
+  // Same parameter, same rln identifier, but different identity
+  const rlnInstance2 = rlnInstanceFactory(paramsPath, rlnInstance.rlnIdentifier)
 
   beforeAll(() => {
 
@@ -37,8 +39,7 @@ describe("RLN", () => {
       leaves.push(identityCommitment)
 
       const signal = "hey hey"
-      // TODO: Refactor genExternalNullifier
-      const epoch: string = genExternalNullifier("test-epoch")
+      const epoch = fieldFactory()
 
       const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, identityCommitment)
       const witness = rlnInstance._genWitness(merkleProof, epoch, signal)
@@ -62,10 +63,10 @@ describe("RLN", () => {
       const signal2 = "hey hey again"
       const signalHash2 = RLN._genSignalHash(signal2)
 
-      const epoch = genExternalNullifier("test-epoch")
+      const epoch = fieldFactory()
 
-      const [y1] = rlnInstance._calculateOutput(BigInt(epoch), signalHash1)
-      const [y2] = rlnInstance._calculateOutput(BigInt(epoch), signalHash2)
+      const [y1] = rlnInstance._calculateOutput(epoch, signalHash1)
+      const [y2] = rlnInstance._calculateOutput(epoch, signalHash2)
 
       const retrievedSecret = RLN._shamirRecovery(signalHash1, signalHash2, y1, y2)
 
@@ -77,7 +78,7 @@ describe("RLN", () => {
       leaves.push(rlnInstance.commitment)
 
       const signal = "hey hey"
-      const epoch = genExternalNullifier("test-epoch")
+      const epoch = fieldFactory()
       const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rlnInstance.commitment)
 
       const fullProof = await rlnInstance.generateProof(signal, merkleProof, epoch)
@@ -95,12 +96,11 @@ describe("RLN", () => {
       const signal1 = "hey hey"
       const signal2 = "hey hey hey"
 
-      const epoch1 = genExternalNullifier("1")
-      const epoch2 = genExternalNullifier("2")
+      const epoch1 = fieldFactory()
+      const epoch2 = fieldFactory([epoch1])
       const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rlnInstance.commitment)
 
-      const identityCommitment2 = rlnInstance2.commitment
-      leaves.push(identityCommitment2)
+      leaves.push(rlnInstance2.commitment)
       const merkleProof2 = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rlnInstance2.commitment)
 
       const proof1 = await rlnInstance.generateProof(signal1, merkleProof, epoch1)
@@ -112,15 +112,33 @@ describe("RLN", () => {
       const retrievedSecret1 = RLN.retrieveSecret(proof1, proof2)
       expect(retrievedSecret1).toEqual(rlnInstance.secretIdentity)
 
+      // Same snark proof but with wrong epoch
+      const proof1DifferentEpoch: RLNFullProof = {
+        epoch: fieldFactory([proof1.epoch]),
+        rlnIdentifier: proof1.rlnIdentifier,
+        snarkProof: proof1.snarkProof,
+      }
+      expect(
+        () => RLN.retrieveSecret(proof1, proof1DifferentEpoch)
+      ).toThrow("External Nullifiers do not match! Cannot recover secret.")
+
+      // Same snark proof but with wrong rln identifier
+      const proof1DifferentRLNIdentifier: RLNFullProof = {
+        epoch: proof1.epoch,
+        rlnIdentifier: fieldFactory([proof1.rlnIdentifier]),
+        snarkProof: proof1.snarkProof,
+      }
+      expect(
+        () => RLN.retrieveSecret(proof1, proof1DifferentRLNIdentifier)
+      ).toThrow("External Nullifiers do not match! Cannot recover secret.")
+
       // Same Signal, Same Epoch, Different Identities
       const result1 = () => RLN.retrieveSecret(proof2, proof3)
-
-      expect(result1).toThrow('Internal Nullifiers do not match! Cannot recover secret.')
+      expect(result1).toThrow("Internal Nullifiers do not match! Cannot recover secret.")
 
       // Same Signal, Different Epoch, Same Identities
       const result2 = () => RLN.retrieveSecret(proof3, proof4)
-
-      expect(result2).toThrow('Internal Nullifiers do not match! Cannot recover secret.')
+      expect(result2).toThrow("External Nullifiers do not match! Cannot recover secret.")
     })
 
     test("Should export/import to json", () => {

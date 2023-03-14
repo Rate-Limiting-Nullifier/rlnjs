@@ -1,9 +1,13 @@
 /**
+ * FIXME: js-rln is **incompatible** with our proof since we don't use the same circuit.
+ * We should revisit this once js-rln uses the same circuit as ours.
+ *
  * This module contains code to [de]serialize SNARK proof (groth16 w/ bn254 curve) in the
  * js-rln format. ffjavascript is used under the hood since it compresses points in the
  * same way as js-rln (ark-serialize underneath).
  */
 import { utils, buildBn128 } from 'ffjavascript'
+import poseidon from 'poseidon-lite'
 import { Proof, RLNFullProof, RLNPublicSignals, StrBigInt } from './types'
 import { concatUint8Arrays } from './utils'
 
@@ -227,14 +231,17 @@ function deserializeSNARKProof(engine: EngineT, snarkProof: Uint8Array): Proof {
  * @param proof RLNFullProof to serialize.
  * @returns Serialized RLNFullProof.
  */
-export function serializeJSRLNProof(engine: EngineT, proof: RLNFullProof): Uint8Array {
+export function serializeJSRLNProof(engine: EngineT, fullProof: RLNFullProof): Uint8Array {
+  const proof = fullProof.snarkProof
+  const epoch = fullProof.epoch
+  const rlnIdentifier = fullProof.rlnIdentifier
   const snarkProofBytes = serializeSNARKProof(engine, proof.proof)
   const shareYBytes = serializeFieldLE(BigInt(proof.publicSignals.yShare))
   const nullifierBytes = serializeFieldLE(BigInt(proof.publicSignals.internalNullifier))
   const merkleRootBytes = serializeFieldLE(BigInt(proof.publicSignals.merkleRoot))
-  const epochBytes = serializeFieldLE(BigInt(proof.publicSignals.epoch))
+  const epochBytes = serializeFieldLE(BigInt(epoch))
   const shareXBytes = serializeFieldLE(BigInt(proof.publicSignals.signalHash))
-  const rlnIdentifierBytes = serializeFieldLE(BigInt(proof.publicSignals.rlnIdentifier))
+  const rlnIdentifierBytes = serializeFieldLE(BigInt(rlnIdentifier))
   return concatUint8Arrays(
     snarkProofBytes,
     shareYBytes,
@@ -244,6 +251,10 @@ export function serializeJSRLNProof(engine: EngineT, proof: RLNFullProof): Uint8
     shareXBytes,
     rlnIdentifierBytes,
   )
+}
+
+function calculateExternalNullifier(epoch: bigint, rlnIdentifier: bigint) {
+  return poseidon([epoch, rlnIdentifier])
 }
 
 
@@ -257,7 +268,7 @@ export function deserializeJSRLNProof(engine: EngineT, bytes: Uint8Array): RLNFu
   if (bytes.length !== SIZE_JS_RLN_PROOF) {
     throw new Error('invalid RLN full proof size')
   }
-  const snarkProof = deserializeSNARKProof(engine, bytes.slice(OFFSET_SNARK_PROOF, OFFSET_SHARE_Y))
+  const pi = deserializeSNARKProof(engine, bytes.slice(OFFSET_SNARK_PROOF, OFFSET_SHARE_Y))
   const shareY = deserializeFieldLE(bytes.slice(OFFSET_SHARE_Y, OFFSET_NULLIFIER))
   const nullifier = deserializeFieldLE(bytes.slice(OFFSET_NULLIFIER, OFFSET_MERKLE_ROOT))
   const merkleRoot = deserializeFieldLE(bytes.slice(OFFSET_MERKLE_ROOT, OFFSET_EPOCH))
@@ -269,11 +280,15 @@ export function deserializeJSRLNProof(engine: EngineT, bytes: Uint8Array): RLNFu
     merkleRoot,
     internalNullifier: nullifier,
     signalHash: shareX,
-    epoch: epoch,
-    rlnIdentifier,
+    externalNullifier: calculateExternalNullifier(epoch, rlnIdentifier),
+  }
+  const snarkProof = {
+    proof: pi,
+    publicSignals,
   }
   return {
-    proof: snarkProof,
-    publicSignals,
+    snarkProof,
+    epoch,
+    rlnIdentifier,
   }
 }

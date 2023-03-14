@@ -62,8 +62,7 @@ git clone https://github.com/Rate-Limiting-Nullifier/rln-circuits.git &&
 cd rln-circuits
 ```
 
-> The default merkle tree depth in rlnjs is [20](src/registry.ts), while it's [15 in rln-circuits](https://github.com/Rate-Limiting-Nullifier/rln-circuits/blob/86cbf5a5851176cbe3210f9a5111033798464768/circuits/rln.circom#L5). Change `15` to `20`.
-> Make sure the depth in both rlnjs and rln-circuits are the same, otherwise verification might not be working. You will need to rebuild the circuits every time you change the tree depth.
+> Make sure the depth in both rlnjs and rln-circuits are the same, otherwise verification might not be working. You will need to rebuild the circuits every time the circuit is changed.
 
 ```bash
 npm i &&
@@ -79,8 +78,9 @@ The previous step should have produced the following files:
 ```
 
 ### Add RLNjs to your project
-TODO! Change this path to the npm package once it is published
-`npm install "https://github.com/Rate-Limiting-Nullifier/rlnjs.git" --save`
+```bash
+npm install rlnjs
+```
 
 ## Usage
 
@@ -118,7 +118,7 @@ From the `rlnInstance` you can generate a proof by calling `rlnInstance.generate
 
 Using RLN Registry:
 ```js
-const epoch = genExternalNullifier("test-epoch")
+const epoch = 123
 const signal = "This is a test signal"
 const merkleProof = registryInstance.generateMerkleProof(rlnInstance.commitment) // Read more about creating a registryInstance below
 const proof = await rlnInstance.generateProof(signal, merkleProof, epoch)
@@ -197,7 +197,8 @@ const cache = new Cache(rlnIdentifier)
 #### Add a Proof to the Cache
 
 ```js
-let result = cache.addProof(proof)
+const epoch  = 42424242
+let result = cache.addProof(epoch, proof)
 console.log(result.status) // "added" or "breach" or "invalid"
 ```
 

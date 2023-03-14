@@ -1,6 +1,5 @@
-import { keccak256 } from '@ethersproject/solidity'
 import { ZqField } from 'ffjavascript'
-import { VerificationKeyT } from './types'
+import { RLNFullProof, VerificationKeyT } from './types'
 
 /*
   This is the "Baby Jubjub" curve described here:
@@ -11,19 +10,6 @@ export const SNARK_FIELD_SIZE = BigInt('2188824287183927522224640574525727508854
 // Creates the finite field
 export const Fq = new ZqField(SNARK_FIELD_SIZE)
 
-/**
- * Generates an External Nullifier for use with RLN.
- * @param plaintext String. //TODO: better description
- * @returns External Nullifier in a string.
- */
-export function genExternalNullifier(plaintext: string): string {
-  const hashed = keccak256(['string'], [plaintext])
-  const hexStr = `0x${hashed.slice(8)}`
-  const len = 32 * 2
-  const h = hexStr.slice(2, len + 2)
-
-  return `0x${h.padStart(len, '0')}`
-}
 
 export function concatUint8Arrays(...arrays: Uint8Array[]): Uint8Array {
   const totalLength = arrays.reduce((acc, arr) => acc + arr.length, 0)
@@ -50,4 +36,41 @@ export function parseVerificationKeyJSON(json: string): VerificationKeyT {
   if (!o.vk_alphabeta_12) throw new Error('Verification key has no vk_alphabeta_12')
   if (!o.IC) throw new Error('Verification key has no IC')
   return o
+}
+
+
+export function isProofSameExternalNullifier(proof1: RLNFullProof, proof2: RLNFullProof): boolean {
+  const publicSignals1 = proof1.snarkProof.publicSignals
+  const publicSignals2 = proof2.snarkProof.publicSignals
+  return (
+    proof1.epoch === proof2.epoch &&
+    proof1.rlnIdentifier === proof2.rlnIdentifier &&
+    BigInt(publicSignals1.externalNullifier) === BigInt(publicSignals2.externalNullifier)
+  )
+}
+
+/**
+ * Checks if two RLN proofs are the same.
+ * @param proof1 RLNFullProof 1
+ * @param proof2 RLNFullProof 2
+ * @returns
+ */
+export function isSameProof(proof1: RLNFullProof, proof2: RLNFullProof): boolean {
+  // First compare the external nullifiers
+  if (!isProofSameExternalNullifier(proof1, proof2)) {
+    throw new Error('Proofs have different external nullifiers')
+  }
+  // Then, we compare the public inputs since the SNARK proof can be different for a
+  // same claim.
+  const publicSignals1 = proof1.snarkProof.publicSignals
+  const publicSignals2 = proof2.snarkProof.publicSignals
+  // We compare all public inputs but `merkleRoot` since it's possible that merkle root is changed
+  // (e.g. new leaf is inserted to the merkle tree) within the same epoch.
+  // NOTE: no need to check external nullifier here since it is already compared in
+  // `isProofSameExternalNullifier`
+  return (
+    BigInt(publicSignals1.yShare) === BigInt(publicSignals2.yShare) &&
+    BigInt(publicSignals1.internalNullifier) === BigInt(publicSignals2.internalNullifier) &&
+    BigInt(publicSignals1.signalHash) === BigInt(publicSignals2.signalHash)
+  )
 }
