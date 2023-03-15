@@ -1,16 +1,17 @@
-import typescript from 'rollup-plugin-typescript2';
-import { nodeResolve } from '@rollup/plugin-node-resolve';
-import commonjs from '@rollup/plugin-commonjs';
-import json from '@rollup/plugin-json';
-import nodePolyfills from 'rollup-plugin-polyfill-node';
-import replace from '@rollup/plugin-replace';
-import { visualizer } from "rollup-plugin-visualizer";
-import cleaner from 'rollup-plugin-cleaner';
-import * as fs from "fs"
+/* eslint-disable import/no-extraneous-dependencies */
+import typescript from 'rollup-plugin-typescript2'
+import { nodeResolve } from '@rollup/plugin-node-resolve'
+import commonjs from '@rollup/plugin-commonjs'
+import json from '@rollup/plugin-json'
+import nodePolyfills from 'rollup-plugin-polyfill-node'
+import replace from '@rollup/plugin-replace'
+import { visualizer } from 'rollup-plugin-visualizer'
+import cleaner from 'rollup-plugin-cleaner'
+import * as fs from 'fs'
 
 
 const input = 'src/index.ts'
-const pkg = JSON.parse(fs.readFileSync("./package.json", "utf-8"))
+const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf-8'))
 const banner = `/**
  * @module ${pkg.name}
  * @version ${pkg.version}
@@ -23,13 +24,13 @@ const banner = `/**
 
 const typescriptPlugin = typescript({
   tsconfig: 'tsconfig.build.json',
-  useTsconfigDeclarationDir: true
+  useTsconfigDeclarationDir: true,
 })
 
 const visualizerPlugin = visualizer({
   emitFile: true,
-  filename: "stats.html",
-  template: "sunburst"
+  filename: 'stats.html',
+  template: 'sunburst',
 })
 
 const nodePlugins = [
@@ -40,7 +41,7 @@ const nodePlugins = [
   commonjs(),
   // Parse JSON files and make them ES modules. Required when bundling circomlib
   json(),
-];
+]
 
 const browserPlugins = [
   typescriptPlugin,
@@ -56,37 +57,37 @@ const browserPlugins = [
   // Resolve the import from node_modules.
   // `browser: true` is required for `window` not to be undefined
   // Ref: https://github.com/iden3/snarkjs/blob/782894ab72b09cfad4dd8b517599d5e7b2340468/src/taskmanager.js#L20-L24
-  nodeResolve({browser: true}),
+  nodeResolve({ browser: true }),
   commonjs(),
   json(),
   // Replace node built-in modules with polyfills
   nodePolyfills(),
-];
+]
 
 
 export default [
   // Node.js build
   {
     input,
-    output: { file: pkg.exports.require, format: "cjs", banner },
+    output: { file: pkg.exports.require, format: 'cjs', banner },
     external: Object.keys(pkg.dependencies),
     plugins: [
       cleaner({
         targets: [
-          './dist/'
-        ]
+          './dist/',
+        ],
       }),
       ...nodePlugins,
       visualizerPlugin,
-    ]
+    ],
   },
   // Browser build
   {
     input,
-    output: { file: pkg.exports.import, format: "es", banner },
+    output: { file: pkg.exports.import, format: 'es', banner },
     plugins: [
       ...browserPlugins,
       visualizerPlugin,
-    ]
-  }
+    ],
+  },
 ]
