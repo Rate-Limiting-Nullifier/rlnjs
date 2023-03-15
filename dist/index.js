@@ -9,7 +9,7 @@
 (function (global, factory) {
     typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('@ethersproject/bytes'), require('@ethersproject/solidity'), require('@ethersproject/strings'), require('snarkjs'), require('ffjavascript'), require('poseidon-lite'), require('@semaphore-protocol/identity'), require('@zk-kit/incremental-merkle-tree')) :
     typeof define === 'function' && define.amd ? define(['exports', '@ethersproject/bytes', '@ethersproject/solidity', '@ethersproject/strings', 'snarkjs', 'ffjavascript', 'poseidon-lite', '@semaphore-protocol/identity', '@zk-kit/incremental-merkle-tree'], factory) :
-    (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global[""] = global[""] || {}, global[""]["/dist/index"] = global[""]["/dist/index"] || {}, global[""]["/dist/index"].mjs = {}), global.bytes, global.solidity, global.strings, global.snarkjs, global.ffjavascript, global.poseidon, global.identity, global.incrementalMerkleTree));
+    (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory((global[""] = global[""] || {}, global[""]["/dist/index"] = global[""]["/dist/index"] || {}, global[""]["/dist/index"].js = {}), global.bytes, global.solidity, global.strings, global.snarkjs, global.ffjavascript, global.poseidon, global.identity, global.incrementalMerkleTree));
 })(this, (function (exports, bytes, solidity, strings, snarkjs, ffjavascript, poseidon, identity, incrementalMerkleTree) { 'use strict';
 
     /******************************************************************************
