@@ -69,10 +69,13 @@
     "snarkjs": "^0.4.22"
   },
   "devDependencies": {
+    "@rollup/plugin-commonjs": "^24.0.1",
+    "@rollup/plugin-json": "^6.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.1",
+    "@rollup/plugin-replace": "^5.0.2",
     "@types/jest": "^29.2.4",
     "@typescript-eslint/eslint-plugin": "^5.50.0",
     "@typescript-eslint/parser": "^5.51.0",
-    "@waku/rln": "^0.0.13",
     "eslint": "^8.33.0",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-config-airbnb-typescript": "^17.0.0",
@@ -83,6 +86,7 @@
     "prettier": "^2.8.1",
     "rollup": "^3.14.0",
     "rollup-plugin-cleaner": "^1.0.0",
+    "rollup-plugin-polyfill-node": "^0.12.0",
     "rollup-plugin-typescript2": "^0.34.1",
     "rollup-plugin-visualizer": "^5.9.0",
     "ts-jest": "^29.0.3",
