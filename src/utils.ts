@@ -1,5 +1,5 @@
 import { ZqField } from 'ffjavascript'
-import { RLNFullProof, VerificationKeyT } from './types'
+import { RLNFullProof, VerificationKey } from './types'
 
 /*
   This is the "Baby Jubjub" curve described here:
@@ -23,7 +23,7 @@ export function concatUint8Arrays(...arrays: Uint8Array[]): Uint8Array {
 }
 
 
-export function parseVerificationKeyJSON(json: string): VerificationKeyT {
+export function parseVerificationKeyJSON(json: string): VerificationKey {
   const o = JSON.parse(json)
   // NOTE: This is not a complete check, to do better we can check values are of the correct type
   if (!o.protocol) throw new Error('Verification key has no protocol')

@@ -1,12 +1,12 @@
-import * as fs from "fs";
-import { RLN } from "../src";
-import { CircuitParamsFilePathT } from "../src/types";
-import { Fq, parseVerificationKeyJSON } from "../src/utils";
-import { defaultParamsPath } from "./configs";
+import * as fs from "fs"
+import { RLN } from "../src"
+import { CircuitParamsFilePath } from "../src/types"
+import { Fq, parseVerificationKeyJSON } from "../src/utils"
+import { defaultParamsPath } from "./configs"
 
 
-export function rlnInstanceFactory (
-    paramsPath: CircuitParamsFilePathT = defaultParamsPath,
+export function rlnInstanceFactory(
+    paramsPath: CircuitParamsFilePath = defaultParamsPath,
     rlnIdentifier?: bigint,
     identity?: string,
 ) {

@@ -127,7 +127,7 @@ function deserializePointCompressed(curve: CurveT, bytesLE: Uint8Array, sizeComp
   if (bytesLE.length !== sizeCompressed) {
     throw new Error(
       'bytes length is not equal to `sizeCompressed: ' +
-            `bytesLE.length=${bytesLE.length}, sizeCompressed=${sizeCompressed}`,
+      `bytesLE.length=${bytesLE.length}, sizeCompressed=${sizeCompressed}`,
     )
   }
   if (!isCompressionValid(bytesLE)) {

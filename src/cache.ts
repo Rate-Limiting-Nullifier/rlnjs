@@ -3,12 +3,12 @@ import { RLNFullProof, StrBigInt } from './types'
 import RLN from './rln'
 import { isSameProof } from './utils'
 
-type EpochCacheT = {
-  [nullifier: string]: RLNFullProof[];
+type EpochCache = {
+  [nullifier: string]: RLNFullProof[]
 }
 
-type CacheT = {
-  [epoch: string]: EpochCacheT;
+type CacheMap = {
+  [epoch: string]: EpochCache
 }
 
 export enum Status {
@@ -32,7 +32,7 @@ export default class Cache {
 
   rlnIdentifier: bigint
 
-  cache: CacheT
+  cache: CacheMap
 
   epochs: string[]
 

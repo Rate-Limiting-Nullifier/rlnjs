@@ -8,7 +8,7 @@ import poseidon from 'poseidon-lite'
 import { Identity } from '@semaphore-protocol/identity'
 
 // Types
-import { RLNFullProof, RLNSNARKProof, RLNWitnessT, StrBigInt, VerificationKeyT } from './types'
+import { RLNFullProof, RLNSNARKProof, RLNWitness, StrBigInt, VerificationKey } from './types'
 import { instantiateBn254, deserializeJSRLNProof, serializeJSRLNProof } from './waku'
 
 
@@ -29,7 +29,7 @@ export default class RLN {
 
   finalZkeyPath: string
 
-  verificationKey: VerificationKeyT
+  verificationKey: VerificationKey
 
   rlnIdentifier: bigint
 
@@ -39,7 +39,7 @@ export default class RLN {
 
   secretIdentity: bigint
 
-  constructor(wasmFilePath: string, finalZkeyPath: string, verificationKey: VerificationKeyT, rlnIdentifier?: bigint, identity?: string) {
+  constructor(wasmFilePath: string, finalZkeyPath: string, verificationKey: VerificationKey, rlnIdentifier?: bigint, identity?: string) {
     this.wasmFilePath = wasmFilePath
     this.finalZkeyPath = finalZkeyPath
     this.verificationKey = verificationKey
@@ -75,7 +75,7 @@ export default class RLN {
    */
   public async _genProof(
     epoch: bigint,
-    witness: RLNWitnessT,
+    witness: RLNWitness,
   ): Promise<RLNFullProof> {
     const snarkProof: RLNSNARKProof = await RLN._genSNARKProof(witness, this.wasmFilePath, this.finalZkeyPath)
     return {
@@ -93,7 +93,7 @@ export default class RLN {
  * @returns The full SnarkJS proof.
  */
   public static async _genSNARKProof(
-    witness: RLNWitnessT, wasmFilePath: string, finalZkeyPath: string,
+    witness: RLNWitness, wasmFilePath: string, finalZkeyPath: string,
   ): Promise<RLNSNARKProof> {
     const { proof, publicSignals } = await groth16.fullProve(
       witness,
@@ -136,7 +136,7 @@ export default class RLN {
  * @param fullProof The SnarkJS full proof.
  * @returns True if the proof is valid, false otherwise.
  */
-  public static async verifySNARKProof(verificationKey: VerificationKeyT,
+  public static async verifySNARKProof(verificationKey: VerificationKey,
     { proof, publicSignals }: RLNSNARKProof,
   ): Promise<boolean> {
     return groth16.verify(
@@ -165,7 +165,7 @@ export default class RLN {
     epoch: StrBigInt,
     signal: string,
     shouldHash = true,
-  ): RLNWitnessT {
+  ): RLNWitness {
     return {
       identitySecret: this.secretIdentity,
       pathElements: merkleProof.siblings,

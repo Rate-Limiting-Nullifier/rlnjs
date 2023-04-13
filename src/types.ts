@@ -42,8 +42,7 @@ export type RLNFullProof = {
   rlnIdentifier: bigint
 }
 
-
-export type VerificationKeyT = {
+export type VerificationKey = {
   protocol: string,
   curve: string,
   nPublic: number,
@@ -55,8 +54,7 @@ export type VerificationKeyT = {
   IC: string[][],
 }
 
-
-export type RLNWitnessT = {
+export type RLNWitness = {
   identitySecret: bigint,
   // Ignore `no-explicit-any` because the type of `identity_path_elements` in zk-kit is `any[]`
   pathElements: any[], // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -65,8 +63,7 @@ export type RLNWitnessT = {
   externalNullifier: bigint,
 }
 
-
-export type CircuitParamsFilePathT = {
+export type CircuitParamsFilePath = {
   vkeyPath: string,
   wasmFilePath: string,
   finalZkeyPath: string,

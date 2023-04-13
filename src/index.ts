@@ -16,4 +16,8 @@ export {
   RLNFullProof,
   Proof,
   RLNPublicSignals,
+  RLNSNARKProof,
+  VerificationKey,
+  RLNWitness,
+  CircuitParamsFilePath,
 } from './types'
