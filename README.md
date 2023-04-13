@@ -78,6 +78,7 @@ The previous step should have produced the following files:
 ```
 
 ### Add RLNjs to your project
+
 ```bash
 npm install rlnjs
 ```
@@ -92,7 +93,7 @@ npm install rlnjs
 import { RLN } from "rlnjs"
 
 // This assumes you have built the circom circuits and placed them into the folder ./zkeyFiles
-const zkeyFilesPath = "./zkeyFiles";
+const zkeyFilesPath = "./zkeyFiles"
 const vkeyPath = path.join(zkeyFilesPath, "verification_key.json")
 const vKey = JSON.parse(fs.readFileSync(vkeyPath, "utf-8"))
 const wasmFilePath = path.join(zkeyFilesPath, "rln.wasm")
@@ -107,9 +108,9 @@ const rlnInstance = new RLN(wasmFilePath, finalZkeyPath, vKey)
 When an instance of RLNjs is initialized, it creates an identity commitment which you can access by calling `rlnInstance.commitment`.
 
 ```js
-  // Example of accessing the generated identity commitment
-  const identity = rlnInstance.identity()
-  const identityCommitment = rlnInstance.commitment()
+// Example of accessing the generated identity commitment
+const identity = rlnInstance.identity()
+const identityCommitment = rlnInstance.commitment()
 ```
 
 #### Generating a proof
@@ -117,6 +118,7 @@ When an instance of RLNjs is initialized, it creates an identity commitment whic
 From the `rlnInstance` you can generate a proof by calling `rlnInstance.generateProof()`.
 
 Using RLN Registry:
+
 ```js
 const epoch = 123
 const signal = "This is a test signal"
@@ -125,24 +127,36 @@ const proof = await rlnInstance.generateProof(signal, merkleProof, epoch)
 ```
 
 Without RLN Registry:
+
 ```js
 const treeDepth = 20
 const zeroValue = BigInt(0)
 const epoch = BigInt(Math.floor(Date.now() / 1000)) // This epoch example is the nearest second
 const signal = "This is a test signal" // Example Message
 const leaves = [] // Array of identity commitments
-const merkleProof = Registry.generateMerkleProof(treeDepth, zeroValue, leaves, rlnInstance.commitment)
+const merkleProof = Registry.generateMerkleProof(
+  treeDepth,
+  zeroValue,
+  leaves,
+  rlnInstance.commitment
+)
 const proof = await rlnInstance.generateProof(signal, merkleProof, epoch)
 ```
 
 Without RLN Registry or an RLN Instance:
+
 ```js
 const treeDepth = 20
 const zeroValue = BigInt(0)
 const epoch = BigInt(Math.floor(Date.now() / 1000)) // This epoch example is the nearest second
 const signal = "This is a test signal" // Example Message
 const leaves = [] // Array of identity commitments
-const merkleProof = Registry.generateMerkleProof(treeDepth, zeroValue, leaves, identityCommitment)
+const merkleProof = Registry.generateMerkleProof(
+  treeDepth,
+  zeroValue,
+  leaves,
+  identityCommitment
+)
 const proof = await RLN.generateProof(signal, merkleProof, epoch)
 ```
 
@@ -162,7 +176,7 @@ const registry = new Registry() // using the default tree depth
 
 // generate RLN registry that contains slashed registry with a custom tree depth
 const registry = new Registry(
-  18, // Merkle Tree Depth
+  18 // Merkle Tree Depth
 )
 ```
 
@@ -174,8 +188,10 @@ registry.addMember(identityCommitment)
 
 #### Slash member from the Registry
 
+Use the secret that is provided by the Cache when a breach occurs.
+
 ```js
-registry.slashMember(identityCommitment)
+registry.slashMember(secret)
 ```
 
 #### Remove members from the Registry
@@ -197,15 +213,14 @@ const cache = new Cache(rlnIdentifier)
 #### Add a Proof to the Cache
 
 ```js
-const epoch  = 42424242
+const epoch = 42424242
 let result = cache.addProof(epoch, proof)
 console.log(result.status) // "added" or "breach" or "invalid"
 ```
 
 If the added proof is valid, the result will be `added`.
 
-If the added proof breaches the rate limit, the result will be `breach`, in which case the secret will be recovered and is accessible by accessing `result.secret`.
-
+If the added proof breaches the rate limit, the result will be `breach`, in which case the `secret` will be recovered and is accessible by accessing `result.secret`.
 
 ## Tests
 
