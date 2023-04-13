@@ -111,12 +111,21 @@ export default class Registry {
 
   /**
   * Removes a member from the registry and adds them to the slashed registry.
-  * @param identityCommitment IdentityCommitment of the member to be removed.
+  * @param secret Secret of the member to be removed.
   */
-  public slashMember(identityCommitment: bigint) {
-    const index = this._registry.indexOf(identityCommitment)
-    this._registry.delete(index)
-    this._slashed.insert(identityCommitment)
+  public slashMember(secret: bigint) {
+    const identityCommitment = poseidon([secret])
+    this._addSlashedMember(identityCommitment)
+    this._removeMember(identityCommitment)
+  }
+
+  /**
+  * Removes a member from the registry and adds them to the slashed registry.
+  * @param identityCommitment identityCommitment of the member to be removed.
+  */
+  public slashMemberByIdentityCommitment(identityCommitment: bigint) {
+    this._addSlashedMember(identityCommitment)
+    this._removeMember(identityCommitment)
   }
 
   /**
@@ -124,7 +133,7 @@ export default class Registry {
    * If a member exists in the registry, the member can't be added to the slashed.
    * @param identityCommitment New member.
    */
-  public addSlashedMember(identityCommitment: bigint) {
+  public _addSlashedMember(identityCommitment: bigint) {
     if (this._slashed.indexOf(identityCommitment) !== -1) {
       throw new Error('Member already in slashed registry.')
     }
@@ -138,9 +147,9 @@ export default class Registry {
    * Adds new members to the slashed registry.
    * @param identityCommitments New members.
    */
-  public addSlashedMembers(identityCommitments: bigint[]) {
+  public _addSlashedMembers(identityCommitments: bigint[]) {
     for (const identityCommitment of identityCommitments) {
-      this.addSlashedMember(identityCommitment)
+      this._addSlashedMember(identityCommitment)
     }
   }
 
@@ -148,7 +157,10 @@ export default class Registry {
   * Removes a member from the registry.
   * @param identityCommitment IdentityCommitment of the member to be removed.
   */
-  public removeMember(identityCommitment: bigint) {
+  public _removeMember(identityCommitment: bigint) {
+    if (this._registry.indexOf(identityCommitment) == -1) {
+      throw new Error("Member doesn't exist in registry.")
+    }
     const index = this._registry.indexOf(identityCommitment)
     this._registry.delete(index)
   }
@@ -216,7 +228,7 @@ export default class Registry {
     console.debug(registryObject)
     const registryInstance = new Registry(registryObject.treeDepth, BigInt(registryObject.zeroValue))
     registryInstance.addMembers(registryObject.registry.map((x) => BigInt(x)))
-    registryInstance.addSlashedMembers(registryObject.slashed.map((x) => BigInt(x)))
+    registryInstance._addSlashedMembers(registryObject.slashed.map((x) => BigInt(x)))
     return registryInstance
   }
 }
