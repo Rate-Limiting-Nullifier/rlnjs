@@ -10,6 +10,7 @@ module.exports = {
     semi: ["warn", "never"],
     "import/extensions": ["warn", "never"],
     "@typescript-eslint/semi": ["warn", "never"],
+    "indent": ["warn", 2]
   },
   settings: {
     "import/parsers": {
