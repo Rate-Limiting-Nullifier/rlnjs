@@ -42,11 +42,11 @@
     "access": "public"
   },
   "main": "./dist/index.node.js",
-  "types": "./dist/types/index.d.ts",
-  "exports": {
-    "import": "./dist/index.mjs",
-    "require": "./dist/index.node.js"
+  "module": "./dist/index.mjs",
+  "browser": {
+    "./dist/index.node.js": "./dist/index.mjs"
   },
+  "types": "./dist/types/index.d.ts",
   "directories": {
     "dist": "./dist",
     "src": "./src",
