@@ -69,7 +69,7 @@ export default [
   // Node.js build
   {
     input,
-    output: { file: pkg.exports.require, format: 'cjs', banner },
+    output: { file: pkg.main, format: 'cjs', banner },
     external: Object.keys(pkg.dependencies),
     plugins: [
       cleaner({
@@ -84,7 +84,7 @@ export default [
   // Browser build
   {
     input,
-    output: { file: pkg.exports.import, format: 'es', banner },
+    output: { file: pkg.module, format: 'es', banner },
     plugins: [
       ...browserPlugins,
       visualizerPlugin,
