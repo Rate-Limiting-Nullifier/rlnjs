@@ -1,9 +1,9 @@
 import { RLNFullProof, StrBigInt } from './types';
-type EpochCacheT = {
+type EpochCache = {
     [nullifier: string]: RLNFullProof[];
 };
-type CacheT = {
-    [epoch: string]: EpochCacheT;
+type CacheMap = {
+    [epoch: string]: EpochCache;
 };
 export declare enum Status {
     ADDED = "added",
@@ -22,7 +22,7 @@ export type EvaluatedProof = {
 export default class Cache {
     cacheLength: number;
     rlnIdentifier: bigint;
-    cache: CacheT;
+    cache: CacheMap;
     epochs: string[];
     /**
      * @param rlnIdentifier the RLN identifier for this cache
@@ -35,7 +35,7 @@ export default class Cache {
      * @param proof the RLNFullProof to add to the cache
      * @returns an object with the status of the proof and the nullifier and secret if the proof is a breach
      */
-    addProof(proof: RLNFullProof): EvaluatedProof;
+    addProof(fullProof: RLNFullProof): EvaluatedProof;
     private evaluateNullifierAtEpoch;
     private evaluateEpoch;
     private removeEpoch;

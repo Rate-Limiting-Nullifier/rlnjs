@@ -52,7 +52,7 @@ export declare function deserializeG2LECompressed(engine: EngineT, bytesLE: Uint
  * @param proof RLNFullProof to serialize.
  * @returns Serialized RLNFullProof.
  */
-export declare function serializeJSRLNProof(engine: EngineT, proof: RLNFullProof): Uint8Array;
+export declare function serializeJSRLNProof(engine: EngineT, fullProof: RLNFullProof): Uint8Array;
 /**
  * Deserialize a RLNFullProof (SNARK proof w/ public signals) in the js-rln format (little-endian, compressed, 320 bytes)
  * @param engine BN254 engine in ffjavascript.

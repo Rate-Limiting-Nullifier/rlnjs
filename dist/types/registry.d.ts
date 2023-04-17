@@ -51,25 +51,30 @@ export default class Registry {
     addMembers(identityCommitments: bigint[]): void;
     /**
     * Removes a member from the registry and adds them to the slashed registry.
-    * @param identityCommitment IdentityCommitment of the member to be removed.
+    * @param secret Secret of the member to be removed.
     */
-    slashMember(identityCommitment: bigint): void;
+    slashMember(secret: bigint): void;
+    /**
+    * Removes a member from the registry and adds them to the slashed registry.
+    * @param identityCommitment identityCommitment of the member to be removed.
+    */
+    slashMemberByIdentityCommitment(identityCommitment: bigint): void;
     /**
      * Adds a new member to the slashed registry.
      * If a member exists in the registry, the member can't be added to the slashed.
      * @param identityCommitment New member.
      */
-    addSlashedMember(identityCommitment: bigint): void;
+    _addSlashedMember(identityCommitment: bigint): void;
     /**
      * Adds new members to the slashed registry.
      * @param identityCommitments New members.
      */
-    addSlashedMembers(identityCommitments: bigint[]): void;
+    _addSlashedMembers(identityCommitments: bigint[]): void;
     /**
     * Removes a member from the registry.
     * @param identityCommitment IdentityCommitment of the member to be removed.
     */
-    removeMember(identityCommitment: bigint): void;
+    _removeMember(identityCommitment: bigint): void;
     /**
      * Creates a Merkle Proof.
      * @param idCommitment The leaf for which Merkle proof should be created.

@@ -1,6 +1,6 @@
 /**
- * @module test-rlnjs
- * @version 2.0.0
+ * @module rlnjs
+ * @version 2.0.8
  * @file Client library for generating and using RLN ZK proofs.
  * @copyright Ethereum Foundation 2022
  * @license MIT
@@ -77,18 +77,6 @@ function __generator(thisArg, body) {
 var SNARK_FIELD_SIZE = BigInt('21888242871839275222246405745257275088548364400416034343698204186575808495617');
 // Creates the finite field
 var Fq = new ffjavascript.ZqField(SNARK_FIELD_SIZE);
-/**
- * Generates an External Nullifier for use with RLN.
- * @param plaintext String. //TODO: better description
- * @returns External Nullifier in a string.
- */
-function genExternalNullifier(plaintext) {
-    var hashed = solidity.keccak256(['string'], [plaintext]);
-    var hexStr = "0x".concat(hashed.slice(8));
-    var len = 32 * 2;
-    var h = hexStr.slice(2, len + 2);
-    return "0x".concat(h.padStart(len, '0'));
-}
 function concatUint8Arrays() {
     var arrays = [];
     for (var _i = 0; _i < arguments.length; _i++) {
@@ -103,6 +91,36 @@ function concatUint8Arrays() {
         offset += arr.length;
     }
     return result;
+}
+function isProofSameExternalNullifier(proof1, proof2) {
+    var publicSignals1 = proof1.snarkProof.publicSignals;
+    var publicSignals2 = proof2.snarkProof.publicSignals;
+    return (proof1.epoch === proof2.epoch &&
+        proof1.rlnIdentifier === proof2.rlnIdentifier &&
+        BigInt(publicSignals1.externalNullifier) === BigInt(publicSignals2.externalNullifier));
+}
+/**
+ * Checks if two RLN proofs are the same.
+ * @param proof1 RLNFullProof 1
+ * @param proof2 RLNFullProof 2
+ * @returns
+ */
+function isSameProof(proof1, proof2) {
+    // First compare the external nullifiers
+    if (!isProofSameExternalNullifier(proof1, proof2)) {
+        throw new Error('Proofs have different external nullifiers');
+    }
+    // Then, we compare the public inputs since the SNARK proof can be different for a
+    // same claim.
+    var publicSignals1 = proof1.snarkProof.publicSignals;
+    var publicSignals2 = proof2.snarkProof.publicSignals;
+    // We compare all public inputs but `merkleRoot` since it's possible that merkle root is changed
+    // (e.g. new leaf is inserted to the merkle tree) within the same epoch.
+    // NOTE: no need to check external nullifier here since it is already compared in
+    // `isProofSameExternalNullifier`
+    return (BigInt(publicSignals1.yShare) === BigInt(publicSignals2.yShare) &&
+        BigInt(publicSignals1.internalNullifier) === BigInt(publicSignals2.internalNullifier) &&
+        BigInt(publicSignals1.signalHash) === BigInt(publicSignals2.signalHash));
 }
 
 var SNARKJS_PROTOCOL = 'groth16';
@@ -284,15 +302,21 @@ function deserializeSNARKProof(engine, snarkProof) {
  * @param proof RLNFullProof to serialize.
  * @returns Serialized RLNFullProof.
  */
-function serializeJSRLNProof(engine, proof) {
+function serializeJSRLNProof(engine, fullProof) {
+    var proof = fullProof.snarkProof;
+    var epoch = fullProof.epoch;
+    var rlnIdentifier = fullProof.rlnIdentifier;
     var snarkProofBytes = serializeSNARKProof(engine, proof.proof);
     var shareYBytes = serializeFieldLE(BigInt(proof.publicSignals.yShare));
     var nullifierBytes = serializeFieldLE(BigInt(proof.publicSignals.internalNullifier));
     var merkleRootBytes = serializeFieldLE(BigInt(proof.publicSignals.merkleRoot));
-    var epochBytes = serializeFieldLE(BigInt(proof.publicSignals.epoch));
+    var epochBytes = serializeFieldLE(BigInt(epoch));
     var shareXBytes = serializeFieldLE(BigInt(proof.publicSignals.signalHash));
-    var rlnIdentifierBytes = serializeFieldLE(BigInt(proof.publicSignals.rlnIdentifier));
+    var rlnIdentifierBytes = serializeFieldLE(BigInt(rlnIdentifier));
     return concatUint8Arrays(snarkProofBytes, shareYBytes, nullifierBytes, merkleRootBytes, epochBytes, shareXBytes, rlnIdentifierBytes);
+}
+function calculateExternalNullifier(epoch, rlnIdentifier) {
+    return poseidon([epoch, rlnIdentifier]);
 }
 /**
  * Deserialize a RLNFullProof (SNARK proof w/ public signals) in the js-rln format (little-endian, compressed, 320 bytes)
@@ -304,7 +328,7 @@ function deserializeJSRLNProof(engine, bytes) {
     if (bytes.length !== SIZE_JS_RLN_PROOF) {
         throw new Error('invalid RLN full proof size');
     }
-    var snarkProof = deserializeSNARKProof(engine, bytes.slice(OFFSET_SNARK_PROOF, OFFSET_SHARE_Y));
+    var pi = deserializeSNARKProof(engine, bytes.slice(OFFSET_SNARK_PROOF, OFFSET_SHARE_Y));
     var shareY = deserializeFieldLE(bytes.slice(OFFSET_SHARE_Y, OFFSET_NULLIFIER));
     var nullifier = deserializeFieldLE(bytes.slice(OFFSET_NULLIFIER, OFFSET_MERKLE_ROOT));
     var merkleRoot = deserializeFieldLE(bytes.slice(OFFSET_MERKLE_ROOT, OFFSET_EPOCH));
@@ -316,12 +340,16 @@ function deserializeJSRLNProof(engine, bytes) {
         merkleRoot: merkleRoot,
         internalNullifier: nullifier,
         signalHash: shareX,
-        epoch: epoch,
-        rlnIdentifier: rlnIdentifier,
+        externalNullifier: calculateExternalNullifier(epoch, rlnIdentifier),
+    };
+    var snarkProof = {
+        proof: pi,
+        publicSignals: publicSignals,
     };
     return {
-        proof: snarkProof,
-        publicSignals: publicSignals,
+        snarkProof: snarkProof,
+        epoch: epoch,
+        rlnIdentifier: rlnIdentifier,
     };
 }
 
@@ -356,7 +384,7 @@ var RLN = /** @class */ (function () {
                 epochBigInt = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000)) // rounded to nearest second
                 ;
                 witness = this._genWitness(merkleProof, epochBigInt, signal);
-                return [2 /*return*/, this._genProof(witness)];
+                return [2 /*return*/, this._genProof(epochBigInt, witness)];
             });
         });
     };
@@ -365,10 +393,20 @@ var RLN = /** @class */ (function () {
      * @param witness The parameters for creating the proof.
      * @returns The full SnarkJS proof.
      */
-    RLN.prototype._genProof = function (witness) {
+    RLN.prototype._genProof = function (epoch, witness) {
         return __awaiter(this, void 0, void 0, function () {
+            var snarkProof;
             return __generator(this, function (_a) {
-                return [2 /*return*/, RLN._genProof(witness, this.wasmFilePath, this.finalZkeyPath)];
+                switch (_a.label) {
+                    case 0: return [4 /*yield*/, RLN._genSNARKProof(witness, this.wasmFilePath, this.finalZkeyPath)];
+                    case 1:
+                        snarkProof = _a.sent();
+                        return [2 /*return*/, {
+                                snarkProof: snarkProof,
+                                epoch: epoch,
+                                rlnIdentifier: this.rlnIdentifier,
+                            }];
+                }
             });
         });
     };
@@ -379,7 +417,7 @@ var RLN = /** @class */ (function () {
    * @param finalZkeyPath The path to the final zkey file.
    * @returns The full SnarkJS proof.
    */
-    RLN._genProof = function (witness, wasmFilePath, finalZkeyPath) {
+    RLN._genSNARKProof = function (witness, wasmFilePath, finalZkeyPath) {
         return __awaiter(this, void 0, void 0, function () {
             var _a, proof, publicSignals;
             return __generator(this, function (_b) {
@@ -394,8 +432,7 @@ var RLN = /** @class */ (function () {
                                     merkleRoot: publicSignals[1],
                                     internalNullifier: publicSignals[2],
                                     signalHash: publicSignals[3],
-                                    epoch: publicSignals[4],
-                                    rlnIdentifier: publicSignals[5],
+                                    externalNullifier: publicSignals[4],
                                 },
                             }];
                 }
@@ -407,11 +444,18 @@ var RLN = /** @class */ (function () {
      * @param fullProof The SnarkJS full proof.
      * @returns True if the proof is valid, false otherwise.
      */
-    RLN.prototype.verifyProof = function (_a) {
-        var proof = _a.proof, publicSignals = _a.publicSignals;
+    RLN.prototype.verifyProof = function (rlnRullProof) {
         return __awaiter(this, void 0, void 0, function () {
-            return __generator(this, function (_b) {
-                return [2 /*return*/, RLN.verifyProof(this.verificationKey, { proof: proof, publicSignals: publicSignals })];
+            var expectedExternalNullifier;
+            return __generator(this, function (_a) {
+                if (BigInt(rlnRullProof.rlnIdentifier) !== this.rlnIdentifier) {
+                    throw new Error('RLN identifier does not match');
+                }
+                expectedExternalNullifier = RLN._genNullifier(BigInt(rlnRullProof.epoch), this.rlnIdentifier);
+                if (expectedExternalNullifier !== BigInt(rlnRullProof.snarkProof.publicSignals.externalNullifier)) {
+                    throw new Error('External nullifier does not match');
+                }
+                return [2 /*return*/, RLN.verifySNARKProof(this.verificationKey, rlnRullProof.snarkProof)];
             });
         });
     };
@@ -420,7 +464,7 @@ var RLN = /** @class */ (function () {
    * @param fullProof The SnarkJS full proof.
    * @returns True if the proof is valid, false otherwise.
    */
-    RLN.verifyProof = function (verificationKey, _a) {
+    RLN.verifySNARKProof = function (verificationKey, _a) {
         var proof = _a.proof, publicSignals = _a.publicSignals;
         return __awaiter(this, void 0, void 0, function () {
             return __generator(this, function (_b) {
@@ -429,8 +473,7 @@ var RLN = /** @class */ (function () {
                         publicSignals.merkleRoot,
                         publicSignals.internalNullifier,
                         publicSignals.signalHash,
-                        publicSignals.epoch,
-                        publicSignals.rlnIdentifier,
+                        publicSignals.externalNullifier,
                     ], proof)];
             });
         });
@@ -446,12 +489,11 @@ var RLN = /** @class */ (function () {
     RLN.prototype._genWitness = function (merkleProof, epoch, signal, shouldHash) {
         if (shouldHash === void 0) { shouldHash = true; }
         return {
-            identity_secret: this.secretIdentity,
-            path_elements: merkleProof.siblings,
-            identity_path_index: merkleProof.pathIndices,
+            identitySecret: this.secretIdentity,
+            pathElements: merkleProof.siblings,
+            identityPathIndex: merkleProof.pathIndices,
             x: shouldHash ? RLN._genSignalHash(signal) : signal,
-            epoch: BigInt(epoch),
-            rln_identifier: this.rlnIdentifier,
+            externalNullifier: RLN._genNullifier(BigInt(epoch), this.rlnIdentifier),
         };
     };
     /**
@@ -508,7 +550,12 @@ var RLN = /** @class */ (function () {
      * @returns identity secret
      */
     RLN.retrieveSecret = function (proof1, proof2) {
-        if (proof1.publicSignals.internalNullifier !== proof2.publicSignals.internalNullifier) {
+        if (!isProofSameExternalNullifier(proof1, proof2)) {
+            throw new Error('External Nullifiers do not match! Cannot recover secret.');
+        }
+        var snarkProof1 = proof1.snarkProof;
+        var snarkProof2 = proof2.snarkProof;
+        if (snarkProof1.publicSignals.internalNullifier !== snarkProof2.publicSignals.internalNullifier) {
             // The internalNullifier is made up of the identityCommitment + epoch + rlnappID,
             // so if they are different, the proofs are from:
             // different users,
@@ -516,7 +563,7 @@ var RLN = /** @class */ (function () {
             // or different rln applications
             throw new Error('Internal Nullifiers do not match! Cannot recover secret.');
         }
-        return RLN._shamirRecovery(BigInt(proof1.publicSignals.signalHash), BigInt(proof2.publicSignals.signalHash), BigInt(proof1.publicSignals.yShare), BigInt(proof2.publicSignals.yShare));
+        return RLN._shamirRecovery(BigInt(snarkProof1.publicSignals.signalHash), BigInt(snarkProof2.publicSignals.signalHash), BigInt(snarkProof1.publicSignals.yShare), BigInt(snarkProof2.publicSignals.yShare));
     };
     /**
      *
@@ -530,17 +577,6 @@ var RLN = /** @class */ (function () {
         // return Uint8Array.from(Array.from(bigIntAsStr).map(letter => letter.charCodeAt(0)));
         return new Uint8Array(new BigUint64Array([input]).buffer);
     };
-    // public static _uint8ArrayToBigint(input: Uint8Array): bigint {
-    //   // const decoder = new TextDecoder();
-    //   // return BigInt(decoder.decode(input));
-    //   return BigUint64Array.from(input)[0];
-    // }
-    // public encodeProofIntoUint8Array(): Uint8Array {
-    //   const data = [];
-    //   data.push();
-    //   return new Uint8Array(data);
-    // }
-    // public decodeProofFromUint8Array(): RLN { }
     RLN.prototype.export = function () {
         console.debug('Exporting RLN instance');
         return {
@@ -679,19 +715,27 @@ var Registry = /** @class */ (function () {
     };
     /**
     * Removes a member from the registry and adds them to the slashed registry.
-    * @param identityCommitment IdentityCommitment of the member to be removed.
+    * @param secret Secret of the member to be removed.
     */
-    Registry.prototype.slashMember = function (identityCommitment) {
-        var index = this._registry.indexOf(identityCommitment);
-        this._registry.delete(index);
-        this._slashed.insert(identityCommitment);
+    Registry.prototype.slashMember = function (secret) {
+        var identityCommitment = poseidon([secret]);
+        this._addSlashedMember(identityCommitment);
+        this._removeMember(identityCommitment);
+    };
+    /**
+    * Removes a member from the registry and adds them to the slashed registry.
+    * @param identityCommitment identityCommitment of the member to be removed.
+    */
+    Registry.prototype.slashMemberByIdentityCommitment = function (identityCommitment) {
+        this._addSlashedMember(identityCommitment);
+        this._removeMember(identityCommitment);
     };
     /**
      * Adds a new member to the slashed registry.
      * If a member exists in the registry, the member can't be added to the slashed.
      * @param identityCommitment New member.
      */
-    Registry.prototype.addSlashedMember = function (identityCommitment) {
+    Registry.prototype._addSlashedMember = function (identityCommitment) {
         if (this._slashed.indexOf(identityCommitment) !== -1) {
             throw new Error('Member already in slashed registry.');
         }
@@ -704,17 +748,20 @@ var Registry = /** @class */ (function () {
      * Adds new members to the slashed registry.
      * @param identityCommitments New members.
      */
-    Registry.prototype.addSlashedMembers = function (identityCommitments) {
+    Registry.prototype._addSlashedMembers = function (identityCommitments) {
         for (var _i = 0, identityCommitments_2 = identityCommitments; _i < identityCommitments_2.length; _i++) {
             var identityCommitment = identityCommitments_2[_i];
-            this.addSlashedMember(identityCommitment);
+            this._addSlashedMember(identityCommitment);
         }
     };
     /**
     * Removes a member from the registry.
     * @param identityCommitment IdentityCommitment of the member to be removed.
     */
-    Registry.prototype.removeMember = function (identityCommitment) {
+    Registry.prototype._removeMember = function (identityCommitment) {
+        if (this._registry.indexOf(identityCommitment) == -1) {
+            throw new Error("Member doesn't exist in registry.");
+        }
         var index = this._registry.indexOf(identityCommitment);
         this._registry.delete(index);
     };
@@ -767,7 +814,7 @@ var Registry = /** @class */ (function () {
         console.debug(registryObject);
         var registryInstance = new Registry(registryObject.treeDepth, BigInt(registryObject.zeroValue));
         registryInstance.addMembers(registryObject.registry.map(function (x) { return BigInt(x); }));
-        registryInstance.addSlashedMembers(registryObject.slashed.map(function (x) { return BigInt(x); }));
+        registryInstance._addSlashedMembers(registryObject.slashed.map(function (x) { return BigInt(x); }));
         return registryInstance;
     };
     return Registry;
@@ -779,25 +826,6 @@ var Status;
     Status["BREACH"] = "breach";
     Status["INVALID"] = "invalid";
 })(Status || (Status = {}));
-/**
- * Checks if two RLN proofs are the same.
- * @param proof1 RLNFullProof 1
- * @param proof2 RLNFullProof 2
- * @returns
- */
-function isSameProof(proof1, proof2) {
-    // We only compare the public inputs but the SNARK proof itself since the SNARK proof can
-    // be different even if public inputs are the same.
-    var publicSignals1 = proof1.publicSignals;
-    var publicSignals2 = proof2.publicSignals;
-    // We compare all public inputs but `merkleRoot` since it's possible that merkle root is changed
-    // (e.g. new leaf is inserted to the merkle tree) within the same epoch.
-    return (BigInt(publicSignals1.yShare) === BigInt(publicSignals2.yShare) &&
-        BigInt(publicSignals1.internalNullifier) === BigInt(publicSignals2.internalNullifier) &&
-        BigInt(publicSignals1.signalHash) === BigInt(publicSignals2.signalHash) &&
-        BigInt(publicSignals1.epoch) === BigInt(publicSignals2.epoch) &&
-        BigInt(publicSignals1.rlnIdentifier) === BigInt(publicSignals2.rlnIdentifier));
-}
 /**
  * Cache for storing proofs and automatically evaluating them for rate limit breaches
  */
@@ -818,28 +846,32 @@ var Cache = /** @class */ (function () {
      * @param proof the RLNFullProof to add to the cache
      * @returns an object with the status of the proof and the nullifier and secret if the proof is a breach
      */
-    Cache.prototype.addProof = function (proof) {
-        // Check if proof is for this rlnIdentifier
-        if (BigInt(proof.publicSignals.rlnIdentifier) !== this.rlnIdentifier) {
-            //console.error('Proof is not for this rlnIdentifier', proof.publicSignals.rlnIdentifier, this.rlnIdentifier);
+    Cache.prototype.addProof = function (fullProof) {
+        // Make sure epoch is a BigInt
+        var epochBigInt = BigInt(fullProof.epoch);
+        var expectedExternalNullifier = RLN._genNullifier(epochBigInt, this.rlnIdentifier);
+        var snarkProof = fullProof.snarkProof;
+        // Check the proof matches the epoch and rlnIdentifier
+        if (BigInt(snarkProof.publicSignals.externalNullifier) !== expectedExternalNullifier) {
             return { status: Status.INVALID, msg: 'Proof is not for this rlnIdentifier' };
         }
+        // Use epoch as string as key since BigInt can't be used as key
+        var epochString = String(epochBigInt);
         // Convert epoch and nullifier to string, can't use BigInt as a key
-        var epoch = String(proof.publicSignals.epoch);
-        var nullifier = String(proof.publicSignals.internalNullifier);
-        this.evaluateEpoch(epoch);
+        var nullifier = String(snarkProof.publicSignals.internalNullifier);
+        this.evaluateEpoch(epochString);
         // If nullifier doesn't exist for this epoch, create an empty array
-        this.cache[epoch][nullifier] = this.cache[epoch][nullifier] || [];
+        this.cache[epochString][nullifier] = this.cache[epochString][nullifier] || [];
         // Check if the proof already exists. It's O(n) but it's not a big deal since n is exactly the
         // rate limit and it's usually small.
-        var sameProofs = this.cache[epoch][nullifier].filter(function (p) { return isSameProof(p, proof); });
+        var sameProofs = this.cache[epochString][nullifier].filter(function (p) { return isSameProof(p, fullProof); });
         if (sameProofs.length > 0) {
             return { status: Status.INVALID, msg: 'Proof already exists' };
         }
         // Add proof to cache
-        this.cache[epoch][nullifier].push(proof);
+        this.cache[epochString][nullifier].push(fullProof);
         // Check if there is more than 1 proof for this nullifier for this epoch
-        return this.evaluateNullifierAtEpoch(epoch, nullifier);
+        return this.evaluateNullifierAtEpoch(epochString, nullifier);
     };
     Cache.prototype.evaluateNullifierAtEpoch = function (epoch, nullifier) {
         var proofs = this.cache[epoch][nullifier];
@@ -905,4 +937,3 @@ var Cache = /** @class */ (function () {
 exports.Cache = Cache;
 exports.RLN = RLN;
 exports.Registry = Registry;
-exports.genExternalNullifier = genExternalNullifier;
