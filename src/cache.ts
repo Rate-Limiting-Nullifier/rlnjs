@@ -53,7 +53,7 @@ export default class Cache {
    * @param proof the RLNFullProof to add to the cache
    * @returns an object with the status of the proof and the nullifier and secret if the proof is a breach
    */
-  addProof(fullProof: RLNFullProof): EvaluatedProof {
+  public addProof(fullProof: RLNFullProof): EvaluatedProof {
     // Make sure epoch is a BigInt
     const epochBigInt = BigInt(fullProof.epoch)
     const expectedExternalNullifier = RLN._genNullifier(epochBigInt, this.rlnIdentifier)

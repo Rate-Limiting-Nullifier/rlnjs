@@ -2,6 +2,9 @@
 import RLN from './rln'
 import Registry from './registry'
 import Cache from './cache'
+import RLNManager from './manager'
+
+export default RLNManager
 
 // Exports for RLN
 export {

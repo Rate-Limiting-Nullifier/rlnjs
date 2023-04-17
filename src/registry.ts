@@ -211,6 +211,11 @@ export default class Registry {
     return merkleProof
   }
 
+  /**
+   * Export the state of the registry to a JSON string
+   * @returns the state of the registry as a JSON string
+   */
+
   public export(): string {
     console.debug('Exporting: ')
     const out = JSON.stringify({
@@ -223,6 +228,11 @@ export default class Registry {
     return out
   }
 
+  /**
+   * Imports a registry from a JSON string.
+   * @param registry JSON string of the registry
+   * @returns a registry object
+   */
   public static import(registry: string): Registry {
     const registryObject = JSON.parse(registry)
     console.debug(registryObject)

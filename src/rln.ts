@@ -119,16 +119,16 @@ export default class RLN {
    * @param fullProof The SnarkJS full proof.
    * @returns True if the proof is valid, false otherwise.
    */
-  public async verifyProof(rlnRullProof: RLNFullProof): Promise<boolean> {
-    if (BigInt(rlnRullProof.rlnIdentifier) !== this.rlnIdentifier) {
+  public async verifyProof(proof: RLNFullProof): Promise<boolean> {
+    if (BigInt(proof.rlnIdentifier) !== this.rlnIdentifier) {
       throw new Error('RLN identifier does not match')
     }
-    const expectedExternalNullifier = RLN._genNullifier(BigInt(rlnRullProof.epoch), this.rlnIdentifier)
-    if (expectedExternalNullifier !== BigInt(rlnRullProof.snarkProof.publicSignals.externalNullifier)) {
+    const expectedExternalNullifier = RLN._genNullifier(BigInt(proof.epoch), this.rlnIdentifier)
+    if (expectedExternalNullifier !== BigInt(proof.snarkProof.publicSignals.externalNullifier)) {
       throw new Error('External nullifier does not match')
     }
 
-    return RLN.verifySNARKProof(this.verificationKey, rlnRullProof.snarkProof)
+    return RLN.verifySNARKProof(this.verificationKey, proof.snarkProof)
   }
 
   /**
