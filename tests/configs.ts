@@ -8,14 +8,12 @@ const thisFileDirname = __dirname
 function getParamsPath(paramsDir: string): CircuitParamsFilePath {
     return {
         vkeyPath: path.join(paramsDir, "verification_key.json"),
-        wasmFilePath: path.join(paramsDir, "rln.wasm"),
-        finalZkeyPath: path.join(paramsDir, "rln_final.zkey"),
+        wasmFilePath: path.join(paramsDir, "circuit.wasm"),
+        finalZkeyPath: path.join(paramsDir, "final.zkey"),
     }
 }
 
 
-const defaultParamsDirname = path.join(thisFileDirname, "..", "zkeyFiles", "rln-v2-same");
-const jsRLNParamsDirname = path.join(thisFileDirname, "..", "zkeyFiles", "js-rln");
+const defaultParamsDirname = path.join(thisFileDirname, "..", "zkeyFiles", "rln-same");
 
 export const defaultParamsPath = getParamsPath(defaultParamsDirname)
-export const jsRLNParamsPath = getParamsPath(jsRLNParamsDirname)
