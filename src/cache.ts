@@ -1,7 +1,6 @@
 import { utils } from 'ffjavascript'
-import { RLNFullProof, StrBigInt } from './types'
-import RLN from './rln'
-import { isSameProof } from './utils'
+import { StrBigInt } from './types'
+import RLN, { RLNFullProof, isProofSameExternalNullifier } from './rln'
 
 type EpochCache = {
   [nullifier: string]: RLNFullProof[]
@@ -23,6 +22,34 @@ export type EvaluatedProof = {
   secret?: bigint,
   msg?: string,
 }
+
+
+/**
+ * Checks if two RLN proofs are the same.
+ * @param proof1 RLNFullProof 1
+ * @param proof2 RLNFullProof 2
+ * @returns
+ */
+function isSameProof(proof1: RLNFullProof, proof2: RLNFullProof): boolean {
+  // First compare the external nullifiers
+  if (!isProofSameExternalNullifier(proof1, proof2)) {
+    throw new Error('Proofs have different external nullifiers')
+  }
+  // Then, we compare the public inputs since the SNARK proof can be different for a
+  // same claim.
+  const publicSignals1 = proof1.snarkProof.publicSignals
+  const publicSignals2 = proof2.snarkProof.publicSignals
+  // We compare all public inputs but `merkleRoot` since it's possible that merkle root is changed
+  // (e.g. new leaf is inserted to the merkle tree) within the same epoch.
+  // NOTE: no need to check external nullifier here since it is already compared in
+  // `isProofSameExternalNullifier`
+  return (
+    BigInt(publicSignals1.yShare) === BigInt(publicSignals2.yShare) &&
+    BigInt(publicSignals1.internalNullifier) === BigInt(publicSignals2.internalNullifier) &&
+    BigInt(publicSignals1.x) === BigInt(publicSignals2.x)
+  )
+}
+
 
 /**
  * Cache for storing proofs and automatically evaluating them for rate limit breaches

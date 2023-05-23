@@ -13,7 +13,10 @@ function getParamsPath(paramsDir: string): CircuitParamsFilePath {
     }
 }
 
+const rlnSameParamsDirname = path.join(thisFileDirname, "..", "zkeyFiles", "rln-same");
+const rlnDiffParamsDirname = path.join(thisFileDirname, "..", "zkeyFiles", "rln-diff");
+const defaultParamsDirname = rlnSameParamsDirname;
 
-const defaultParamsDirname = path.join(thisFileDirname, "..", "zkeyFiles", "rln-same");
-
-export const defaultParamsPath = getParamsPath(defaultParamsDirname)
+export const rlnSameParamsPath = getParamsPath(defaultParamsDirname)
+export const rlnDiffParamsPath = getParamsPath(rlnDiffParamsDirname)
+export const defaultParamsPath = rlnSameParamsPath

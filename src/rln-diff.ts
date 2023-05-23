@@ -10,26 +10,24 @@ import { Identity } from '@semaphore-protocol/identity'
 // Types
 import { StrBigInt, VerificationKey, Proof } from './types'
 
-
 /**
  * Public signals of the SNARK proof.
  */
-export type RLNPublicSignals = {
-  yShare: StrBigInt
-  merkleRoot: StrBigInt
-  internalNullifier: StrBigInt
-  x: StrBigInt
-  externalNullifier: StrBigInt
-  messageLimit: StrBigInt
+export type RLNDiffPublicSignals = {
+  x: StrBigInt,
+  externalNullifier: StrBigInt,
+  y: StrBigInt,
+  root: StrBigInt,
+  nullifier: StrBigInt,
 }
 
 /**
  * SNARK proof that contains both proof and public signals.
  * Can be verified directly by a SNARK verifier.
  */
-export type RLNSNARKProof = {
-  proof: Proof
-  publicSignals: RLNPublicSignals
+export type RLNDiffSNARKProof = {
+  proof: Proof,
+  publicSignals: RLNDiffPublicSignals,
 }
 
 /**
@@ -37,22 +35,25 @@ export type RLNSNARKProof = {
  * The proof is valid for a RLN user iff the epoch and rlnIdentifier match the user's
  * and the snarkProof is valid.
  */
-export type RLNFullProof = {
-  snarkProof: RLNSNARKProof
-  epoch: bigint
-  rlnIdentifier: bigint
+export type RLNDiffFullProof = {
+  snarkProof: RLNDiffSNARKProof,
+  epoch: bigint,
+  rlnIdentifier: bigint,
 }
 
 export type RLNWitness = {
   identitySecret: bigint,
+  userMessageLimit: bigint,
   messageId: bigint,
   // Ignore `no-explicit-any` because the type of `identity_path_elements` in zk-kit is `any[]`
   pathElements: any[], // eslint-disable-line @typescript-eslint/no-explicit-any
   identityPathIndex: number[],
   x: string | bigint,
   externalNullifier: bigint,
-  messageLimit: bigint,
 }
+
+export const DEFAULT_MESSAGE_LIMIT = 10
+
 
 type RLNExportedT = {
   identity: string,
@@ -64,10 +65,7 @@ type RLNExportedT = {
 }
 
 
-export const DEFAULT_MESSAGE_LIMIT = 10
-
-
-export function isProofSameExternalNullifier(proof1: RLNFullProof, proof2: RLNFullProof): boolean {
+function isProofSameExternalNullifier(proof1: RLNDiffFullProof, proof2: RLNDiffFullProof): boolean {
   const publicSignals1 = proof1.snarkProof.publicSignals
   const publicSignals2 = proof2.snarkProof.publicSignals
   return (
@@ -80,7 +78,7 @@ export function isProofSameExternalNullifier(proof1: RLNFullProof, proof2: RLNFu
 /**
 RLN is a class that represents a single RLN identity.
 **/
-export default class RLN {
+export default class RLNDiff {
   wasmFilePath: string
 
   finalZkeyPath: string
@@ -111,6 +109,7 @@ export default class RLN {
     ])
   }
 
+
   /**
    * Generates an RLN Proof.
    * @param signal This is usually the raw message.
@@ -119,7 +118,7 @@ export default class RLN {
    * @param epoch This is the time component for the proof, if no epoch is set, unix epoch time rounded to 1 second will be used.
    * @returns The full SnarkJS proof.
    */
-  public async generateProof(signal: string, merkleProof: MerkleProof, messageId: number | bigint, epoch?: StrBigInt): Promise<RLNFullProof> {
+  public async generateProof(signal: string, merkleProof: MerkleProof, messageId: number | bigint, epoch?: StrBigInt): Promise<RLNDiffFullProof> {
     // If epoch is not set, use unix epoch time rounded to 1 second
     const epochBigInt = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000)) // rounded to nearest second
     // Require messageId is in the range [1, messageLimit]
@@ -141,8 +140,8 @@ export default class RLN {
   public async _genProof(
     epoch: bigint,
     witness: RLNWitness,
-  ): Promise<RLNFullProof> {
-    const snarkProof: RLNSNARKProof = await RLN._genSNARKProof(witness, this.wasmFilePath, this.finalZkeyPath)
+  ): Promise<RLNDiffFullProof> {
+    const snarkProof: RLNDiffSNARKProof = await RLNDiff._genSNARKProof(witness, this.wasmFilePath, this.finalZkeyPath)
     return {
       snarkProof,
       epoch,
@@ -159,7 +158,7 @@ export default class RLN {
  */
   public static async _genSNARKProof(
     witness: RLNWitness, wasmFilePath: string, finalZkeyPath: string,
-  ): Promise<RLNSNARKProof> {
+  ): Promise<RLNDiffSNARKProof> {
     const { proof, publicSignals } = await groth16.fullProve(
       witness,
       wasmFilePath,
@@ -170,12 +169,11 @@ export default class RLN {
     return {
       proof,
       publicSignals: {
-        yShare: publicSignals[0],
-        merkleRoot: publicSignals[1],
-        internalNullifier: publicSignals[2],
+        y: publicSignals[0],
+        root: publicSignals[1],
+        nullifier: publicSignals[2],
         x: publicSignals[3],
         externalNullifier: publicSignals[4],
-        messageLimit: publicSignals[5],
       },
     }
   }
@@ -186,19 +184,15 @@ export default class RLN {
    * @returns True if the proof is valid, false otherwise.
    * @throws Error if the proof is using different parameters.
    */
-  public async verifyProof(rlnRullProof: RLNFullProof): Promise<boolean> {
-    const expectedExternalNullifier = RLN.calculateExternalNullifier(
+  public async verifyProof(rlnRullProof: RLNDiffFullProof): Promise<boolean> {
+    const expectedExternalNullifier = RLNDiff.calculateExternalNullifier(
       BigInt(rlnRullProof.epoch),
       this.rlnIdentifier,
     )
     if (expectedExternalNullifier !== BigInt(rlnRullProof.snarkProof.publicSignals.externalNullifier)) {
       throw new Error('External nullifier does not match')
     }
-    if (BigInt(rlnRullProof.snarkProof.publicSignals.messageLimit) !== this.messageLimit) {
-      throw new Error('Message limit does not match')
-    }
-
-    return RLN.verifySNARKProof(this.verificationKey, rlnRullProof.snarkProof)
+    return RLNDiff.verifySNARKProof(this.verificationKey, rlnRullProof.snarkProof)
   }
 
   /**
@@ -207,17 +201,16 @@ export default class RLN {
  * @returns True if the proof is valid, false otherwise.
  */
   public static async verifySNARKProof(verificationKey: VerificationKey,
-    { proof, publicSignals }: RLNSNARKProof,
+    { proof, publicSignals }: RLNDiffSNARKProof,
   ): Promise<boolean> {
     return groth16.verify(
       verificationKey,
       [
-        publicSignals.yShare,
-        publicSignals.merkleRoot,
-        publicSignals.internalNullifier,
+        publicSignals.y,
+        publicSignals.root,
+        publicSignals.nullifier,
         publicSignals.x,
         publicSignals.externalNullifier,
-        publicSignals.messageLimit,
       ],
       proof,
     )
@@ -242,12 +235,12 @@ export default class RLN {
   ): RLNWitness {
     return {
       identitySecret: this.secretIdentity,
+      userMessageLimit: this.messageLimit,
       messageId: messageId,
       pathElements: merkleProof.siblings,
       identityPathIndex: merkleProof.pathIndices,
-      x: shouldHash ? RLN.calculateSignalHash(signal) : signal,
-      externalNullifier: RLN.calculateExternalNullifier(BigInt(epoch), this.rlnIdentifier),
-      messageLimit: this.messageLimit,
+      x: shouldHash ? RLNDiff.calculateSignalHash(signal) : signal,
+      externalNullifier: RLNDiff.calculateExternalNullifier(BigInt(epoch), this.rlnIdentifier),
     }
   }
 
@@ -286,13 +279,13 @@ export default class RLN {
    * @param proof2 x2
    * @returns identity secret
    */
-  public static retrieveSecret(proof1: RLNFullProof, proof2: RLNFullProof): bigint {
+  public static retrieveSecret(proof1: RLNDiffFullProof, proof2: RLNDiffFullProof): bigint {
     if (!isProofSameExternalNullifier(proof1, proof2)) {
       throw new Error('External Nullifiers do not match! Cannot recover secret.')
     }
     const snarkProof1 = proof1.snarkProof
     const snarkProof2 = proof2.snarkProof
-    if (snarkProof1.publicSignals.internalNullifier !== snarkProof2.publicSignals.internalNullifier) {
+    if (snarkProof1.publicSignals.nullifier !== snarkProof2.publicSignals.nullifier) {
       // The internalNullifier is made up of the identityCommitment + epoch + rlnappID,
       // so if they are different, the proofs are from:
       // different users,
@@ -301,11 +294,11 @@ export default class RLN {
       // or different messageId
       throw new Error('Internal Nullifiers do not match! Cannot recover secret.')
     }
-    return RLN.shamirRecovery(
+    return RLNDiff.shamirRecovery(
       BigInt(snarkProof1.publicSignals.x),
       BigInt(snarkProof2.publicSignals.x),
-      BigInt(snarkProof1.publicSignals.yShare),
-      BigInt(snarkProof2.publicSignals.yShare),
+      BigInt(snarkProof1.publicSignals.y),
+      BigInt(snarkProof2.publicSignals.y),
     )
   }
 
@@ -321,9 +314,9 @@ export default class RLN {
     }
   }
 
-  public static import(rlnInstance: RLNExportedT): RLN {
+  public static import(rlnInstance: RLNExportedT): RLNDiff {
     console.debug('Importing RLN instance')
-    return new RLN(
+    return new RLNDiff(
       rlnInstance.wasmFilePath,
       rlnInstance.finalZkeyPath,
       JSON.parse(rlnInstance.verificationKey),

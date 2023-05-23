@@ -156,13 +156,13 @@ describe("RLN", () => {
     })
 
     test("Should export/import to json", () => {
-      const rln_instance_json = rlnInstance.export();
-      const rln_instance_from_json = RLN.import(rln_instance_json);
-      expect(rln_instance_from_json.identity.commitment).toEqual(rlnInstance.identity.commitment);
-      expect(rln_instance_from_json.rlnIdentifier).toEqual(rlnInstance.rlnIdentifier);
-      expect(rln_instance_from_json.wasmFilePath).toEqual(rlnInstance.wasmFilePath);
-      expect(rln_instance_from_json.finalZkeyPath).toEqual(rlnInstance.finalZkeyPath);
-      expect(rln_instance_from_json.verificationKey).toEqual(rlnInstance.verificationKey);
+      const rlnInstanceJson = rlnInstance.export();
+      const rlnInstanceFromJson = RLN.import(rlnInstanceJson);
+      expect(rlnInstanceFromJson.identity.commitment).toEqual(rlnInstance.identity.commitment);
+      expect(rlnInstanceFromJson.rlnIdentifier).toEqual(rlnInstance.rlnIdentifier);
+      expect(rlnInstanceFromJson.wasmFilePath).toEqual(rlnInstance.wasmFilePath);
+      expect(rlnInstanceFromJson.finalZkeyPath).toEqual(rlnInstance.finalZkeyPath);
+      expect(rlnInstanceFromJson.verificationKey).toEqual(rlnInstance.verificationKey);
     })
   })
 })

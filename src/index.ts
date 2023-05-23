@@ -13,11 +13,14 @@ export {
 // Export RLN types
 export {
   StrBigInt,
-  RLNFullProof,
   Proof,
-  RLNPublicSignals,
-  RLNSNARKProof,
   VerificationKey,
-  RLNWitness,
   CircuitParamsFilePath,
 } from './types'
+
+export {
+  RLNFullProof,
+  RLNPublicSignals,
+  RLNSNARKProof,
+  RLNWitness,
+} from './rln'
