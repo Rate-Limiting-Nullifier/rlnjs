@@ -80,12 +80,10 @@ describe("RLNDiff", () => {
         }).rejects.toThrowError("messageId must be in the range [1, messageLimit]")
       }
 
-      const rlnInstanceAnother = rlnDiffInstanceFactory(paramsPath, rlnInstance.rlnIdentifier, BigInt(DEFAULT_MESSAGE_LIMIT))
-      // Test: proof from rlnInstance should be verifiable by rlnInstanceAnother since they
-      // use the same parameters (paramsPath, rlnIdentifier, and messageLimit)
-      expect(await rlnInstanceAnother.verifyProof(fullProof)).toBe(true)
-      // Test: rlnInstanceAnother should be able to verify the proof since users can have different rate limit
-      rlnInstanceAnother.messageLimit = BigInt(DEFAULT_MESSAGE_LIMIT + 1)
+      const messageLimitAnother = BigInt(DEFAULT_MESSAGE_LIMIT + 1)
+      const rlnInstanceAnother = rlnDiffInstanceFactory(paramsPath, rlnInstance.rlnIdentifier, messageLimitAnother)
+      // Test: proof from `rlnInstance` should still be verifiable by `rlnInstanceAnother` because `messageLimit`
+      // is a private input and thus the verifier cannot know the exact value
       expect(await rlnInstanceAnother.verifyProof(fullProof)).toBe(true)
     }, 30000)
 
