@@ -19,8 +19,8 @@
 #
 supported_circuit_names=("rln-same" "rln-diff" "withdraw")
 
-rln_circuits_version=530bb5a
-rln_circuits_repo='rln-circuits-v2'
+rln_circuits_version=10437bc
+rln_circuits_repo='circom-rln'
 rln_circuits_repo_url="https://github.com/Rate-Limiting-Nullifier/$rln_circuits_repo.git"
 
 #

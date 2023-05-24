@@ -73,11 +73,11 @@ describe("RLNDiff", () => {
       expect(await rlnInstance.verifyProof(fullProof)).toBe(true)
 
       // Test: generateProof fails with invalid messageId
-      const invalidMessageIds = [0, DEFAULT_MESSAGE_LIMIT + 1]
+      const invalidMessageIds = [DEFAULT_MESSAGE_LIMIT, DEFAULT_MESSAGE_LIMIT + 1]
       for (const id of invalidMessageIds) {
         expect(async () => {
           await rlnInstance.generateProof(signal, merkleProof, id, epoch)
-        }).rejects.toThrowError("messageId must be in the range [1, messageLimit]")
+        }).rejects.toThrowError("messageId must be in the range")
       }
 
       const messageLimitAnother = BigInt(DEFAULT_MESSAGE_LIMIT + 1)

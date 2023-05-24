@@ -121,10 +121,10 @@ export default class RLNDiff {
   public async generateProof(signal: string, merkleProof: MerkleProof, messageId: number | bigint, epoch?: StrBigInt): Promise<RLNDiffFullProof> {
     // If epoch is not set, use unix epoch time rounded to 1 second
     const epochBigInt = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000)) // rounded to nearest second
-    // Require messageId is in the range [1, messageLimit]
-    if (messageId <= 0 || messageId > this.messageLimit) {
+    // Require messageId is in the range [0, messageLimit - 1]
+    if (messageId < 0 || messageId >= this.messageLimit) {
       throw new Error(
-        'messageId must be in the range [1, messageLimit]: ' +
+        'messageId must be in the range [0, messageLimit - 1]: ' +
         `messageId=${messageId}, messageLimit=${this.messageLimit}`,
       )
     }

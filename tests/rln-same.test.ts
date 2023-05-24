@@ -67,18 +67,18 @@ describe("RLN", () => {
       const epoch = fieldFactory()
       const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rlnInstance.commitment)
       // Test: succeeds with valid inputs
-      const messageId = BigInt(1)
+      const messageId = BigInt(0)
       // Sanity check that messageId is within range and thus valid
       expect(messageId).toBeLessThanOrEqual(DEFAULT_MESSAGE_LIMIT)
       const fullProof = await rlnInstance.generateProof(signal, merkleProof, messageId, epoch)
       expect(await rlnInstance.verifyProof(fullProof)).toBe(true)
 
       // Test: generateProof fails with invalid messageId
-      const invalidMessageIds = [0, DEFAULT_MESSAGE_LIMIT + 1]
+      const invalidMessageIds = [DEFAULT_MESSAGE_LIMIT, DEFAULT_MESSAGE_LIMIT + 1]
       for (const id of invalidMessageIds) {
         expect(async () => {
           await rlnInstance.generateProof(signal, merkleProof, id, epoch)
-        }).rejects.toThrowError("messageId must be in the range [1, messageLimit]")
+        }).rejects.toThrowError("messageId must be in the range")
       }
 
       const rlnInstanceAnother = rlnInstanceFactory(paramsPath, rlnInstance.rlnIdentifier, BigInt(DEFAULT_MESSAGE_LIMIT))
