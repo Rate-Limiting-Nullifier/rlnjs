@@ -1,6 +1,3 @@
-import { hexlify } from '@ethersproject/bytes'
-import { keccak256 } from '@ethersproject/solidity'
-import { toUtf8Bytes } from '@ethersproject/strings'
 import { MerkleProof } from '@zk-kit/incremental-merkle-tree'
 import { groth16 } from 'snarkjs'
 import { Fq } from './utils'
@@ -9,18 +6,19 @@ import { Identity } from '@semaphore-protocol/identity'
 
 // Types
 import { StrBigInt, VerificationKey, Proof } from './types'
+import { calculateExternalNullifier, calculateSignalHash, shamirRecovery } from './common'
 
 
 /**
  * Public signals of the SNARK proof.
  */
 export type RLNPublicSignals = {
-  yShare: StrBigInt
-  merkleRoot: StrBigInt
-  internalNullifier: StrBigInt
-  x: StrBigInt
-  externalNullifier: StrBigInt
-  messageLimit: StrBigInt
+  x: StrBigInt,
+  externalNullifier: StrBigInt,
+  messageLimit: StrBigInt,
+  y: StrBigInt,
+  root: StrBigInt,
+  nullifier: StrBigInt,
 }
 
 /**
@@ -37,7 +35,7 @@ export type RLNSNARKProof = {
  * The proof is valid for a RLN user iff the epoch and rlnIdentifier match the user's
  * and the snarkProof is valid.
  */
-export type RLNFullProof = {
+export type RLNSameFullProof = {
   snarkProof: RLNSNARKProof
   epoch: bigint
   rlnIdentifier: bigint
@@ -67,7 +65,7 @@ type RLNExportedT = {
 export const DEFAULT_MESSAGE_LIMIT = 10
 
 
-export function isProofSameExternalNullifier(proof1: RLNFullProof, proof2: RLNFullProof): boolean {
+export function isProofSameExternalNullifier(proof1: RLNSameFullProof, proof2: RLNSameFullProof): boolean {
   const publicSignals1 = proof1.snarkProof.publicSignals
   const publicSignals2 = proof2.snarkProof.publicSignals
   return (
@@ -78,9 +76,9 @@ export function isProofSameExternalNullifier(proof1: RLNFullProof, proof2: RLNFu
 }
 
 /**
-RLN is a class that represents a single RLN identity.
+RLNSame is a class that represents a single RLNSame identity.
 **/
-export default class RLN {
+export default class RLNSame {
   wasmFilePath: string
 
   finalZkeyPath: string
@@ -119,7 +117,7 @@ export default class RLN {
    * @param epoch This is the time component for the proof, if no epoch is set, unix epoch time rounded to 1 second will be used.
    * @returns The full SnarkJS proof.
    */
-  public async generateProof(signal: string, merkleProof: MerkleProof, messageId: number | bigint, epoch?: StrBigInt): Promise<RLNFullProof> {
+  public async generateProof(signal: string, merkleProof: MerkleProof, messageId: number | bigint, epoch?: StrBigInt): Promise<RLNSameFullProof> {
     // If epoch is not set, use unix epoch time rounded to 1 second
     const epochBigInt = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000)) // rounded to nearest second
     // Require messageId is in the range [0, messageLimit - 1]
@@ -141,8 +139,8 @@ export default class RLN {
   public async _genProof(
     epoch: bigint,
     witness: RLNWitness,
-  ): Promise<RLNFullProof> {
-    const snarkProof: RLNSNARKProof = await RLN._genSNARKProof(witness, this.wasmFilePath, this.finalZkeyPath)
+  ): Promise<RLNSameFullProof> {
+    const snarkProof: RLNSNARKProof = await RLNSame._genSNARKProof(witness, this.wasmFilePath, this.finalZkeyPath)
     return {
       snarkProof,
       epoch,
@@ -170,9 +168,9 @@ export default class RLN {
     return {
       proof,
       publicSignals: {
-        yShare: publicSignals[0],
-        merkleRoot: publicSignals[1],
-        internalNullifier: publicSignals[2],
+        y: publicSignals[0],
+        root: publicSignals[1],
+        nullifier: publicSignals[2],
         x: publicSignals[3],
         externalNullifier: publicSignals[4],
         messageLimit: publicSignals[5],
@@ -186,8 +184,8 @@ export default class RLN {
    * @returns True if the proof is valid, false otherwise.
    * @throws Error if the proof is using different parameters.
    */
-  public async verifyProof(rlnRullProof: RLNFullProof): Promise<boolean> {
-    const expectedExternalNullifier = RLN.calculateExternalNullifier(
+  public async verifyProof(rlnRullProof: RLNSameFullProof): Promise<boolean> {
+    const expectedExternalNullifier = calculateExternalNullifier(
       BigInt(rlnRullProof.epoch),
       this.rlnIdentifier,
     )
@@ -198,7 +196,7 @@ export default class RLN {
       throw new Error('Message limit does not match')
     }
 
-    return RLN.verifySNARKProof(this.verificationKey, rlnRullProof.snarkProof)
+    return RLNSame.verifySNARKProof(this.verificationKey, rlnRullProof.snarkProof)
   }
 
   /**
@@ -212,9 +210,9 @@ export default class RLN {
     return groth16.verify(
       verificationKey,
       [
-        publicSignals.yShare,
-        publicSignals.merkleRoot,
-        publicSignals.internalNullifier,
+        publicSignals.y,
+        publicSignals.root,
+        publicSignals.nullifier,
         publicSignals.x,
         publicSignals.externalNullifier,
         publicSignals.messageLimit,
@@ -245,39 +243,10 @@ export default class RLN {
       messageId: messageId,
       pathElements: merkleProof.siblings,
       identityPathIndex: merkleProof.pathIndices,
-      x: shouldHash ? RLN.calculateSignalHash(signal) : signal,
-      externalNullifier: RLN.calculateExternalNullifier(BigInt(epoch), this.rlnIdentifier),
+      x: shouldHash ? calculateSignalHash(signal) : signal,
+      externalNullifier: calculateExternalNullifier(BigInt(epoch), this.rlnIdentifier),
       messageLimit: this.messageLimit,
     }
-  }
-
-  public static calculateExternalNullifier(epoch: bigint, rlnIdentifier: bigint): bigint {
-    return poseidon([epoch, rlnIdentifier])
-  }
-
-  /**
-   * Hashes a signal string with Keccak256.
-   * @param signal The RLN signal.
-   * @returns The signal hash.
-   */
-  public static calculateSignalHash(signal: string): bigint {
-    const converted = hexlify(toUtf8Bytes(signal))
-    return BigInt(keccak256(['bytes'], [converted])) >> BigInt(8)
-  }
-
-  /**
-   * Recovers secret from two shares
-   * @param x1 signal hash of first message
-   * @param x2 signal hash of second message
-   * @param y1 yshare of first message
-   * @param y2 yshare of second message
-   * @returns identity secret
-   */
-  public static shamirRecovery(x1: bigint, x2: bigint, y1: bigint, y2: bigint): bigint {
-    const slope = Fq.div(Fq.sub(y2, y1), Fq.sub(x2, x1))
-    const privateKey = Fq.sub(y1, Fq.mul(slope, x1))
-
-    return Fq.normalize(privateKey)
   }
 
   /**
@@ -286,14 +255,14 @@ export default class RLN {
    * @param proof2 x2
    * @returns identity secret
    */
-  public static retrieveSecret(proof1: RLNFullProof, proof2: RLNFullProof): bigint {
+  public static retrieveSecret(proof1: RLNSameFullProof, proof2: RLNSameFullProof): bigint {
     if (!isProofSameExternalNullifier(proof1, proof2)) {
       throw new Error('External Nullifiers do not match! Cannot recover secret.')
     }
     const snarkProof1 = proof1.snarkProof
     const snarkProof2 = proof2.snarkProof
-    if (snarkProof1.publicSignals.internalNullifier !== snarkProof2.publicSignals.internalNullifier) {
-      // The internalNullifier is made up of the identityCommitment + epoch + rlnappID,
+    if (snarkProof1.publicSignals.nullifier !== snarkProof2.publicSignals.nullifier) {
+      // The nullifier is made up of the identityCommitment + epoch + rlnappID,
       // so if they are different, the proofs are from:
       // different users,
       // different epochs,
@@ -301,11 +270,11 @@ export default class RLN {
       // or different messageId
       throw new Error('Internal Nullifiers do not match! Cannot recover secret.')
     }
-    return RLN.shamirRecovery(
+    return shamirRecovery(
       BigInt(snarkProof1.publicSignals.x),
       BigInt(snarkProof2.publicSignals.x),
-      BigInt(snarkProof1.publicSignals.yShare),
-      BigInt(snarkProof2.publicSignals.yShare),
+      BigInt(snarkProof1.publicSignals.y),
+      BigInt(snarkProof2.publicSignals.y),
     )
   }
 
@@ -321,9 +290,9 @@ export default class RLN {
     }
   }
 
-  public static import(rlnInstance: RLNExportedT): RLN {
+  public static import(rlnInstance: RLNExportedT): RLNSame {
     console.debug('Importing RLN instance')
-    return new RLN(
+    return new RLNSame(
       rlnInstance.wasmFilePath,
       rlnInstance.finalZkeyPath,
       JSON.parse(rlnInstance.verificationKey),

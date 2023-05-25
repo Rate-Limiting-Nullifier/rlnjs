@@ -5,6 +5,7 @@ import { rlnDiffInstanceFactory, fieldFactory } from './factories'
 import { rlnDiffParamsPath } from "./configs";
 import poseidon from 'poseidon-lite';
 import { Fq } from '../src/utils';
+import { calculateExternalNullifier, calculateSignalHash, shamirRecovery } from '../src/common';
 
 
 const defaultTreeDepth = DEFAULT_REGISTRY_TREE_DEPTH;
@@ -34,9 +35,9 @@ describe("RLNDiff", () => {
   describe("RLNDiff functionalities", () => {
     test("Should retrieve user secret using shamirRecovery", () => {
       const signal1 = "hey hey"
-      const signalHash1 = RLNDiff.calculateSignalHash(signal1)
+      const signalHash1 = calculateSignalHash(signal1)
       const signal2 = "hey hey again"
-      const signalHash2 = RLNDiff.calculateSignalHash(signal2)
+      const signalHash2 = calculateSignalHash(signal2)
 
       const messageId = BigInt(1)
       const epoch = fieldFactory()
@@ -44,7 +45,7 @@ describe("RLNDiff", () => {
       function calculateY(
         x: bigint,
       ): bigint {
-        const externalNullifier = RLNDiff.calculateExternalNullifier(epoch, rlnInstance.rlnIdentifier)
+        const externalNullifier = calculateExternalNullifier(epoch, rlnInstance.rlnIdentifier)
         const a1 = poseidon([rlnInstance.secretIdentity, externalNullifier, messageId])
         // y = identitySecret + a1 * x
         return Fq.normalize(rlnInstance.secretIdentity + a1 * x)
@@ -53,12 +54,12 @@ describe("RLNDiff", () => {
       const y1 = calculateY(signalHash1)
       const y2 = calculateY(signalHash2)
 
-      const retrievedSecret = RLNDiff.shamirRecovery(signalHash1, signalHash2, y1, y2)
+      const retrievedSecret = shamirRecovery(signalHash1, signalHash2, y1, y2)
 
       expect(retrievedSecret).toEqual(rlnInstance.secretIdentity)
     })
 
-    test("Should generate and verify RLN proof", async () => {
+    test("Should generate and verify RLNDiff proof", async () => {
       const leaves = Object.assign([], identityCommitments)
       leaves.push(rlnInstance.commitment)
 

@@ -1,8 +1,7 @@
 import * as fs from "fs"
-import { RLN } from "../src"
+import { RLNSame, RLNDiff } from "../src"
 import { CircuitParamsFilePath } from "../src/types"
 import { Fq, parseVerificationKeyJSON } from "../src/utils"
-import RLNDiff from "../src/rln-diff"
 
 export function rlnDiffInstanceFactory(
     paramsPath: CircuitParamsFilePath,
@@ -21,7 +20,7 @@ export function rlnInstanceFactory(
     identity?: string,
 ) {
     const vKey = parseVerificationKeyJSON(fs.readFileSync(paramsPath.vkeyPath, "utf-8"))
-    return new RLN(paramsPath.wasmFilePath, paramsPath.finalZkeyPath, vKey, rlnIdentifier, messageLimit, identity)
+    return new RLNSame(paramsPath.wasmFilePath, paramsPath.finalZkeyPath, vKey, rlnIdentifier, messageLimit, identity)
 }
 
 export function fieldFactory(excludes?: bigint[], trials: number = 100): bigint {

@@ -1,6 +1,3 @@
-import { hexlify } from '@ethersproject/bytes'
-import { keccak256 } from '@ethersproject/solidity'
-import { toUtf8Bytes } from '@ethersproject/strings'
 import { MerkleProof } from '@zk-kit/incremental-merkle-tree'
 import { groth16 } from 'snarkjs'
 import { Fq } from './utils'
@@ -9,6 +6,7 @@ import { Identity } from '@semaphore-protocol/identity'
 
 // Types
 import { StrBigInt, VerificationKey, Proof } from './types'
+import { calculateExternalNullifier, calculateSignalHash, shamirRecovery } from './common'
 
 /**
  * Public signals of the SNARK proof.
@@ -76,7 +74,7 @@ function isProofSameExternalNullifier(proof1: RLNDiffFullProof, proof2: RLNDiffF
 }
 
 /**
-RLN is a class that represents a single RLN identity.
+RLN is a class that represents a single RLNDiff identity.
 **/
 export default class RLNDiff {
   wasmFilePath: string
@@ -111,7 +109,7 @@ export default class RLNDiff {
 
 
   /**
-   * Generates an RLN Proof.
+   * Generates an RLNDiff Proof.
    * @param signal This is usually the raw message.
    * @param merkleProof This is the merkle proof for the identity commitment.
    * @param messageId id of the message. Be careful to not reuse the same id otherwise the secret will be leaked.
@@ -185,7 +183,7 @@ export default class RLNDiff {
    * @throws Error if the proof is using different parameters.
    */
   public async verifyProof(rlnRullProof: RLNDiffFullProof): Promise<boolean> {
-    const expectedExternalNullifier = RLNDiff.calculateExternalNullifier(
+    const expectedExternalNullifier = calculateExternalNullifier(
       BigInt(rlnRullProof.epoch),
       this.rlnIdentifier,
     )
@@ -239,38 +237,9 @@ export default class RLNDiff {
       messageId: messageId,
       pathElements: merkleProof.siblings,
       identityPathIndex: merkleProof.pathIndices,
-      x: shouldHash ? RLNDiff.calculateSignalHash(signal) : signal,
-      externalNullifier: RLNDiff.calculateExternalNullifier(BigInt(epoch), this.rlnIdentifier),
+      x: shouldHash ? calculateSignalHash(signal) : signal,
+      externalNullifier: calculateExternalNullifier(BigInt(epoch), this.rlnIdentifier),
     }
-  }
-
-  public static calculateExternalNullifier(epoch: bigint, rlnIdentifier: bigint): bigint {
-    return poseidon([epoch, rlnIdentifier])
-  }
-
-  /**
-   * Hashes a signal string with Keccak256.
-   * @param signal The RLN signal.
-   * @returns The signal hash.
-   */
-  public static calculateSignalHash(signal: string): bigint {
-    const converted = hexlify(toUtf8Bytes(signal))
-    return BigInt(keccak256(['bytes'], [converted])) >> BigInt(8)
-  }
-
-  /**
-   * Recovers secret from two shares
-   * @param x1 signal hash of first message
-   * @param x2 signal hash of second message
-   * @param y1 yshare of first message
-   * @param y2 yshare of second message
-   * @returns identity secret
-   */
-  public static shamirRecovery(x1: bigint, x2: bigint, y1: bigint, y2: bigint): bigint {
-    const slope = Fq.div(Fq.sub(y2, y1), Fq.sub(x2, x1))
-    const privateKey = Fq.sub(y1, Fq.mul(slope, x1))
-
-    return Fq.normalize(privateKey)
   }
 
   /**
@@ -294,7 +263,7 @@ export default class RLNDiff {
       // or different messageId
       throw new Error('Internal Nullifiers do not match! Cannot recover secret.')
     }
-    return RLNDiff.shamirRecovery(
+    return shamirRecovery(
       BigInt(snarkProof1.publicSignals.x),
       BigInt(snarkProof2.publicSignals.x),
       BigInt(snarkProof1.publicSignals.y),
@@ -303,7 +272,7 @@ export default class RLNDiff {
   }
 
   public export(): RLNExportedT {
-    console.debug('Exporting RLN instance')
+    console.debug('Exporting RLNDiff instance')
     return {
       identity: this.identity.toString(),
       rlnIdentifier: String(this.rlnIdentifier),
@@ -315,7 +284,7 @@ export default class RLNDiff {
   }
 
   public static import(rlnInstance: RLNExportedT): RLNDiff {
-    console.debug('Importing RLN instance')
+    console.debug('Importing RLNDiff instance')
     return new RLNDiff(
       rlnInstance.wasmFilePath,
       rlnInstance.finalZkeyPath,
