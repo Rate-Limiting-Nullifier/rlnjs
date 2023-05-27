@@ -1,8 +1,8 @@
 import { Identity } from '@semaphore-protocol/identity'
-import RLNDiff, { RLNDiffFullProof, DEFAULT_MESSAGE_LIMIT } from "../src/rln-diff"
+import RLN, { RLNFullProof, DEFAULT_MESSAGE_LIMIT } from "../src/rln"
 import Registry, { DEFAULT_REGISTRY_TREE_DEPTH } from '../src/registry'
-import { rlnDiffInstanceFactory, fieldFactory } from './factories'
-import { rlnDiffParamsPath } from "./configs";
+import { rlnInstanceFactory, fieldFactory } from './factories'
+import { rlnParamsPath } from "./configs";
 import poseidon from 'poseidon-lite';
 import { Fq } from '../src/common';
 import { calculateExternalNullifier, calculateSignalHash, shamirRecovery } from '../src/common';
@@ -14,12 +14,12 @@ jest.setTimeout(60000)
 
 // TODO: Add tests for RLN Identifier
 
-describe("RLNDiff", () => {
+describe("RLN", () => {
   const identityCommitments: bigint[] = []
-  const paramsPath = rlnDiffParamsPath
-  const rlnInstance = rlnDiffInstanceFactory(paramsPath, undefined)
+  const paramsPath = rlnParamsPath
+  const rlnInstance = rlnInstanceFactory(paramsPath, undefined)
   // Same parameter, same rln identifier, but different identity
-  const rlnInstance2 = rlnDiffInstanceFactory(paramsPath, rlnInstance.rlnIdentifier)
+  const rlnInstance2 = rlnInstanceFactory(paramsPath, rlnInstance.rlnIdentifier)
 
   beforeAll(() => {
     // Gen random identities
@@ -32,7 +32,7 @@ describe("RLNDiff", () => {
     }
   })
 
-  describe("RLNDiff functionalities", () => {
+  describe("RLN functionalities", () => {
     test("Should retrieve user secret using shamirRecovery", () => {
       const signal1 = "hey hey"
       const signalHash1 = calculateSignalHash(signal1)
@@ -59,7 +59,7 @@ describe("RLNDiff", () => {
       expect(retrievedSecret).toEqual(rlnInstance.secretIdentity)
     })
 
-    test("Should generate and verify RLNDiff proof", async () => {
+    test("Should generate and verify RLN proof", async () => {
       const leaves = Object.assign([], identityCommitments)
       leaves.push(rlnInstance.commitment)
 
@@ -82,7 +82,7 @@ describe("RLNDiff", () => {
       }
 
       const messageLimitAnother = BigInt(DEFAULT_MESSAGE_LIMIT + 1)
-      const rlnInstanceAnother = rlnDiffInstanceFactory(paramsPath, rlnInstance.rlnIdentifier, messageLimitAnother)
+      const rlnInstanceAnother = rlnInstanceFactory(paramsPath, rlnInstance.rlnIdentifier, messageLimitAnother)
       // Test: proof from `rlnInstance` should still be verifiable by `rlnInstanceAnother` because `messageLimit`
       // is a private input and thus the verifier cannot know the exact value
       expect(await rlnInstanceAnother.verifyProof(fullProof)).toBe(true)
@@ -106,54 +106,54 @@ describe("RLNDiff", () => {
       const proof = await rlnInstance.generateProof(signal1, merkleProof, messageId, epoch1)
       // Test: another signal in the same epoch, messageId, and identity. Breached
       const proofDiffSignal = await rlnInstance.generateProof(signal2, merkleProof, messageId, epoch1)
-      const retrievedSecret1 = RLNDiff.retrieveSecret(proof, proofDiffSignal)
+      const retrievedSecret1 = RLN.retrieveSecret(proof, proofDiffSignal)
       expect(retrievedSecret1).toEqual(rlnInstance.secretIdentity)
 
       // Test: messageId is different and thus there is no breach. retrieveSecret is expected to fail
       const anotherMessageId = messageId + 1
       const proofDiffMessageId = await rlnInstance.generateProof(signal1, merkleProof, anotherMessageId, epoch1)
       expect(
-        () => RLNDiff.retrieveSecret(proof, proofDiffMessageId)
+        () => RLN.retrieveSecret(proof, proofDiffMessageId)
       ).toThrow("Internal Nullifiers do not match! Cannot recover secret.")
 
       // Test: epoch is different and there is no breach. retrieveSecret is expected to fail
       const proofDiffEpoch = await rlnInstance.generateProof(signal1, merkleProof, messageId, epoch2)
       expect(
-        () => RLNDiff.retrieveSecret(proof, proofDiffEpoch)
+        () => RLN.retrieveSecret(proof, proofDiffEpoch)
       ).toThrow("External Nullifiers do not match! Cannot recover secret.")
 
       // Test: inputs are the same as proof but it's from different identity.
       // There is no breach and retrieveSecret is expected to fail
       const proofDiffIdentity = await rlnInstance2.generateProof(signal1, merkleProof2, messageId, epoch1)
       expect(
-        () => RLNDiff.retrieveSecret(proof, proofDiffIdentity)
+        () => RLN.retrieveSecret(proof, proofDiffIdentity)
       ).toThrow("Internal Nullifiers do not match! Cannot recover secret.")
 
       // Test: retrieveSecret fails with invalid public inputs
       // 1. wrong epoch
-      const proofDiffPublicInputEpoch: RLNDiffFullProof = {
+      const proofDiffPublicInputEpoch: RLNFullProof = {
         epoch: fieldFactory([proof.epoch]),
         rlnIdentifier: proof.rlnIdentifier,
         snarkProof: proof.snarkProof,
       }
       expect(
-        () => RLNDiff.retrieveSecret(proof, proofDiffPublicInputEpoch)
+        () => RLN.retrieveSecret(proof, proofDiffPublicInputEpoch)
       ).toThrow("External Nullifiers do not match! Cannot recover secret.")
 
       // 2. wrong rln identifier
-      const proofDiffPublicInputRLNIdentifier: RLNDiffFullProof = {
+      const proofDiffPublicInputRLNIdentifier: RLNFullProof = {
         epoch: proof.epoch,
         rlnIdentifier: fieldFactory([proof.rlnIdentifier]),
         snarkProof: proof.snarkProof,
       }
       expect(
-        () => RLNDiff.retrieveSecret(proof, proofDiffPublicInputRLNIdentifier)
+        () => RLN.retrieveSecret(proof, proofDiffPublicInputRLNIdentifier)
       ).toThrow("External Nullifiers do not match! Cannot recover secret.")
     })
 
     test("Should export/import to json", () => {
       const rlnInstanceJson = rlnInstance.export();
-      const rlnInstanceFromJson = RLNDiff.import(rlnInstanceJson);
+      const rlnInstanceFromJson = RLN.import(rlnInstanceJson);
       expect(rlnInstanceFromJson.identity.commitment).toEqual(rlnInstance.identity.commitment);
       expect(rlnInstanceFromJson.rlnIdentifier).toEqual(rlnInstance.rlnIdentifier);
       expect(rlnInstanceFromJson.wasmFilePath).toEqual(rlnInstance.wasmFilePath);

@@ -5,21 +5,19 @@
 # Usage:
 #   ./scripts/build-zkeys.sh <circuit_name>
 # Example:
-#   Build rln-same circuit
-#   $ ./scripts/build-zkeys.sh rln-same
-#   Build rln-diff circuit
-#   $ ./scripts/build-zkeys.sh rln-diff
+#   Build rln circuit
+#   $ ./scripts/build-zkeys.sh rln
 #   Build withdraw circuit
 #   $ ./scripts/build-zkeys.sh withdraw
-#   Build all circuits defined in `supported_circuit_names
+#   Build all circuits defined in `supported_circuit_names`
 #   $ ./scripts/build-zkeys.sh
 
 #
 # Configs
 #
-supported_circuit_names=("rln-same" "rln-diff" "withdraw")
+supported_circuit_names=("rln" "withdraw")
 
-rln_circuits_version=10437bc
+rln_circuits_version=3707313
 rln_circuits_repo='circom-rln'
 rln_circuits_repo_url="https://github.com/Rate-Limiting-Nullifier/$rln_circuits_repo.git"
 
@@ -61,8 +59,6 @@ cd $rln_circuits_repo
 git checkout $rln_circuits_version
 # Install the deps and the project
 npm install
-# Replace "snarkjs" with "npx snarkjs" to use the locally installed snarkjs
-sed -i.bak "s/^snarkjs /npx snarkjs /" "$rln_circuits_build_script"
 
 build_and_copy_params() {
     # We should already be in the rln-circuits-v2 project root
@@ -81,24 +77,15 @@ build_and_copy_params() {
         return
     fi
 
-    # Build the params
-    rln_circuits_build_script_args="";
-    if [[ $circuit_name == "rln-same" ]]; then
-        rln_circuits_build_script_args="same"
-    elif [[ $circuit_name == "rln-diff" ]]; then
-        rln_circuits_build_script_args="diff"
-    else
-        rln_circuits_build_script_args="withdraw"
-    fi
     echo "Building circuit: $circuit_name"
-    bash "$rln_circuits_build_script" $rln_circuits_build_script_args
+    bash "$rln_circuits_build_script" $circuit_name
 
     mkdir -p $target_zkeyfiles_dir
-    # Copy params from rln-circuits-v2/zkeyFiles/v2/<circuit_name> to rlnjs/zkeyFiles/<circuit_name>
-    built_params_relative_path="./zkeyFiles/v2/$circuit_name"
+    # Copy params from rln-circuits-v2/zkeyFiles/<circuit_name> to rlnjs/zkeyFiles/<circuit_name>
+    built_params_relative_path="./zkeyFiles/$circuit_name"
 
-    cp $built_params_relative_path/rln.wasm $target_rln_wasm_path
-    cp $built_params_relative_path/rln_final.zkey $target_rln_zkey_path
+    cp $built_params_relative_path/circuit.wasm $target_rln_wasm_path
+    cp $built_params_relative_path/final.zkey $target_rln_zkey_path
     cp $built_params_relative_path/verification_key.json $target_rln_verifiation_key_path
     ls -al $target_zkeyfiles_dir
 }

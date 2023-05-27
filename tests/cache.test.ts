@@ -1,5 +1,5 @@
 import { utils } from "ffjavascript"
-import { Registry, Cache, RLNSameFullProof } from "../src"
+import { Registry, Cache, RLNFullProof } from "../src"
 import { CachedProof, Status } from '../src/cache'
 import { DEFAULT_REGISTRY_TREE_DEPTH } from "../src/registry"
 import { defaultParamsPath } from "./configs"
@@ -10,7 +10,7 @@ const defaultTreeDepth = DEFAULT_REGISTRY_TREE_DEPTH;
 jest.setTimeout(60000)
 
 
-function fullProofToCachedProof(proof: RLNSameFullProof): CachedProof {
+function fullProofToCachedProof(proof: RLNFullProof): CachedProof {
   const publicSignals = proof.snarkProof.publicSignals
   return {
     x: publicSignals.x,

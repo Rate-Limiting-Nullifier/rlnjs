@@ -1,13 +1,11 @@
 // Imports
-import RLNSame from './rln-same'
-import RLNDiff from './rln-diff'
+import RLN from './rln'
 import Registry from './registry'
 import Cache from './cache'
 
 // Exports for RLN
 export {
-  RLNSame,
-  RLNDiff,
+  RLN,
   Registry,
   Cache,
 }
@@ -21,8 +19,8 @@ export {
 } from './types'
 
 export {
-  RLNSameFullProof,
+  RLNFullProof,
   RLNPublicSignals,
   RLNSNARKProof,
   RLNWitness,
-} from './rln-same'
+} from './rln'

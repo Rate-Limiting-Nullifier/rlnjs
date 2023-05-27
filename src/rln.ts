@@ -10,7 +10,7 @@ import { StrBigInt, VerificationKey, Proof } from './types'
 /**
  * Public signals of the SNARK proof.
  */
-export type RLNDiffPublicSignals = {
+export type RLNPublicSignals = {
   x: StrBigInt,
   externalNullifier: StrBigInt,
   y: StrBigInt,
@@ -22,9 +22,9 @@ export type RLNDiffPublicSignals = {
  * SNARK proof that contains both proof and public signals.
  * Can be verified directly by a SNARK verifier.
  */
-export type RLNDiffSNARKProof = {
+export type RLNSNARKProof = {
   proof: Proof,
-  publicSignals: RLNDiffPublicSignals,
+  publicSignals: RLNPublicSignals,
 }
 
 /**
@@ -32,8 +32,8 @@ export type RLNDiffSNARKProof = {
  * The proof is valid for a RLN user iff the epoch and rlnIdentifier match the user's
  * and the snarkProof is valid.
  */
-export type RLNDiffFullProof = {
-  snarkProof: RLNDiffSNARKProof,
+export type RLNFullProof = {
+  snarkProof: RLNSNARKProof,
   epoch: bigint,
   rlnIdentifier: bigint,
 }
@@ -62,7 +62,7 @@ type RLNExportedT = {
 }
 
 
-function isProofSameExternalNullifier(proof1: RLNDiffFullProof, proof2: RLNDiffFullProof): boolean {
+function isProofSameExternalNullifier(proof1: RLNFullProof, proof2: RLNFullProof): boolean {
   const publicSignals1 = proof1.snarkProof.publicSignals
   const publicSignals2 = proof2.snarkProof.publicSignals
   return (
@@ -73,9 +73,9 @@ function isProofSameExternalNullifier(proof1: RLNDiffFullProof, proof2: RLNDiffF
 }
 
 /**
-RLN is a class that represents a single RLNDiff identity.
+RLN is a class that represents a single RLN identity.
 **/
-export default class RLNDiff {
+export default class RLN {
   wasmFilePath: string
 
   finalZkeyPath: string
@@ -108,14 +108,14 @@ export default class RLNDiff {
 
 
   /**
-   * Generates an RLNDiff Proof.
+   * Generates an RLN Proof.
    * @param signal This is usually the raw message.
    * @param merkleProof This is the merkle proof for the identity commitment.
    * @param messageId id of the message. Be careful to not reuse the same id otherwise the secret will be leaked.
    * @param epoch This is the time component for the proof, if no epoch is set, unix epoch time rounded to 1 second will be used.
    * @returns The full SnarkJS proof.
    */
-  public async generateProof(signal: string, merkleProof: MerkleProof, messageId: number | bigint, epoch?: StrBigInt): Promise<RLNDiffFullProof> {
+  public async generateProof(signal: string, merkleProof: MerkleProof, messageId: number | bigint, epoch?: StrBigInt): Promise<RLNFullProof> {
     // If epoch is not set, use unix epoch time rounded to 1 second
     const epochBigInt = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000)) // rounded to nearest second
     // Require messageId is in the range [0, messageLimit - 1]
@@ -137,8 +137,8 @@ export default class RLNDiff {
   public async _genProof(
     epoch: bigint,
     witness: RLNWitness,
-  ): Promise<RLNDiffFullProof> {
-    const snarkProof: RLNDiffSNARKProof = await RLNDiff._genSNARKProof(witness, this.wasmFilePath, this.finalZkeyPath)
+  ): Promise<RLNFullProof> {
+    const snarkProof: RLNSNARKProof = await RLN._genSNARKProof(witness, this.wasmFilePath, this.finalZkeyPath)
     return {
       snarkProof,
       epoch,
@@ -155,7 +155,7 @@ export default class RLNDiff {
  */
   public static async _genSNARKProof(
     witness: RLNWitness, wasmFilePath: string, finalZkeyPath: string,
-  ): Promise<RLNDiffSNARKProof> {
+  ): Promise<RLNSNARKProof> {
     const { proof, publicSignals } = await groth16.fullProve(
       witness,
       wasmFilePath,
@@ -181,7 +181,7 @@ export default class RLNDiff {
    * @returns True if the proof is valid, false otherwise.
    * @throws Error if the proof is using different parameters.
    */
-  public async verifyProof(rlnRullProof: RLNDiffFullProof): Promise<boolean> {
+  public async verifyProof(rlnRullProof: RLNFullProof): Promise<boolean> {
     const expectedExternalNullifier = calculateExternalNullifier(
       BigInt(rlnRullProof.epoch),
       this.rlnIdentifier,
@@ -189,7 +189,7 @@ export default class RLNDiff {
     if (expectedExternalNullifier !== BigInt(rlnRullProof.snarkProof.publicSignals.externalNullifier)) {
       throw new Error('External nullifier does not match')
     }
-    return RLNDiff.verifySNARKProof(this.verificationKey, rlnRullProof.snarkProof)
+    return RLN.verifySNARKProof(this.verificationKey, rlnRullProof.snarkProof)
   }
 
   /**
@@ -198,7 +198,7 @@ export default class RLNDiff {
  * @returns True if the proof is valid, false otherwise.
  */
   public static async verifySNARKProof(verificationKey: VerificationKey,
-    { proof, publicSignals }: RLNDiffSNARKProof,
+    { proof, publicSignals }: RLNSNARKProof,
   ): Promise<boolean> {
     return groth16.verify(
       verificationKey,
@@ -247,7 +247,7 @@ export default class RLNDiff {
    * @param proof2 x2
    * @returns identity secret
    */
-  public static retrieveSecret(proof1: RLNDiffFullProof, proof2: RLNDiffFullProof): bigint {
+  public static retrieveSecret(proof1: RLNFullProof, proof2: RLNFullProof): bigint {
     if (!isProofSameExternalNullifier(proof1, proof2)) {
       throw new Error('External Nullifiers do not match! Cannot recover secret.')
     }
@@ -271,7 +271,7 @@ export default class RLNDiff {
   }
 
   public export(): RLNExportedT {
-    console.debug('Exporting RLNDiff instance')
+    console.debug('Exporting RLN instance')
     return {
       identity: this.identity.toString(),
       rlnIdentifier: String(this.rlnIdentifier),
@@ -282,9 +282,9 @@ export default class RLNDiff {
     }
   }
 
-  public static import(rlnInstance: RLNExportedT): RLNDiff {
-    console.debug('Importing RLNDiff instance')
-    return new RLNDiff(
+  public static import(rlnInstance: RLNExportedT): RLN {
+    console.debug('Importing RLN instance')
+    return new RLN(
       rlnInstance.wasmFilePath,
       rlnInstance.finalZkeyPath,
       JSON.parse(rlnInstance.verificationKey),
