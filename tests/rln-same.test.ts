@@ -5,7 +5,7 @@ import { rlnInstanceFactory, fieldFactory } from './factories'
 import { defaultParamsPath } from "./configs";
 import { DEFAULT_MESSAGE_LIMIT } from '../src/rln-same';
 import poseidon from 'poseidon-lite';
-import { Fq } from '../src/utils';
+import { Fq } from '../src/common';
 import { calculateExternalNullifier, calculateSignalHash, shamirRecovery } from '../src/common';
 
 

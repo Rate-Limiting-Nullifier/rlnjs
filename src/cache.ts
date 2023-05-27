@@ -8,7 +8,6 @@ import { utils } from 'ffjavascript'
 import { StrBigInt } from './types'
 import { shamirRecovery } from './common'
 
-
 /**
  * Store necessary information of a proof to detect spams
  */
@@ -43,11 +42,15 @@ export type EvaluatedProof = {
   msg?: string,
 }
 
+export interface ICache {
+  addProof(proof: CachedProof): EvaluatedProof
+}
+
 const DEFAULT_CACHE_SIZE = 100
 /**
  * Cache for storing proofs and automatically evaluating them for rate limit breaches
  */
-export default class Cache {
+export default class Cache implements ICache {
   cacheLength: number
 
   cache: CacheMap

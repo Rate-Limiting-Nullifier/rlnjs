@@ -4,7 +4,7 @@ import Registry, { DEFAULT_REGISTRY_TREE_DEPTH } from '../src/registry'
 import { rlnDiffInstanceFactory, fieldFactory } from './factories'
 import { rlnDiffParamsPath } from "./configs";
 import poseidon from 'poseidon-lite';
-import { Fq } from '../src/utils';
+import { Fq } from '../src/common';
 import { calculateExternalNullifier, calculateSignalHash, shamirRecovery } from '../src/common';
 
 

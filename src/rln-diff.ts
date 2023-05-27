@@ -1,12 +1,11 @@
 import { MerkleProof } from '@zk-kit/incremental-merkle-tree'
 import { groth16 } from 'snarkjs'
-import { Fq } from './utils'
+import { Fq, calculateExternalNullifier, calculateSignalHash, shamirRecovery } from './common'
 import poseidon from 'poseidon-lite'
 import { Identity } from '@semaphore-protocol/identity'
 
 // Types
 import { StrBigInt, VerificationKey, Proof } from './types'
-import { calculateExternalNullifier, calculateSignalHash, shamirRecovery } from './common'
 
 /**
  * Public signals of the SNARK proof.

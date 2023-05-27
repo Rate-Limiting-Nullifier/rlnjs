@@ -6,7 +6,19 @@ import { StrBigInt } from './types'
 
 export const DEFAULT_REGISTRY_TREE_DEPTH = 20
 
-export default class Registry {
+export interface IRegistry {
+  root: bigint
+  members: bigint[]
+
+  generateMerkleProof(commitment: StrBigInt): MerkleProof
+  addMembers(commitments: bigint[]): void
+
+  slashMemberByIdentityCommitment(commitment: bigint): void
+  slashMember(secret: bigint): void
+  indexOf(commitment: bigint): number
+}
+
+export default class Registry implements IRegistry {
   private _registry: IncrementalMerkleTree
 
   private _slashed: IncrementalMerkleTree
@@ -21,9 +33,10 @@ export default class Registry {
    * @param zeroValue Zero values for zeroes.
    */
   constructor(
-    treeDepth: number = DEFAULT_REGISTRY_TREE_DEPTH,
+    treeDepth?: number,
     zeroValue?: bigint,
   ) {
+    treeDepth = treeDepth ? treeDepth : DEFAULT_REGISTRY_TREE_DEPTH
     if (treeDepth < 16 || treeDepth > 32) {
       throw new Error('The tree depth must be between 16 and 32')
     }

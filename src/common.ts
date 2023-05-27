@@ -1,6 +1,7 @@
-import { hexlify } from '@ethersproject/bytes'
-import { keccak256 } from '@ethersproject/solidity'
+import { hexlify, zeroPad } from '@ethersproject/bytes'
 import { toUtf8Bytes } from '@ethersproject/strings'
+import { BigNumber } from '@ethersproject/bignumber'
+import { keccak256 } from '@ethersproject/keccak256'
 
 import { ZqField } from 'ffjavascript'
 
@@ -15,11 +16,13 @@ export const SNARK_FIELD_SIZE = BigInt('2188824287183927522224640574525727508854
 // Creates the finite field
 export const Fq = new ZqField(SNARK_FIELD_SIZE)
 
-
 export function calculateExternalNullifier(epoch: bigint, rlnIdentifier: bigint): bigint {
   return poseidon([epoch, rlnIdentifier])
 }
 
+export function calculateRateCommitment(identityCommitment: bigint, userMessageLimit: bigint): bigint {
+  return poseidon([identityCommitment, userMessageLimit])
+}
 
 /**
  * Hashes a signal string with Keccak256.
@@ -28,9 +31,8 @@ export function calculateExternalNullifier(epoch: bigint, rlnIdentifier: bigint)
  */
 export function calculateSignalHash(signal: string): bigint {
   const converted = hexlify(toUtf8Bytes(signal))
-  return BigInt(keccak256(['bytes'], [converted])) >> BigInt(8)
+  return BigInt(keccak256(converted)) >> BigInt(8)
 }
-
 
 /**
  * Recovers secret from two shares
@@ -47,3 +49,16 @@ export function shamirRecovery(x1: bigint, x2: bigint, y1: bigint, y2: bigint): 
   return Fq.normalize(privateKey)
 }
 
+/**
+ * Calculate the `zeroValue` for Registry.
+ * Reference
+ * - zeroValue: https://github.com/semaphore-protocol/semaphore/blob/41181c63d294ea76e303185be4f547fdc072343f/packages/group/src/group.ts#L23.
+ * - Copied from https://github.com/semaphore-protocol/semaphore/blob/41181c63d294ea76e303185be4f547fdc072343f/packages/group/src/hash.ts#L10.
+ * @param message The message to be hashed.
+ * @returns The message digest.
+ */
+export function calculateZeroValue(message: bigint): bigint {
+  const hexStr = BigNumber.from(message).toTwos(256).toHexString()
+  const zeroPadded = zeroPad(hexStr, 32)
+  return BigInt(keccak256(zeroPadded)) >> BigInt(8)
+}
