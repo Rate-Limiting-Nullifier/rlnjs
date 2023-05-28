@@ -1,6 +1,13 @@
 import * as path from "path"
-import { CircuitParamsFilePath } from "../src/types"
 
+/**
+ * Path to the circuit parameters.
+ */
+export type CircuitParamsFilePath = {
+    vkeyPath: string,
+    wasmFilePath: string,
+    finalZkeyPath: string,
+}
 
 const thisFileDirname = __dirname
 

@@ -1,296 +1,222 @@
-import { MerkleProof } from '@zk-kit/incremental-merkle-tree'
-import { groth16 } from 'snarkjs'
-import { Fq, calculateExternalNullifier, calculateSignalHash, shamirRecovery } from './common'
-import poseidon from 'poseidon-lite'
 import { Identity } from '@semaphore-protocol/identity'
+import poseidon from 'poseidon-lite'
 
-// Types
-import { StrBigInt, VerificationKey, Proof } from './types'
-
-/**
- * Public signals of the SNARK proof.
- */
-export type RLNPublicSignals = {
-  x: StrBigInt,
-  externalNullifier: StrBigInt,
-  y: StrBigInt,
-  root: StrBigInt,
-  nullifier: StrBigInt,
-}
-
-/**
- * SNARK proof that contains both proof and public signals.
- * Can be verified directly by a SNARK verifier.
- */
-export type RLNSNARKProof = {
-  proof: Proof,
-  publicSignals: RLNPublicSignals,
-}
-
-/**
- * RLN full proof that contains both SNARK proof and other information.
- * The proof is valid for a RLN user iff the epoch and rlnIdentifier match the user's
- * and the snarkProof is valid.
- */
-export type RLNFullProof = {
-  snarkProof: RLNSNARKProof,
-  epoch: bigint,
-  rlnIdentifier: bigint,
-}
-
-export type RLNWitness = {
-  identitySecret: bigint,
-  userMessageLimit: bigint,
-  messageId: bigint,
-  // Ignore `no-explicit-any` because the type of `identity_path_elements` in zk-kit is `any[]`
-  pathElements: any[], // eslint-disable-line @typescript-eslint/no-explicit-any
-  identityPathIndex: number[],
-  x: string | bigint,
-  externalNullifier: bigint,
-}
-
-export const DEFAULT_MESSAGE_LIMIT = 10
+import { VerificationKey } from './types'
+import { calculateSignalHash } from './common'
+import { IRLNRegistry, MemoryRLNRegistry } from './registry'
+import Cache, { EvaluatedProof, ICache } from './cache'
+import { IMessageIDCounter, MemoryMessageIDCounter } from './message-id-counter'
+import { RLNFullProof, RLNProver, RLNVerifier } from './circuit-wrapper'
 
 
-type RLNExportedT = {
-  identity: string,
-  rlnIdentifier: string,
-  messageLimit: string,
-  verificationKey: string,
-  wasmFilePath: string,
-  finalZkeyPath: string,
-}
+type RLNArgs = {
+  /* System configs */
+  // File paths of the wasm and zkey file. If not provided, `createProof` will not work.
+  wasmFilePath?: string
+  finalZkeyPath?: string
+  // Verification key of the circuit. If not provided, `verifyProof` and `saveProof` will not work.
+  verificationKey?: VerificationKey
+  // Tree depth of the merkle tree used by the circuit. If not provided, the default value will be used.
+  treeDepth?: number
 
-
-function isProofSameExternalNullifier(proof1: RLNFullProof, proof2: RLNFullProof): boolean {
-  const publicSignals1 = proof1.snarkProof.publicSignals
-  const publicSignals2 = proof2.snarkProof.publicSignals
-  return (
-    proof1.epoch === proof2.epoch &&
-    proof1.rlnIdentifier === proof2.rlnIdentifier &&
-    BigInt(publicSignals1.externalNullifier) === BigInt(publicSignals2.externalNullifier)
-  )
-}
-
-/**
-RLN is a class that represents a single RLN identity.
-**/
-export default class RLN {
-  wasmFilePath: string
-
-  finalZkeyPath: string
-
-  verificationKey: VerificationKey
-
+  /* App configs */
+  // The unique identifier of the app using RLN. The identifier must be unique for every app.
   rlnIdentifier: bigint
 
-  messageLimit: bigint
+  /* User configs */
+  // Semaphore identity of the user. If not provided, a new `Identity` is created.
+  identity?: Identity
 
-  identity: Identity
+  // If user has been registered to the registry, the `messageIDCounter` can be provided to reuse
+  // the old message ID counter. If not provided, a new `MemoryMessageIDCounter` is created.
+  messageIDCounter?: IMessageIDCounter
 
-  commitment: bigint
+  /* Others */
+  // Registry that stores the registered users. If not provided, a new `Registry` is created.
+  registry?: IRLNRegistry
+  // Cache that stores proofs added by the user with `addProof`, and detect spams automatically.
+  // If not provided, a new `Cache` is created.
+  cache?: ICache
+  // If cache is not provided, `cacheSize` is used to create the `Cache`. `cacheSize` is
+  // the maximum number of epochs that the cache can store.
+  // If not provided, the default value will be used.
+  cacheSize?: number
+}
 
-  secretIdentity: bigint
+export interface IRLN {
+  /* Membership */
+  register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter): void
+  withdraw(): void
+  addRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint): void
+  removeRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint): void
+  /* Proof-related */
+  createProof(epoch: bigint, message: string): Promise<RLNFullProof>
+  verifyProof(proof: RLNFullProof): Promise<boolean>
+  saveProof(proof: RLNFullProof): Promise<EvaluatedProof>
+}
 
-  constructor(wasmFilePath: string, finalZkeyPath: string, verificationKey: VerificationKey, rlnIdentifier?: bigint, messageLimit?: number | bigint, identity?: string) {
-    this.wasmFilePath = wasmFilePath
-    this.finalZkeyPath = finalZkeyPath
-    this.verificationKey = verificationKey
-    this.rlnIdentifier = rlnIdentifier ? rlnIdentifier : Fq.random()
-    this.messageLimit = messageLimit ? BigInt(messageLimit) : BigInt(DEFAULT_MESSAGE_LIMIT)
-    this.identity = identity ? new Identity(identity) : new Identity()
-    this.commitment = this.identity.getCommitment()
-    this.secretIdentity = poseidon([
+/**
+ * RLN handles all operations for a RLN user, including registering, withdrawing, creating proof, verifying proof.
+ */
+export class RLN implements IRLN {
+  // the unique identifier of the app using RLN
+  readonly rlnIdentifier: bigint
+
+  // TODO: we can also support raw secrets instead of just semaphore identity
+  // the semaphore identity of the user
+  private identity: Identity
+
+  // the prover allows user to generate proof with the RLN circuit
+  private prover?: RLNProver
+
+  // the verifier allows user to verify proof with the RLN circuit
+  private verifier?: RLNVerifier
+
+  // the registry that stores the registered users
+  private registry: IRLNRegistry
+
+  // the cache that stores proofs added by the user with `addProof`, and detect spams automatically
+  private cache: ICache
+
+  // the messageIDCounter is used to **safely** generate the latest messageID for the user
+  private messageIDCounter?: IMessageIDCounter
+
+  constructor(args: RLNArgs) {
+    this.rlnIdentifier = args.rlnIdentifier
+    this.identity = args.identity ? args.identity : new Identity()
+
+    if ((args.wasmFilePath === undefined || args.finalZkeyPath === undefined) && args.verificationKey === undefined) {
+      throw new Error(
+        'Either both `wasmFilePath` and `finalZkeyPath` must be supplied to generate proofs, ' +
+        'or `verificationKey` must be provided to verify proofs.',
+      )
+    }
+
+    this.registry = args.registry ? args.registry : new MemoryRLNRegistry(args.rlnIdentifier, args.treeDepth)
+    this.cache = args.cache ? args.cache : new Cache(args.cacheSize)
+
+    if (this.isRegistered === true) {
+      if (args.messageIDCounter !== undefined) {
+        this.messageIDCounter = args.messageIDCounter
+      } else {
+        const userMessageLimit = this.registry.getMessageLimit(this.identityCommitment)
+        this.messageIDCounter = new MemoryMessageIDCounter(userMessageLimit)
+      }
+    }
+
+    if (args.wasmFilePath !== undefined && args.finalZkeyPath !== undefined) {
+      this.prover = new RLNProver(
+        args.wasmFilePath,
+        args.finalZkeyPath,
+        args.rlnIdentifier,
+      )
+    }
+    if (args.verificationKey !== undefined) {
+      this.verifier = new RLNVerifier(
+        args.verificationKey,
+        args.rlnIdentifier,
+      )
+    }
+  }
+
+  get identityCommitment(): bigint {
+    return this.identity.commitment
+  }
+
+  private get identitySecret(): bigint {
+    return poseidon([
       this.identity.getNullifier(),
       this.identity.getTrapdoor(),
     ])
   }
 
+  get rateCommitment(): bigint {
+    return this.registry.getRateCommitment(this.identityCommitment)
+  }
 
-  /**
-   * Generates an RLN Proof.
-   * @param signal This is usually the raw message.
-   * @param merkleProof This is the merkle proof for the identity commitment.
-   * @param messageId id of the message. Be careful to not reuse the same id otherwise the secret will be leaked.
-   * @param epoch This is the time component for the proof, if no epoch is set, unix epoch time rounded to 1 second will be used.
-   * @returns The full SnarkJS proof.
-   */
-  public async generateProof(signal: string, merkleProof: MerkleProof, messageId: number | bigint, epoch?: StrBigInt): Promise<RLNFullProof> {
-    // If epoch is not set, use unix epoch time rounded to 1 second
-    const epochBigInt = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000)) // rounded to nearest second
-    // Require messageId is in the range [0, messageLimit - 1]
-    if (messageId < 0 || messageId >= this.messageLimit) {
+  get isRegistered(): boolean {
+    return this.registry.isRegistered(this.identityCommitment)
+  }
+
+  register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter) {
+    this.addRegisteredMember(this.identityCommitment, userMessageLimit)
+    this.messageIDCounter = messageIDCounter ? messageIDCounter : new MemoryMessageIDCounter(userMessageLimit)
+  }
+
+  withdraw() {
+    this.removeRegisteredMember(this.identityCommitment)
+    this.messageIDCounter = undefined
+  }
+
+  addRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint) {
+    if (this.registry.isRegistered(identityCommitment) === true) {
       throw new Error(
-        'messageId must be in the range [0, messageLimit - 1]: ' +
-        `messageId=${messageId}, messageLimit=${this.messageLimit}`,
+        `User has already registered before: identityCommitment=${identityCommitment}, ` +
+        `userMessageLimit=${userMessageLimit}`,
       )
     }
-    const witness = this._genWitness(merkleProof, epochBigInt, BigInt(messageId), signal)
-    return this._genProof(epochBigInt, witness)
+    this.registry.addNewRegistered(identityCommitment, userMessageLimit)
   }
 
-  /**
-   * Generates a SnarkJS full proof with Groth16.
-   * @param witness The parameters for creating the proof.
-   * @returns The full SnarkJS proof.
-   */
-  public async _genProof(
-    epoch: bigint,
-    witness: RLNWitness,
-  ): Promise<RLNFullProof> {
-    const snarkProof: RLNSNARKProof = await RLN._genSNARKProof(witness, this.wasmFilePath, this.finalZkeyPath)
-    return {
-      snarkProof,
+  removeRegisteredMember(identityCommitment: bigint) {
+    if (this.registry.isRegistered(identityCommitment) === false) {
+      throw new Error(
+        `User has not registered before: identityCommitment=${identityCommitment}`,
+      )
+    }
+    this.registry.deleteRegistered(identityCommitment)
+  }
+
+  async verifyProof(proof: RLNFullProof): Promise<boolean> {
+    if (this.verifier === undefined) {
+      throw new Error('Verifier is not initialized')
+    }
+    // Check if the proof is using the same parameters
+    const { snarkProof, rlnIdentifier } = proof
+    const { root } = snarkProof.publicSignals
+    if (
+      BigInt(rlnIdentifier) !== this.rlnIdentifier ||
+            BigInt(root) !== this.registry.merkleRoot
+    ) {
+      return false
+    }
+    // Verify snark proof
+    return this.verifier.verifyProof(proof)
+  }
+
+  async saveProof(proof: RLNFullProof): Promise<EvaluatedProof> {
+    if (!await this.verifyProof(proof)) {
+      throw new Error('Invalid proof')
+    }
+    const { snarkProof, epoch } = proof
+    const { x, y, nullifier } = snarkProof.publicSignals
+    return this.cache.addProof({ x, y, nullifier, epoch })
+  }
+
+  async createProof(epoch: bigint, message: string): Promise<RLNFullProof> {
+    if (this.prover === undefined) {
+      throw new Error('Prover is not initialized')
+
+    }
+    if (!this.registry.isRegistered(this.identityCommitment)) {
+      throw new Error('User has not registered before')
+    }
+    if (this.messageIDCounter === undefined) {
+      throw new Error(
+        'State is not synced with the registry. ' +
+        'If user is currently registered, `messageIDCounter` should be non-undefined',
+      )
+    }
+    const merkleProof = this.registry.generateMerkleProof(this.identityCommitment)
+    const messageID = await this.messageIDCounter.getNextMessageID(epoch)
+    const userMessageLimit = this.registry.getMessageLimit(this.identityCommitment)
+    return this.prover.generateProof({
+      identitySecret: this.identitySecret,
+      userMessageLimit: userMessageLimit,
+      messageId: messageID,
+      merkleProof,
+      x: calculateSignalHash(message),
       epoch,
-      rlnIdentifier: this.rlnIdentifier,
-    }
-  }
-
-  /**
- * Generates a SnarkJS full proof with Groth16.
- * @param witness The parameters for creating the proof.
- * @param wasmFilePath The path to the wasm file.
- * @param finalZkeyPath The path to the final zkey file.
- * @returns The full SnarkJS proof.
- */
-  public static async _genSNARKProof(
-    witness: RLNWitness, wasmFilePath: string, finalZkeyPath: string,
-  ): Promise<RLNSNARKProof> {
-    const { proof, publicSignals } = await groth16.fullProve(
-      witness,
-      wasmFilePath,
-      finalZkeyPath,
-      null,
-    )
-
-    return {
-      proof,
-      publicSignals: {
-        y: publicSignals[0],
-        root: publicSignals[1],
-        nullifier: publicSignals[2],
-        x: publicSignals[3],
-        externalNullifier: publicSignals[4],
-      },
-    }
-  }
-
-  /**
-   * Verifies a zero-knowledge SnarkJS proof.
-   * @param fullProof The SnarkJS full proof.
-   * @returns True if the proof is valid, false otherwise.
-   * @throws Error if the proof is using different parameters.
-   */
-  public async verifyProof(rlnRullProof: RLNFullProof): Promise<boolean> {
-    const expectedExternalNullifier = calculateExternalNullifier(
-      BigInt(rlnRullProof.epoch),
-      this.rlnIdentifier,
-    )
-    if (expectedExternalNullifier !== BigInt(rlnRullProof.snarkProof.publicSignals.externalNullifier)) {
-      throw new Error('External nullifier does not match')
-    }
-    return RLN.verifySNARKProof(this.verificationKey, rlnRullProof.snarkProof)
-  }
-
-  /**
- * Verifies a zero-knowledge SnarkJS proof.
- * @param fullProof The SnarkJS full proof.
- * @returns True if the proof is valid, false otherwise.
- */
-  public static async verifySNARKProof(verificationKey: VerificationKey,
-    { proof, publicSignals }: RLNSNARKProof,
-  ): Promise<boolean> {
-    return groth16.verify(
-      verificationKey,
-      [
-        publicSignals.y,
-        publicSignals.root,
-        publicSignals.nullifier,
-        publicSignals.x,
-        publicSignals.externalNullifier,
-      ],
-      proof,
-    )
-  }
-
-  /**
-   * Creates witness for rln proof
-   * @param merkleProof merkle proof that identity exists in RLN tree
-   * @param epoch epoch on which signal is broadcasted
-   * @param messageId k-th message, message is valid implies (1 <= k <= messageLimit) and
-   * k does not appear in previous messages
-   * @param signal signal that is being broadcasted
-   * @param shouldHash should the signal be hashed, default is true
-   * @returns rln witness
-   */
-  public _genWitness(
-    merkleProof: MerkleProof,
-    epoch: StrBigInt,
-    messageId: bigint,
-    signal: string,
-    shouldHash = true,
-  ): RLNWitness {
-    return {
-      identitySecret: this.secretIdentity,
-      userMessageLimit: this.messageLimit,
-      messageId: messageId,
-      pathElements: merkleProof.siblings,
-      identityPathIndex: merkleProof.pathIndices,
-      x: shouldHash ? calculateSignalHash(signal) : signal,
-      externalNullifier: calculateExternalNullifier(BigInt(epoch), this.rlnIdentifier),
-    }
-  }
-
-  /**
-   * Recovers secret from two shares from the same internalNullifier (user) and epoch
-   * @param proof1 x1
-   * @param proof2 x2
-   * @returns identity secret
-   */
-  public static retrieveSecret(proof1: RLNFullProof, proof2: RLNFullProof): bigint {
-    if (!isProofSameExternalNullifier(proof1, proof2)) {
-      throw new Error('External Nullifiers do not match! Cannot recover secret.')
-    }
-    const snarkProof1 = proof1.snarkProof
-    const snarkProof2 = proof2.snarkProof
-    if (snarkProof1.publicSignals.nullifier !== snarkProof2.publicSignals.nullifier) {
-      // The internalNullifier is made up of the identityCommitment + epoch + rlnappID,
-      // so if they are different, the proofs are from:
-      // different users,
-      // different epochs,
-      // different rln applications,
-      // or different messageId
-      throw new Error('Internal Nullifiers do not match! Cannot recover secret.')
-    }
-    return shamirRecovery(
-      BigInt(snarkProof1.publicSignals.x),
-      BigInt(snarkProof2.publicSignals.x),
-      BigInt(snarkProof1.publicSignals.y),
-      BigInt(snarkProof2.publicSignals.y),
-    )
-  }
-
-  public export(): RLNExportedT {
-    console.debug('Exporting RLN instance')
-    return {
-      identity: this.identity.toString(),
-      rlnIdentifier: String(this.rlnIdentifier),
-      messageLimit: String(this.messageLimit),
-      verificationKey: JSON.stringify(this.verificationKey),
-      wasmFilePath: this.wasmFilePath,
-      finalZkeyPath: this.finalZkeyPath,
-    }
-  }
-
-  public static import(rlnInstance: RLNExportedT): RLN {
-    console.debug('Importing RLN instance')
-    return new RLN(
-      rlnInstance.wasmFilePath,
-      rlnInstance.finalZkeyPath,
-      JSON.parse(rlnInstance.verificationKey),
-      BigInt(rlnInstance.rlnIdentifier),
-      BigInt(rlnInstance.messageLimit),
-      rlnInstance.identity,
-    )
+    })
   }
 }

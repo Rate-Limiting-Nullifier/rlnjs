@@ -1,7 +1,9 @@
 import * as fs from "fs"
 import { RLN } from "../src"
-import { CircuitParamsFilePath, VerificationKey } from "../src/types"
+import { VerificationKey } from "../src/types"
 import { Fq } from "../src/common"
+import { Identity } from "@semaphore-protocol/identity"
+import { defaultParamsPath, CircuitParamsFilePath } from "./configs"
 
 
 function parseVerificationKeyJSON(json: string): VerificationKey {
@@ -19,14 +21,26 @@ function parseVerificationKeyJSON(json: string): VerificationKey {
     return o
 }
 
-export function rlnInstanceFactory(
-    paramsPath: CircuitParamsFilePath,
+export function rlnInstanceFactory(args: {
+    paramsPath?: CircuitParamsFilePath,
     rlnIdentifier?: bigint,
-    messageLimit?: bigint,
-    identity?: string,
-) {
-    const vKey = parseVerificationKeyJSON(fs.readFileSync(paramsPath.vkeyPath, "utf-8"))
-    return new RLN(paramsPath.wasmFilePath, paramsPath.finalZkeyPath, vKey, rlnIdentifier, messageLimit, identity)
+    identity?: Identity,
+}) {
+    let paramsPath: CircuitParamsFilePath
+    if (args.paramsPath !== undefined) {
+        paramsPath = args.paramsPath
+    } else {
+        paramsPath = defaultParamsPath;
+    }
+    const verificationKey = parseVerificationKeyJSON(fs.readFileSync(paramsPath.vkeyPath, "utf-8"))
+    const rlnIdentifier = args.rlnIdentifier ? args.rlnIdentifier : fieldFactory()
+    return new RLN({
+        wasmFilePath: paramsPath.wasmFilePath,
+        finalZkeyPath: paramsPath.finalZkeyPath,
+        verificationKey,
+        rlnIdentifier,
+        identity: args.identity,
+    })
 }
 
 export function fieldFactory(excludes?: bigint[], trials: number = 100): bigint {

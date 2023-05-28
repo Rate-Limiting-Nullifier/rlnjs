@@ -1,26 +1,18 @@
 // Imports
-import RLN from './rln'
-import Registry from './registry'
-import Cache from './cache'
+import { RLN } from './rln'
+import { IRLNRegistry }  from './registry'
+import Cache, { ICache, CachedProof } from './cache'
 
-// Exports for RLN
 export {
   RLN,
-  Registry,
+  IRLNRegistry,
+  ICache,
   Cache,
+  CachedProof,
 }
 
-// Export RLN types
-export {
-  StrBigInt,
-  Proof,
-  VerificationKey,
-  CircuitParamsFilePath,
-} from './types'
+export * from './types'
 
 export {
   RLNFullProof,
-  RLNPublicSignals,
-  RLNSNARKProof,
-  RLNWitness,
-} from './rln'
+} from './circuit-wrapper'

@@ -27,11 +27,4 @@ export type VerificationKey = {
   IC: string[][],
 }
 
-/**
- * Path to the circuit parameters.
- */
-export type CircuitParamsFilePath = {
-  vkeyPath: string,
-  wasmFilePath: string,
-  finalZkeyPath: string,
-}
+export { MerkleProof } from '@zk-kit/incremental-merkle-tree'

@@ -1,6 +1,5 @@
-import { hexlify, zeroPad } from '@ethersproject/bytes'
+import { hexlify } from '@ethersproject/bytes'
 import { toUtf8Bytes } from '@ethersproject/strings'
-import { BigNumber } from '@ethersproject/bignumber'
 import { keccak256 } from '@ethersproject/keccak256'
 
 import { ZqField } from 'ffjavascript'
@@ -47,18 +46,4 @@ export function shamirRecovery(x1: bigint, x2: bigint, y1: bigint, y2: bigint): 
   const privateKey = Fq.sub(y1, Fq.mul(slope, x1))
 
   return Fq.normalize(privateKey)
-}
-
-/**
- * Calculate the `zeroValue` for Registry.
- * Reference
- * - zeroValue: https://github.com/semaphore-protocol/semaphore/blob/41181c63d294ea76e303185be4f547fdc072343f/packages/group/src/group.ts#L23.
- * - Copied from https://github.com/semaphore-protocol/semaphore/blob/41181c63d294ea76e303185be4f547fdc072343f/packages/group/src/hash.ts#L10.
- * @param message The message to be hashed.
- * @returns The message digest.
- */
-export function calculateZeroValue(message: bigint): bigint {
-  const hexStr = BigNumber.from(message).toTwos(256).toHexString()
-  const zeroPadded = zeroPad(hexStr, 32)
-  return BigInt(keccak256(zeroPadded)) >> BigInt(8)
 }

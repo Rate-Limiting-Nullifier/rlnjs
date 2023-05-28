@@ -59,18 +59,19 @@
     "README.md"
   ],
   "dependencies": {
-    "@ethersproject/bignumber": "^5.7.0",
     "@ethersproject/bytes": "^5.7.0",
     "@ethersproject/keccak256": "^5.7.0",
     "@ethersproject/solidity": "^5.7.0",
     "@ethersproject/strings": "^5.7.0",
-    "@semaphore-protocol/identity": "^2.6.1",
+    "@semaphore-protocol/identity": "^3.10.1",
+    "@semaphore-protocol/group": "^3.10.1",
     "@zk-kit/incremental-merkle-tree": "^0.4.3",
     "ffjavascript": "0.2.55",
     "poseidon-lite": "^0.0.2",
     "snarkjs": "^0.4.22"
   },
   "devDependencies": {
+    "@ethersproject/bignumber": "^5.7.0",
     "@rollup/plugin-commonjs": "^24.0.1",
     "@rollup/plugin-json": "^6.0.0",
     "@rollup/plugin-node-resolve": "^15.0.1",
