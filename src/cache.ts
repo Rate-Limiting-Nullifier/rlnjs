@@ -4,7 +4,6 @@
  * evaluating proofs for rate limit breaches. No proof validation inside and thus proofs **must** be validated
  * before added to the Cache.
  */
-import { utils } from 'ffjavascript'
 import { StrBigInt } from './types'
 import { shamirRecovery } from './common'
 
@@ -136,35 +135,5 @@ export default class Cache implements ICache {
   private removeEpoch(epoch: string) {
     delete this.cache[epoch]
     this.epochs.shift()
-  }
-
-  /**
-   * Exports the cache instance
-   * @returns the exported cache in JSON format string
-   */
-  public export(): string {
-    // Stringify all BigInts
-    const stringified = utils.stringifyBigInts(this)
-    return JSON.stringify(stringified)
-  }
-
-  /**
-   * Imports a cache instance from a exported previously exported cache
-   * @param exportedString exported string from `export` method
-   * @returns the cache instance
-   * @throws Error if the cache object is invalid
-   **/
-  public static import(cacheString: string): Cache {
-    const bigintsStringified = JSON.parse(cacheString)
-    const cacheObj = utils.unstringifyBigInts(bigintsStringified)
-    // All fields must exist
-    if (!cacheObj.cacheLength || !cacheObj.cache || !cacheObj.epochs) {
-      throw new Error('Invalid cache object')
-    }
-
-    const cacheInstance = new Cache(cacheObj.cacheLength)
-    cacheInstance.cache = cacheObj.cache
-    cacheInstance.epochs = cacheObj.epochs
-    return cacheInstance
   }
 }
