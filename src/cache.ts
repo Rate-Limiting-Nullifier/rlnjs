@@ -1,8 +1,8 @@
 /**
  * @module cache
- * @description Cache is only responsible for storing necessary information to detect spams and automatically
+ * @description `ICache` is only responsible for storing necessary information to detect spams and automatically
  * evaluating proofs for rate limit breaches. No proof validation inside and thus proofs **must** be validated
- * before added to the Cache.
+ * before added to the `ICache`.
  */
 import { StrBigInt } from './types'
 import { shamirRecovery } from './common'
@@ -48,8 +48,9 @@ export interface ICache {
 const DEFAULT_CACHE_SIZE = 100
 /**
  * Cache for storing proofs and automatically evaluating them for rate limit breaches
+ * in the memory.
  */
-export default class Cache implements ICache {
+export class MemoryCache implements ICache {
   cacheLength: number
 
   cache: CacheMap

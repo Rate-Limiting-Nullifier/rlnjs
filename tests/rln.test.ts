@@ -1,164 +1,255 @@
-// import { Identity } from '@semaphore-protocol/identity'
-// import RLN, { RLNFullProof, DEFAULT_MESSAGE_LIMIT } from "../src/rln"
-// import Registry, { DEFAULT_REGISTRY_TREE_DEPTH } from '../src/registry'
-// import { rlnInstanceFactory, fieldFactory } from './factories'
-// import { rlnParamsPath } from "./configs";
-// import poseidon from 'poseidon-lite';
-// import { Fq } from '../src/common';
-// import { calculateExternalNullifier, calculateSignalHash, shamirRecovery } from '../src/common';
+import * as fs from "fs";
+import { RLN, RLNFullProof } from "../src";
+import { MemoryCache, Status } from "../src/cache";
+import { rlnParamsPath } from "./configs";
+import { parseVerificationKeyJSON, rlnInstanceFactory } from "./factories";
+import { MemoryMessageIDCounter } from "../src/message-id-counter";
+import { MemoryRLNRegistry } from "../src/registry";
 
 
-// const defaultTreeDepth = DEFAULT_REGISTRY_TREE_DEPTH;
+class FakeMessageIDCounter extends MemoryMessageIDCounter {
+    reset(epoch: bigint) {
+        const epochStr = epoch.toString()
+        if (this.epochToMessageID[epochStr] === undefined) {
+            return;
+        }
+        this.epochToMessageID[epochStr] = BigInt(0)
+    }
+}
 
-// jest.setTimeout(60000)
 
-// // TODO: Add tests for RLN Identifier
+describe("RLN", function () {
+    describe("constructor params", function () {
+        const rlnIdentifierA = BigInt(1);
 
-// describe("RLN", () => {
-//   const identityCommitments: bigint[] = []
-//   const paramsPath = rlnParamsPath
-//   const rlnInstance = rlnInstanceFactory(paramsPath, undefined)
-//   // Same parameter, same rln identifier, but different identity
-//   const rlnInstance2 = rlnInstanceFactory(paramsPath, rlnInstance.rlnIdentifier)
+        it("should fail when no proving params and verification key", async function () {
+            expect(() => {
+                new RLN({
+                    rlnIdentifier: rlnIdentifierA,
+                });
+            }).toThrow("Either both `wasmFilePath` and `finalZkeyPath` must be supplied");
+        });
 
-//   beforeAll(() => {
-//     // Gen random identities
-//     const numberOfLeaves = 3
-//     for (let i = 0; i < numberOfLeaves; i += 1) {
-//       const identity = new Identity()
-//       const identityCommitment = identity.getCommitment()
+        it("should fail when proving if no proving params given", async function () {
+            const verificationKey = parseVerificationKeyJSON(fs.readFileSync(rlnParamsPath.vkeyPath, "utf-8"))
+            const rln = new RLN({
+                rlnIdentifier: rlnIdentifierA,
+                verificationKey,
+            })
+            expect(async () => {
+                await rln.createProof(BigInt(0), "abc")
+            }).rejects.toThrow("Prover is not initialized");
+        });
 
-//       identityCommitments.push(identityCommitment)
-//     }
-//   })
+        it("should fail when verifying if no verification key given", async function () {
+            const rln = new RLN({
+                rlnIdentifier: rlnIdentifierA,
+                wasmFilePath: rlnParamsPath.wasmFilePath,
+                finalZkeyPath: rlnParamsPath.finalZkeyPath,
+            })
+            const mockProof = {} as RLNFullProof
+            expect(async () => {
+                await rln.verifyProof(mockProof)
+            }).rejects.toThrow("Verifier is not initialized");
+            expect(async () => {
+                await rln.saveProof(mockProof)
+            }).rejects.toThrow("Verifier is not initialized");
+        });
 
-//   describe("RLN functionalities", () => {
-//     test("Should retrieve user secret using shamirRecovery", () => {
-//       const signal1 = "hey hey"
-//       const signalHash1 = calculateSignalHash(signal1)
-//       const signal2 = "hey hey again"
-//       const signalHash2 = calculateSignalHash(signal2)
+    });
 
-//       const messageId = BigInt(1)
-//       const epoch = fieldFactory()
+    describe("functionalities", function () {
 
-//       function calculateY(
-//         x: bigint,
-//       ): bigint {
-//         const externalNullifier = calculateExternalNullifier(epoch, rlnInstance.rlnIdentifier)
-//         const a1 = poseidon([rlnInstance.secretIdentity, externalNullifier, messageId])
-//         // y = identitySecret + a1 * x
-//         return Fq.normalize(rlnInstance.secretIdentity + a1 * x)
-//       }
+        const rlnIdentifierA = BigInt(1);
+        const rlnIdentifierB = BigInt(2);
 
-//       const y1 = calculateY(signalHash1)
-//       const y2 = calculateY(signalHash2)
+        const epoch0 = BigInt(0);
+        const epoch1 = BigInt(1);
+        const message0 = "abc";
+        const message1 = "abcd";
 
-//       const retrievedSecret = shamirRecovery(signalHash1, signalHash2, y1, y2)
+        const rlnA0 = rlnInstanceFactory({
+            rlnIdentifier: rlnIdentifierA,
+        });
+        const messageLimitA0 = BigInt(1);
+        const messageIDCounterA0 = new FakeMessageIDCounter(messageLimitA0)
+        let proofA00: RLNFullProof;
 
-//       expect(retrievedSecret).toEqual(rlnInstance.secretIdentity)
-//     })
+        const cacheA1 = new MemoryCache();
+        const registryA1 = new MemoryRLNRegistry(rlnIdentifierA);
+        const rlnA1 = rlnInstanceFactory({
+            rlnIdentifier: rlnIdentifierA,
+            registry: registryA1,
+            cache: cacheA1,
+        });
+        const messageLimitA1 = BigInt(1);
+        // Use a fake messageIDCounter which allows us to adjust reset message id for testing
+        const messageIDCounterA1 = new FakeMessageIDCounter(messageLimitA1)
+        let proofA10: RLNFullProof;
+        let proofA11: RLNFullProof;
 
-//     test("Should generate and verify RLN proof", async () => {
-//       const leaves = Object.assign([], identityCommitments)
-//       leaves.push(rlnInstance.commitment)
 
-//       const signal = "hey hey"
-//       const epoch = fieldFactory()
-//       const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rlnInstance.commitment)
-//       // Test: succeeds with valid inputs
-//       const messageId = BigInt(1)
-//       // Sanity check that messageId is within range and thus valid
-//       expect(messageId).toBeLessThanOrEqual(DEFAULT_MESSAGE_LIMIT)
-//       const fullProof = await rlnInstance.generateProof(signal, merkleProof, messageId, epoch)
-//       expect(await rlnInstance.verifyProof(fullProof)).toBe(true)
+        it("should have correct members after initialization", async function () {
+            expect(rlnA0.isRegistered).toBe(false);
+            expect(rlnA0.allRateCommitments.length).toBe(0);
+            expect(rlnA0.merkleRoot).toBe(rlnA1.merkleRoot);
+        });
 
-//       // Test: generateProof fails with invalid messageId
-//       const invalidMessageIds = [DEFAULT_MESSAGE_LIMIT, DEFAULT_MESSAGE_LIMIT + 1]
-//       for (const id of invalidMessageIds) {
-//         expect(async () => {
-//           await rlnInstance.generateProof(signal, merkleProof, id, epoch)
-//         }).rejects.toThrowError("messageId must be in the range")
-//       }
+        it("should fail when creating proof if not registered", async function () {
+            expect(async () => {
+                await rlnA0.createProof(BigInt(0), "abc")
+            }).rejects.toThrow("User has not registered before");
+        });
 
-//       const messageLimitAnother = BigInt(DEFAULT_MESSAGE_LIMIT + 1)
-//       const rlnInstanceAnother = rlnInstanceFactory(paramsPath, rlnInstance.rlnIdentifier, messageLimitAnother)
-//       // Test: proof from `rlnInstance` should still be verifiable by `rlnInstanceAnother` because `messageLimit`
-//       // is a private input and thus the verifier cannot know the exact value
-//       expect(await rlnInstanceAnother.verifyProof(fullProof)).toBe(true)
-//     }, 30000)
+        it("should register A0 successfully", async function () {
+            rlnA0.register(messageLimitA0, messageIDCounterA0);
+            // A0 has not been updated in the registry
+            expect(rlnA0.isRegistered).toBe(false);
+            expect(rlnA0.allRateCommitments.length).toBe(0);
+        });
 
-//     test("Should retrieve user secret using full proofs", async () => {
-//       const leaves = Object.assign([], identityCommitments)
-//       leaves.push(rlnInstance.commitment)
+        it("should update registry for A0 successfully", async function () {
+            rlnA0.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
+            expect(rlnA0.isRegistered).toBe(true);
+            expect(rlnA0.allRateCommitments.length).toBe(1);
+            expect(rlnA0.allRateCommitments[0]).toBe(rlnA0.rateCommitment);
+        });
 
-//       const signal1 = "hey hey"
-//       const signal2 = "hey hey hey"
+        it("should be able to create proof", async function () {
+            const messageIDBefore = await messageIDCounterA0.peekNextMessageID(epoch0);
+            proofA00 = await rlnA0.createProof(epoch0, message0);
+            const messageIDAfter = await messageIDCounterA0.peekNextMessageID(epoch0);
+            expect(messageIDAfter).toBe(messageIDBefore + BigInt(1));
+            expect(await rlnA0.verifyProof(proofA00)).toBe(true);
+            const res = await rlnA0.saveProof(proofA00);
+            expect(res.status).toBe(Status.ADDED);
+        });
 
-//       const epoch1 = fieldFactory()
-//       const epoch2 = fieldFactory([epoch1])
-//       const merkleProof = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rlnInstance.commitment)
+        it("should fail to create proof if messageID exceeds limit", async function () {
+            const currentMessageID = await messageIDCounterA0.peekNextMessageID(epoch0);
+            // Sanity check: messageID should be equal to limit now
+            expect(currentMessageID).toBe(messageLimitA0);
+            expect(async () => {
+                await rlnA0.createProof(epoch0, message0);
+            }).rejects.toThrow("Message ID counter exceeded message limit")
+        });
 
-//       leaves.push(rlnInstance2.commitment)
-//       const merkleProof2 = Registry.generateMerkleProof(defaultTreeDepth, BigInt(0), leaves, rlnInstance2.commitment)
+        it("should fail to verify invalid proof", async function () {
+            const proofA00Invalid: RLNFullProof = {
+                ...proofA00,
+                snarkProof: {
+                    proof: {
+                        ...proofA00.snarkProof.proof,
+                        pi_a: [BigInt(1), BigInt(2)],
+                    },
+                    publicSignals: proofA00.snarkProof.publicSignals,
+                }
+            }
+            expect(await rlnA0.verifyProof(proofA00Invalid)).toBeFalsy()
+        });
 
-//       const messageId = 1
-//       const proof = await rlnInstance.generateProof(signal1, merkleProof, messageId, epoch1)
-//       // Test: another signal in the same epoch, messageId, and identity. Breached
-//       const proofDiffSignal = await rlnInstance.generateProof(signal2, merkleProof, messageId, epoch1)
-//       const retrievedSecret1 = RLN.retrieveSecret(proof, proofDiffSignal)
-//       expect(retrievedSecret1).toEqual(rlnInstance.secretIdentity)
+        it("should be able to withdraw", async function () {
+            rlnA0.withdraw();
+            // A0 has not been updated in the registry
+            expect(rlnA0.isRegistered).toBe(true);
+            expect(rlnA0.allRateCommitments.length).toBe(1);
+        });
 
-//       // Test: messageId is different and thus there is no breach. retrieveSecret is expected to fail
-//       const anotherMessageId = messageId + 1
-//       const proofDiffMessageId = await rlnInstance.generateProof(signal1, merkleProof, anotherMessageId, epoch1)
-//       expect(
-//         () => RLN.retrieveSecret(proof, proofDiffMessageId)
-//       ).toThrow("Internal Nullifiers do not match! Cannot recover secret.")
+        it("should update the registry for A0 successfully", async function () {
+            rlnA0.removeRegisteredMember(rlnA0.identityCommitment);
+            expect(rlnA0.isRegistered).toBe(false);
+            expect(rlnA0.allRateCommitments.length).toBe(1);
+        });
 
-//       // Test: epoch is different and there is no breach. retrieveSecret is expected to fail
-//       const proofDiffEpoch = await rlnInstance.generateProof(signal1, merkleProof, messageId, epoch2)
-//       expect(
-//         () => RLN.retrieveSecret(proof, proofDiffEpoch)
-//       ).toThrow("External Nullifiers do not match! Cannot recover secret.")
+        it("should fail to create proof after withdraw", async function () {
+            expect(async () => {
+                await rlnA0.createProof(epoch0, message0);
+            }).rejects.toThrow("User has not registered before");
+        });
 
-//       // Test: inputs are the same as proof but it's from different identity.
-//       // There is no breach and retrieveSecret is expected to fail
-//       const proofDiffIdentity = await rlnInstance2.generateProof(signal1, merkleProof2, messageId, epoch1)
-//       expect(
-//         () => RLN.retrieveSecret(proof, proofDiffIdentity)
-//       ).toThrow("Internal Nullifiers do not match! Cannot recover secret.")
+        it("should be able to update A0's register/withdraw record to A1", async function () {
+            rlnA1.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
+            rlnA1.removeRegisteredMember(rlnA0.identityCommitment);
+            expect(rlnA1.isRegistered).toBe(false);
+            expect(rlnA1.allRateCommitments.length).toBe(1);
+            expect(rlnA1.allRateCommitments[0]).toBe(rlnA0.allRateCommitments[0]);
+            expect(rlnA1.merkleRoot).toBe(rlnA0.merkleRoot);
+        });
 
-//       // Test: retrieveSecret fails with invalid public inputs
-//       // 1. wrong epoch
-//       const proofDiffPublicInputEpoch: RLNFullProof = {
-//         epoch: fieldFactory([proof.epoch]),
-//         rlnIdentifier: proof.rlnIdentifier,
-//         snarkProof: proof.snarkProof,
-//       }
-//       expect(
-//         () => RLN.retrieveSecret(proof, proofDiffPublicInputEpoch)
-//       ).toThrow("External Nullifiers do not match! Cannot recover secret.")
+        it("should be able to register A1", async function () {
+            rlnA1.register(messageLimitA1, messageIDCounterA1);
+            rlnA1.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
+            expect(rlnA1.isRegistered).toBe(true);
+            expect(rlnA1.allRateCommitments.length).toBe(2);
+            expect(rlnA1.allRateCommitments[1]).toBe(rlnA1.rateCommitment);
+        });
 
-//       // 2. wrong rln identifier
-//       const proofDiffPublicInputRLNIdentifier: RLNFullProof = {
-//         epoch: proof.epoch,
-//         rlnIdentifier: fieldFactory([proof.rlnIdentifier]),
-//         snarkProof: proof.snarkProof,
-//       }
-//       expect(
-//         () => RLN.retrieveSecret(proof, proofDiffPublicInputRLNIdentifier)
-//       ).toThrow("External Nullifiers do not match! Cannot recover secret.")
-//     })
+        it("should reveal its secret by itself if A1 creates more than `messageLimitA1` messages", async function () {
+            // messageLimitA1 is 1, so A1 can only create 1 proof per epoch
+            // Test: can save the first proof
+            proofA10 = await rlnA1.createProof(epoch0, message0);
+            const resA10 = await rlnA1.saveProof(proofA10);
+            expect(resA10.status).toBe(Status.ADDED);
+            // Test: fails when saving duplicate proof
+            const resA10Again = await rlnA1.saveProof(proofA10);
+            expect(resA10Again.status).toBe(Status.INVALID);
 
-//     test("Should export/import to json", () => {
-//       const rlnInstanceJson = rlnInstance.export();
-//       const rlnInstanceFromJson = RLN.import(rlnInstanceJson);
-//       expect(rlnInstanceFromJson.identity.commitment).toEqual(rlnInstance.identity.commitment);
-//       expect(rlnInstanceFromJson.rlnIdentifier).toEqual(rlnInstance.rlnIdentifier);
-//       expect(rlnInstanceFromJson.wasmFilePath).toEqual(rlnInstance.wasmFilePath);
-//       expect(rlnInstanceFromJson.finalZkeyPath).toEqual(rlnInstance.finalZkeyPath);
-//       expect(rlnInstanceFromJson.verificationKey).toEqual(rlnInstance.verificationKey);
-//     })
-//   })
-// })
+            // Reset messageIDCounterA1 at epoch0 to force it create a proof
+            // when it already exceeds `messageLimitA1`
+            messageIDCounterA1.reset(epoch0);
+            // Test: number of proofs per epoch exceeds `messageLimitA1`, breach/ slashed when `saveProof`
+            proofA11 = await rlnA1.createProof(epoch0, message1);
+            const resA11 = await rlnA1.saveProof(proofA11);
+            expect(resA11.status).toBe(Status.BREACH);
+            // Test: epoch1 is a new epoch, so A1 can create 1 proof
+            const proofA12 = await rlnA1.createProof(epoch1, message1);
+            const resA12 = await rlnA1.saveProof(proofA12);
+            expect(resA12.status).toBe(Status.ADDED);
+        });
+
+        it("should be slashed by others too", async function () {
+            // A0 adds rlnA1 to its registry
+            rlnA0.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
+            // Test: A0 is up-to-date and receives more than `messageLimitA1` proofs,
+            // so A1's secret is breached by A0
+            const resA10 = await rlnA0.saveProof(proofA10);
+            expect(resA10.status).toBe(Status.ADDED);
+            const resA12 = await rlnA0.saveProof(proofA11);
+            expect(resA12.status).toBe(Status.BREACH);
+        });
+
+        it("should be incompatible for RLN if rlnIdentifier is different", async function () {
+            // Create another rlnInstance with different rlnIdentifier
+            const rlnB = rlnInstanceFactory({rlnIdentifier: rlnIdentifierB})
+            // Make it up-to-date with the latest membership
+            rlnB.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
+            rlnB.removeRegisteredMember(rlnA0.identityCommitment);
+            rlnB.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
+            // Test: verifyProof fails since proofA10.rlnIdentifier mismatches rlnB's rlnIdentifier
+            expect(await rlnB.verifyProof(proofA10)).toBe(false);
+        });
+
+        it("should be able to reuse registry", async function () {
+            // Test: A2's membership is sync with A1 by reusing A1's registry
+            const rlnA2 = rlnInstanceFactory({
+                rlnIdentifier: rlnIdentifierA,
+                registry: registryA1,
+            })
+            expect(rlnA2.merkleRoot).toBe(rlnA1.merkleRoot);
+        });
+
+        it("should be able to reuse cache", async function () {
+            // Test: A2's cache is sync with A1 by reusing A1's cache
+            const rlnA2 = rlnInstanceFactory({
+                rlnIdentifier: rlnIdentifierA,
+                cache: cacheA1,
+            })
+            // Since the cache already contains both proofA10 and proofA11,
+            // both results are invalid, due to adding duplicate proofs.
+            const resA10 = await rlnA1.saveProof(proofA10);
+            expect(resA10.status).toBe(Status.INVALID);
+            const resA11 = await rlnA1.saveProof(proofA11);
+            expect(resA11.status).toBe(Status.INVALID);
+        });
+    });
+});

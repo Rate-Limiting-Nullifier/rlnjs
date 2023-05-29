@@ -6,6 +6,7 @@ export const DEFAULT_REGISTRY_TREE_DEPTH = 20
 
 export interface IRLNRegistry {
   merkleRoot: bigint
+  rateCommitments: bigint[]
 
   isRegistered(identityCommitment: bigint): boolean
   getMessageLimit(identityCommitment: bigint): bigint

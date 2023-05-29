@@ -4,7 +4,7 @@ import poseidon from 'poseidon-lite'
 import { VerificationKey } from './types'
 import { calculateSignalHash } from './common'
 import { IRLNRegistry, MemoryRLNRegistry } from './registry'
-import Cache, { EvaluatedProof, ICache } from './cache'
+import { MemoryCache, EvaluatedProof, ICache } from './cache'
 import { IMessageIDCounter, MemoryMessageIDCounter } from './message-id-counter'
 import { RLNFullProof, RLNProver, RLNVerifier } from './circuit-wrapper'
 
@@ -32,12 +32,12 @@ type RLNArgs = {
   messageIDCounter?: IMessageIDCounter
 
   /* Others */
-  // Registry that stores the registered users. If not provided, a new `Registry` is created.
+  // `IRegistry` that stores the registered users. If not provided, a new `Registry` is created.
   registry?: IRLNRegistry
-  // Cache that stores proofs added by the user with `addProof`, and detect spams automatically.
-  // If not provided, a new `Cache` is created.
+  // `ICache` that stores proofs added by the user with `addProof`, and detect spams automatically.
+  // If not provided, a new `MemoryCache` is created.
   cache?: ICache
-  // If cache is not provided, `cacheSize` is used to create the `Cache`. `cacheSize` is
+  // If cache is not provided, `cacheSize` is used to create the `MemoryCache`. `cacheSize` is
   // the maximum number of epochs that the cache can store.
   // If not provided, the default value will be used.
   cacheSize?: number
@@ -45,9 +45,14 @@ type RLNArgs = {
 
 export interface IRLN {
   /* Membership */
+  // User registers to the registry
   register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter): void
+  // User withdraws from the registry
   withdraw(): void
+
+  // Callback when other users register to the registry
   addRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint): void
+  // Callback when other users withdraw from the registry
   removeRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint): void
   /* Proof-related */
   createProof(epoch: bigint, message: string): Promise<RLNFullProof>
@@ -93,7 +98,7 @@ export class RLN implements IRLN {
     }
 
     this.registry = args.registry ? args.registry : new MemoryRLNRegistry(args.rlnIdentifier, args.treeDepth)
-    this.cache = args.cache ? args.cache : new Cache(args.cacheSize)
+    this.cache = args.cache ? args.cache : new MemoryCache(args.cacheSize)
 
     if (this.isRegistered === true) {
       if (args.messageIDCounter !== undefined) {
@@ -119,6 +124,10 @@ export class RLN implements IRLN {
     }
   }
 
+  get merkleRoot(): bigint {
+    return this.registry.merkleRoot
+  }
+
   get identityCommitment(): bigint {
     return this.identity.commitment
   }
@@ -138,16 +147,44 @@ export class RLN implements IRLN {
     return this.registry.isRegistered(this.identityCommitment)
   }
 
+  get allRateCommitments(): bigint[] {
+    return this.registry.rateCommitments
+  }
+
+  /**
+   * TODO: right now it's just a stub.
+   * User registers to the registry.
+   * @param userMessageLimit the maximum number of messages that the user can send in one epoch
+   * @param messageIDCounter the messageIDCounter that the user wants to use. If not provided, a new `MemoryMessageIDCounter` is created.
+   */
   register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter) {
-    this.addRegisteredMember(this.identityCommitment, userMessageLimit)
+    if (this.registry.isRegistered(this.identityCommitment) === true) {
+      throw new Error(
+        `User has already registered before: identityCommitment=${this.identityCommitment}, ` +
+        `userMessageLimit=${userMessageLimit}`,
+      )
+    }
     this.messageIDCounter = messageIDCounter ? messageIDCounter : new MemoryMessageIDCounter(userMessageLimit)
   }
 
+  /**
+   * TODO: right now it's just a stub.
+   * User withdraws from the registry.
+   */
   withdraw() {
-    this.removeRegisteredMember(this.identityCommitment)
+    if (this.registry.isRegistered(this.identityCommitment) === false) {
+      throw new Error(
+        `User has not registered before: identityCommitment=${this.identityCommitment}`,
+      )
+    }
     this.messageIDCounter = undefined
   }
 
+  /**
+   * Callback when a user registers to the registry.
+   * @param identityCommitment the identity commitment of the user
+   * @param userMessageLimit the maximum number of messages that the user can send in one epoch
+   */
   addRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint) {
     if (this.registry.isRegistered(identityCommitment) === true) {
       throw new Error(
@@ -158,6 +195,10 @@ export class RLN implements IRLN {
     this.registry.addNewRegistered(identityCommitment, userMessageLimit)
   }
 
+  /**
+   * Callback when a user withdraws from the registry.
+   * @param identityCommitment the identity commitment of the user
+   */
   removeRegisteredMember(identityCommitment: bigint) {
     if (this.registry.isRegistered(identityCommitment) === false) {
       throw new Error(
@@ -167,6 +208,44 @@ export class RLN implements IRLN {
     this.registry.deleteRegistered(identityCommitment)
   }
 
+  /**
+   * Create a proof for the given epoch and message.
+   * @param epoch the epoch to create the proof for
+   * @param message the message to create the proof for
+   * @returns the RLNFullProof
+   */
+  async createProof(epoch: bigint, message: string): Promise<RLNFullProof> {
+    if (this.prover === undefined) {
+      throw new Error('Prover is not initialized')
+
+    }
+    if (!this.registry.isRegistered(this.identityCommitment)) {
+      throw new Error('User has not registered before')
+    }
+    if (this.messageIDCounter === undefined) {
+      throw new Error(
+        'State is not synced with the registry. ' +
+        'If user is currently registered, `messageIDCounter` should be non-undefined',
+      )
+    }
+    const merkleProof = this.registry.generateMerkleProof(this.identityCommitment)
+    const messageID = await this.messageIDCounter.getMessageIDAndIncrement(epoch)
+    const userMessageLimit = this.registry.getMessageLimit(this.identityCommitment)
+    return this.prover.generateProof({
+      identitySecret: this.identitySecret,
+      userMessageLimit: userMessageLimit,
+      messageId: messageID,
+      merkleProof,
+      x: calculateSignalHash(message),
+      epoch,
+    })
+  }
+
+  /**
+   * Verify the RLNFullProof.
+   * @param proof the RLNFullProof to verify
+   * @returns true if the proof is valid, false otherwise
+   */
   async verifyProof(proof: RLNFullProof): Promise<boolean> {
     if (this.verifier === undefined) {
       throw new Error('Verifier is not initialized')
@@ -184,6 +263,12 @@ export class RLN implements IRLN {
     return this.verifier.verifyProof(proof)
   }
 
+  /**
+   * Verify and save the proof to the cache. If the proof is invalid, an error is thrown.
+   * Else, the proof is saved to the cache and is checked if it's a spam.
+   * @param proof the RLNFullProof to verify and save
+   * @returns the EvaluatedProof if the proof is valid, an error is thrown otherwise
+   */
   async saveProof(proof: RLNFullProof): Promise<EvaluatedProof> {
     if (!await this.verifyProof(proof)) {
       throw new Error('Invalid proof')
@@ -193,30 +278,4 @@ export class RLN implements IRLN {
     return this.cache.addProof({ x, y, nullifier, epoch })
   }
 
-  async createProof(epoch: bigint, message: string): Promise<RLNFullProof> {
-    if (this.prover === undefined) {
-      throw new Error('Prover is not initialized')
-
-    }
-    if (!this.registry.isRegistered(this.identityCommitment)) {
-      throw new Error('User has not registered before')
-    }
-    if (this.messageIDCounter === undefined) {
-      throw new Error(
-        'State is not synced with the registry. ' +
-        'If user is currently registered, `messageIDCounter` should be non-undefined',
-      )
-    }
-    const merkleProof = this.registry.generateMerkleProof(this.identityCommitment)
-    const messageID = await this.messageIDCounter.getNextMessageID(epoch)
-    const userMessageLimit = this.registry.getMessageLimit(this.identityCommitment)
-    return this.prover.generateProof({
-      identitySecret: this.identitySecret,
-      userMessageLimit: userMessageLimit,
-      messageId: messageID,
-      merkleProof,
-      x: calculateSignalHash(message),
-      epoch,
-    })
-  }
 }

@@ -1,12 +1,12 @@
 import * as fs from "fs"
-import { RLN } from "../src"
+import { ICache, IRLNRegistry, RLN } from "../src"
 import { VerificationKey } from "../src/types"
 import { Fq } from "../src/common"
 import { Identity } from "@semaphore-protocol/identity"
 import { defaultParamsPath, CircuitParamsFilePath } from "./configs"
 
 
-function parseVerificationKeyJSON(json: string): VerificationKey {
+export function parseVerificationKeyJSON(json: string): VerificationKey {
     const o = JSON.parse(json)
     // NOTE: This is not a complete check, to do better we can check values are of the correct type
     if (!o.protocol) throw new Error('Verification key has no protocol')
@@ -25,6 +25,8 @@ export function rlnInstanceFactory(args: {
     paramsPath?: CircuitParamsFilePath,
     rlnIdentifier?: bigint,
     identity?: Identity,
+    registry?: IRLNRegistry,
+    cache?: ICache,
 }) {
     let paramsPath: CircuitParamsFilePath
     if (args.paramsPath !== undefined) {
@@ -40,6 +42,8 @@ export function rlnInstanceFactory(args: {
         verificationKey,
         rlnIdentifier,
         identity: args.identity,
+        registry: args.registry,
+        cache: args.cache,
     })
 }
 

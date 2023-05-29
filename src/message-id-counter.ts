@@ -1,20 +1,36 @@
 export interface IMessageIDCounter {
-  getNextMessageID(epoch: bigint): Promise<bigint>
+  messageLimit: bigint;
+  getMessageIDAndIncrement(epoch: bigint): Promise<bigint>
+  peekNextMessageID(epoch: bigint): Promise<bigint>
 }
-
 
 type EpochMap = {
   [epoch: string]: bigint
 }
 
-export class MemoryMessageIDCounter {
-  private epochToMessageID: EpochMap
+export class MemoryMessageIDCounter implements IMessageIDCounter {
+  protected _messageLimit: bigint
 
-  constructor(private readonly messageLimit: bigint) {
+  protected epochToMessageID: EpochMap
+
+  constructor(messageLimit: bigint) {
+    this._messageLimit = messageLimit
     this.epochToMessageID = {}
   }
 
-  async getNextMessageID(epoch: bigint): Promise<bigint> {
+  get messageLimit(): bigint {
+    return this._messageLimit
+  }
+
+  async peekNextMessageID(epoch: bigint): Promise<bigint> {
+    const epochStr = epoch.toString()
+    if (this.epochToMessageID[epochStr] === undefined) {
+      return BigInt(0)
+    }
+    return this.epochToMessageID[epochStr]
+  }
+
+  async getMessageIDAndIncrement(epoch: bigint): Promise<bigint> {
     const epochStr = epoch.toString()
     // Initialize the message id counter if it doesn't exist
     if (this.epochToMessageID[epochStr] === undefined) {

@@ -88,7 +88,7 @@ export class RLNProver {
       pathElements: args.merkleProof.siblings,
       identityPathIndex: args.merkleProof.pathIndices,
       x: args.x,
-      externalNullifier: calculateExternalNullifier(this.rlnIdentifier, args.epoch),
+      externalNullifier: calculateExternalNullifier(args.epoch, this.rlnIdentifier),
     }
     const { proof, publicSignals } = await groth16.fullProve(
       witness,
@@ -140,8 +140,13 @@ export class RLNVerifier {
       BigInt(rlnRullProof.epoch),
       this.rlnIdentifier,
     )
-    if (expectedExternalNullifier !== BigInt(rlnRullProof.snarkProof.publicSignals.externalNullifier)) {
-      throw new Error('External nullifier does not match')
+    const actualExternalNullifier = rlnRullProof.snarkProof.publicSignals.externalNullifier
+    if (expectedExternalNullifier !== BigInt(actualExternalNullifier)) {
+      throw new Error(
+        `External nullifier does not match: expectedExternalNullifier=${expectedExternalNullifier}, ` +
+        `actualExternalNullifier=${actualExternalNullifier}, epoch=${rlnRullProof.epoch}, ` +
+        `this.rlnIdentifier=${this.rlnIdentifier}`,
+      )
     }
 
     const { proof, publicSignals } = rlnRullProof.snarkProof

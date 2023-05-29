@@ -1,13 +1,13 @@
-import { Cache } from "../src"
+import { MemoryCache } from "../src"
 import { CachedProof, Status } from '../src/cache'
 import { fieldFactory } from "./factories"
 
-describe("Cache", () => {
+describe("MemoryCache", () => {
   const signal1 = BigInt(11111)
   const signal2 = BigInt(22222)
   const epoch1 = fieldFactory()
   const epoch2 = fieldFactory([epoch1])
-  const cache = new Cache()
+  const cache = new MemoryCache()
 
   let proof1: CachedProof;
   let proof2: CachedProof;

@@ -1,13 +1,14 @@
 // Imports
 import { RLN } from './rln'
-import { IRLNRegistry }  from './registry'
-import Cache, { ICache, CachedProof } from './cache'
+import { IRLNRegistry, MemoryRLNRegistry }  from './registry'
+import { ICache, MemoryCache, CachedProof } from './cache'
 
 export {
   RLN,
   IRLNRegistry,
+  MemoryRLNRegistry,
   ICache,
-  Cache,
+  MemoryCache,
   CachedProof,
 }
 
