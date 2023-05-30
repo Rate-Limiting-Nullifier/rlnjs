@@ -1,4 +1,4 @@
-import { Fq } from "../src/utils"
+import { Fq } from "../src/common"
 
 describe("Field arithmetics", () => {
   describe("Test bunch of calculations in Fq", () => {

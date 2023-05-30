@@ -1,308 +1,281 @@
-import { hexlify } from '@ethersproject/bytes'
-import { keccak256 } from '@ethersproject/solidity'
-import { toUtf8Bytes } from '@ethersproject/strings'
-import { MerkleProof } from '@zk-kit/incremental-merkle-tree'
-import { groth16 } from 'snarkjs'
-import { Fq, isProofSameExternalNullifier } from './utils'
-import poseidon from 'poseidon-lite'
 import { Identity } from '@semaphore-protocol/identity'
+import poseidon from 'poseidon-lite'
 
-// Types
-import { RLNFullProof, RLNSNARKProof, RLNWitness, StrBigInt, VerificationKey } from './types'
-import { instantiateBn254, deserializeJSRLNProof, serializeJSRLNProof } from './waku'
-
-
-type RLNExportedT = {
-  identity: string,
-  rlnIdentifier: string,
-  verificationKey: string,
-  wasmFilePath: string,
-  finalZkeyPath: string,
-}
+import { VerificationKey } from './types'
+import { calculateSignalHash } from './common'
+import { IRLNRegistry, MemoryRLNRegistry } from './registry'
+import { MemoryCache, EvaluatedProof, ICache } from './cache'
+import { IMessageIDCounter, MemoryMessageIDCounter } from './message-id-counter'
+import { RLNFullProof, RLNProver, RLNVerifier } from './circuit-wrapper'
 
 
-/**
-RLN is a class that represents a single RLN identity.
-**/
-export default class RLN {
-  wasmFilePath: string
+type RLNArgs = {
+  /* System configs */
+  // File paths of the wasm and zkey file. If not provided, `createProof` will not work.
+  wasmFilePath?: string
+  finalZkeyPath?: string
+  // Verification key of the circuit. If not provided, `verifyProof` and `saveProof` will not work.
+  verificationKey?: VerificationKey
+  // Tree depth of the merkle tree used by the circuit. If not provided, the default value will be used.
+  treeDepth?: number
 
-  finalZkeyPath: string
-
-  verificationKey: VerificationKey
-
+  /* App configs */
+  // The unique identifier of the app using RLN. The identifier must be unique for every app.
   rlnIdentifier: bigint
 
-  identity: Identity
+  /* User configs */
+  // Semaphore identity of the user. If not provided, a new `Identity` is created.
+  identity?: Identity
 
-  commitment: bigint
+  // If user has been registered to the registry, the `messageIDCounter` can be provided to reuse
+  // the old message ID counter. If not provided, a new `MemoryMessageIDCounter` is created.
+  messageIDCounter?: IMessageIDCounter
 
-  secretIdentity: bigint
+  /* Others */
+  // `IRegistry` that stores the registered users. If not provided, a new `Registry` is created.
+  registry?: IRLNRegistry
+  // `ICache` that stores proofs added by the user with `addProof`, and detect spams automatically.
+  // If not provided, a new `MemoryCache` is created.
+  cache?: ICache
+  // If cache is not provided, `cacheSize` is used to create the `MemoryCache`. `cacheSize` is
+  // the maximum number of epochs that the cache can store.
+  // If not provided, the default value will be used.
+  cacheSize?: number
+}
 
-  constructor(wasmFilePath: string, finalZkeyPath: string, verificationKey: VerificationKey, rlnIdentifier?: bigint, identity?: string) {
-    this.wasmFilePath = wasmFilePath
-    this.finalZkeyPath = finalZkeyPath
-    this.verificationKey = verificationKey
-    this.rlnIdentifier = rlnIdentifier ? rlnIdentifier : RLN._genIdentifier()
+export interface IRLN {
+  /* Membership */
+  // User registers to the registry
+  register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter): void
+  // User withdraws from the registry
+  withdraw(): void
 
-    this.identity = identity ? new Identity(identity) : new Identity()
-    this.commitment = this.identity.getCommitment()
-    this.secretIdentity = poseidon([
+  // Callback when other users register to the registry
+  addRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint): void
+  // Callback when other users withdraw from the registry
+  removeRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint): void
+  /* Proof-related */
+  createProof(epoch: bigint, message: string): Promise<RLNFullProof>
+  verifyProof(proof: RLNFullProof): Promise<boolean>
+  saveProof(proof: RLNFullProof): Promise<EvaluatedProof>
+}
+
+/**
+ * RLN handles all operations for a RLN user, including registering, withdrawing, creating proof, verifying proof.
+ */
+export class RLN implements IRLN {
+  // the unique identifier of the app using RLN
+  readonly rlnIdentifier: bigint
+
+  // TODO: we can also support raw secrets instead of just semaphore identity
+  // the semaphore identity of the user
+  private identity: Identity
+
+  // the prover allows user to generate proof with the RLN circuit
+  private prover?: RLNProver
+
+  // the verifier allows user to verify proof with the RLN circuit
+  private verifier?: RLNVerifier
+
+  // the registry that stores the registered users
+  private registry: IRLNRegistry
+
+  // the cache that stores proofs added by the user with `addProof`, and detect spams automatically
+  private cache: ICache
+
+  // the messageIDCounter is used to **safely** generate the latest messageID for the user
+  private messageIDCounter?: IMessageIDCounter
+
+  constructor(args: RLNArgs) {
+    this.rlnIdentifier = args.rlnIdentifier
+    this.identity = args.identity ? args.identity : new Identity()
+
+    if ((args.wasmFilePath === undefined || args.finalZkeyPath === undefined) && args.verificationKey === undefined) {
+      throw new Error(
+        'Either both `wasmFilePath` and `finalZkeyPath` must be supplied to generate proofs, ' +
+        'or `verificationKey` must be provided to verify proofs.',
+      )
+    }
+
+    this.registry = args.registry ? args.registry : new MemoryRLNRegistry(args.rlnIdentifier, args.treeDepth)
+    this.cache = args.cache ? args.cache : new MemoryCache(args.cacheSize)
+
+    if (this.isRegistered === true) {
+      if (args.messageIDCounter !== undefined) {
+        this.messageIDCounter = args.messageIDCounter
+      } else {
+        const userMessageLimit = this.registry.getMessageLimit(this.identityCommitment)
+        this.messageIDCounter = new MemoryMessageIDCounter(userMessageLimit)
+      }
+    }
+
+    if (args.wasmFilePath !== undefined && args.finalZkeyPath !== undefined) {
+      this.prover = new RLNProver(
+        args.wasmFilePath,
+        args.finalZkeyPath,
+        args.rlnIdentifier,
+      )
+    }
+    if (args.verificationKey !== undefined) {
+      this.verifier = new RLNVerifier(
+        args.verificationKey,
+        args.rlnIdentifier,
+      )
+    }
+  }
+
+  get merkleRoot(): bigint {
+    return this.registry.merkleRoot
+  }
+
+  get identityCommitment(): bigint {
+    return this.identity.commitment
+  }
+
+  private get identitySecret(): bigint {
+    return poseidon([
       this.identity.getNullifier(),
       this.identity.getTrapdoor(),
     ])
-    console.info(`RLN identity commitment created: ${this.commitment}`)
   }
 
+  get rateCommitment(): bigint {
+    return this.registry.getRateCommitment(this.identityCommitment)
+  }
 
-  /**
-   * Generates an RLN Proof.
-   * @param signal This is usually the raw message.
-   * @param merkleProof This is the merkle proof for the identity commitment.
-   * @param epoch This is the time component for the proof, if no epoch is set, unix epoch time rounded to 1 second will be used.
-   * @returns The full SnarkJS proof.
-   */
-  public async generateProof(signal: string, merkleProof: MerkleProof, epoch?: StrBigInt): Promise<RLNFullProof> {
-    const epochBigInt = epoch ? BigInt(epoch) : BigInt(Math.floor(Date.now() / 1000)) // rounded to nearest second
-    const witness = this._genWitness(merkleProof, epochBigInt, signal)
-    return this._genProof(epochBigInt, witness)
+  get isRegistered(): boolean {
+    return this.registry.isRegistered(this.identityCommitment)
+  }
+
+  get allRateCommitments(): bigint[] {
+    return this.registry.rateCommitments
   }
 
   /**
-   * Generates a SnarkJS full proof with Groth16.
-   * @param witness The parameters for creating the proof.
-   * @returns The full SnarkJS proof.
+   * TODO: right now it's just a stub.
+   * User registers to the registry.
+   * @param userMessageLimit the maximum number of messages that the user can send in one epoch
+   * @param messageIDCounter the messageIDCounter that the user wants to use. If not provided, a new `MemoryMessageIDCounter` is created.
    */
-  public async _genProof(
-    epoch: bigint,
-    witness: RLNWitness,
-  ): Promise<RLNFullProof> {
-    const snarkProof: RLNSNARKProof = await RLN._genSNARKProof(witness, this.wasmFilePath, this.finalZkeyPath)
-    return {
-      snarkProof,
+  register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter) {
+    if (this.registry.isRegistered(this.identityCommitment) === true) {
+      throw new Error(
+        `User has already registered before: identityCommitment=${this.identityCommitment}, ` +
+        `userMessageLimit=${userMessageLimit}`,
+      )
+    }
+    this.messageIDCounter = messageIDCounter ? messageIDCounter : new MemoryMessageIDCounter(userMessageLimit)
+  }
+
+  /**
+   * TODO: right now it's just a stub.
+   * User withdraws from the registry.
+   */
+  withdraw() {
+    if (this.registry.isRegistered(this.identityCommitment) === false) {
+      throw new Error(
+        `User has not registered before: identityCommitment=${this.identityCommitment}`,
+      )
+    }
+    this.messageIDCounter = undefined
+  }
+
+  /**
+   * Callback when a user registers to the registry.
+   * @param identityCommitment the identity commitment of the user
+   * @param userMessageLimit the maximum number of messages that the user can send in one epoch
+   */
+  addRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint) {
+    if (this.registry.isRegistered(identityCommitment) === true) {
+      throw new Error(
+        `User has already registered before: identityCommitment=${identityCommitment}, ` +
+        `userMessageLimit=${userMessageLimit}`,
+      )
+    }
+    this.registry.addNewRegistered(identityCommitment, userMessageLimit)
+  }
+
+  /**
+   * Callback when a user withdraws from the registry.
+   * @param identityCommitment the identity commitment of the user
+   */
+  removeRegisteredMember(identityCommitment: bigint) {
+    if (this.registry.isRegistered(identityCommitment) === false) {
+      throw new Error(
+        `User has not registered before: identityCommitment=${identityCommitment}`,
+      )
+    }
+    this.registry.deleteRegistered(identityCommitment)
+  }
+
+  /**
+   * Create a proof for the given epoch and message.
+   * @param epoch the epoch to create the proof for
+   * @param message the message to create the proof for
+   * @returns the RLNFullProof
+   */
+  async createProof(epoch: bigint, message: string): Promise<RLNFullProof> {
+    if (this.prover === undefined) {
+      throw new Error('Prover is not initialized')
+
+    }
+    if (!this.registry.isRegistered(this.identityCommitment)) {
+      throw new Error('User has not registered before')
+    }
+    if (this.messageIDCounter === undefined) {
+      throw new Error(
+        'State is not synced with the registry. ' +
+        'If user is currently registered, `messageIDCounter` should be non-undefined',
+      )
+    }
+    const merkleProof = this.registry.generateMerkleProof(this.identityCommitment)
+    const messageID = await this.messageIDCounter.getMessageIDAndIncrement(epoch)
+    const userMessageLimit = this.registry.getMessageLimit(this.identityCommitment)
+    return this.prover.generateProof({
+      identitySecret: this.identitySecret,
+      userMessageLimit: userMessageLimit,
+      messageId: messageID,
+      merkleProof,
+      x: calculateSignalHash(message),
       epoch,
-      rlnIdentifier: this.rlnIdentifier,
-    }
+    })
   }
 
   /**
- * Generates a SnarkJS full proof with Groth16.
- * @param witness The parameters for creating the proof.
- * @param wasmFilePath The path to the wasm file.
- * @param finalZkeyPath The path to the final zkey file.
- * @returns The full SnarkJS proof.
- */
-  public static async _genSNARKProof(
-    witness: RLNWitness, wasmFilePath: string, finalZkeyPath: string,
-  ): Promise<RLNSNARKProof> {
-    const { proof, publicSignals } = await groth16.fullProve(
-      witness,
-      wasmFilePath,
-      finalZkeyPath,
-      null,
-    )
-
-    return {
-      proof,
-      publicSignals: {
-        yShare: publicSignals[0],
-        merkleRoot: publicSignals[1],
-        internalNullifier: publicSignals[2],
-        signalHash: publicSignals[3],
-        externalNullifier: publicSignals[4],
-      },
-    }
-  }
-
-  /**
-   * Verifies a zero-knowledge SnarkJS proof.
-   * @param fullProof The SnarkJS full proof.
-   * @returns True if the proof is valid, false otherwise.
+   * Verify the RLNFullProof.
+   * @param proof the RLNFullProof to verify
+   * @returns true if the proof is valid, false otherwise
    */
-  public async verifyProof(rlnRullProof: RLNFullProof): Promise<boolean> {
-    if (BigInt(rlnRullProof.rlnIdentifier) !== this.rlnIdentifier) {
-      throw new Error('RLN identifier does not match')
+  async verifyProof(proof: RLNFullProof): Promise<boolean> {
+    if (this.verifier === undefined) {
+      throw new Error('Verifier is not initialized')
     }
-    const expectedExternalNullifier = RLN._genNullifier(BigInt(rlnRullProof.epoch), this.rlnIdentifier)
-    if (expectedExternalNullifier !== BigInt(rlnRullProof.snarkProof.publicSignals.externalNullifier)) {
-      throw new Error('External nullifier does not match')
+    // Check if the proof is using the same parameters
+    const { snarkProof, rlnIdentifier } = proof
+    const { root } = snarkProof.publicSignals
+    if (
+      BigInt(rlnIdentifier) !== this.rlnIdentifier ||
+            BigInt(root) !== this.registry.merkleRoot
+    ) {
+      return false
     }
-
-    return RLN.verifySNARKProof(this.verificationKey, rlnRullProof.snarkProof)
+    // Verify snark proof
+    return this.verifier.verifyProof(proof)
   }
 
   /**
- * Verifies a zero-knowledge SnarkJS proof.
- * @param fullProof The SnarkJS full proof.
- * @returns True if the proof is valid, false otherwise.
- */
-  public static async verifySNARKProof(verificationKey: VerificationKey,
-    { proof, publicSignals }: RLNSNARKProof,
-  ): Promise<boolean> {
-    return groth16.verify(
-      verificationKey,
-      [
-        publicSignals.yShare,
-        publicSignals.merkleRoot,
-        publicSignals.internalNullifier,
-        publicSignals.signalHash,
-        publicSignals.externalNullifier,
-      ],
-      proof,
-    )
-  }
-
-  /**
-   * Creates witness for rln proof
-   * @param merkleProof merkle proof that identity exists in RLN tree
-   * @param epoch epoch on which signal is broadcasted
-   * @param signal signal that is being broadcasted
-   * @param shouldHash should the signal be hashed, default is true
-   * @returns rln witness
+   * Verify and save the proof to the cache. If the proof is invalid, an error is thrown.
+   * Else, the proof is saved to the cache and is checked if it's a spam.
+   * @param proof the RLNFullProof to verify and save
+   * @returns the EvaluatedProof if the proof is valid, an error is thrown otherwise
    */
-  public _genWitness(
-    merkleProof: MerkleProof,
-    epoch: StrBigInt,
-    signal: string,
-    shouldHash = true,
-  ): RLNWitness {
-    return {
-      identitySecret: this.secretIdentity,
-      pathElements: merkleProof.siblings,
-      identityPathIndex: merkleProof.pathIndices,
-      x: shouldHash ? RLN._genSignalHash(signal) : signal,
-      externalNullifier: RLN._genNullifier(BigInt(epoch), this.rlnIdentifier),
+  async saveProof(proof: RLNFullProof): Promise<EvaluatedProof> {
+    if (!await this.verifyProof(proof)) {
+      throw new Error('Invalid proof')
     }
+    const { snarkProof, epoch } = proof
+    const { x, y, nullifier } = snarkProof.publicSignals
+    return this.cache.addProof({ x, y, nullifier, epoch })
   }
 
-  /**
-   * Calculates Output
-   * @param identitySecret identity secret
-   * @param epoch epoch on which signal is broadcasted
-   * @param rlnIdentifier unique identifier of rln dapp
-   * @param signalHash signal hash
-   * @returns y_share (share) & slashing nullifier
-   */
-  public _calculateOutput(
-    epoch: bigint,
-    signalHash: bigint,
-  ): bigint[] {
-    const externalNullifier = RLN._genNullifier(epoch, this.rlnIdentifier)
-    const a1 = poseidon([this.secretIdentity, externalNullifier])
-    // TODO! Check if this is zero/the identity secret
-    const yShare = Fq.normalize(a1 * signalHash + this.secretIdentity)
-    const internalNullifier = RLN._genNullifier(a1, this.rlnIdentifier)
-
-    return [yShare, internalNullifier]
-  }
-
-  /**
-   *
-   * @param a1 y = a1 * signalHash + a0 (a1 = poseidon(identity secret, epoch, rlnIdentifier))
-   * @param rlnIdentifier unique identifier of rln dapp
-   * @returns rln slashing nullifier
-   */
-  public static _genNullifier(a1: bigint, rlnIdentifier: bigint): bigint {
-    return poseidon([a1, rlnIdentifier])
-  }
-
-  /**
-   * Hashes a signal string with Keccak256.
-   * @param signal The RLN signal.
-   * @returns The signal hash.
-   */
-  public static _genSignalHash(signal: string): bigint {
-    const converted = hexlify(toUtf8Bytes(signal))
-
-    return BigInt(keccak256(['bytes'], [converted])) >> BigInt(8)
-  }
-
-  /**
-   * Recovers secret from two shares
-   * @param x1 signal hash of first message
-   * @param x2 signal hash of second message
-   * @param y1 yshare of first message
-   * @param y2 yshare of second message
-   * @returns identity secret
-   */
-  public static _shamirRecovery(x1: bigint, x2: bigint, y1: bigint, y2: bigint): bigint {
-    const slope = Fq.div(Fq.sub(y2, y1), Fq.sub(x2, x1))
-    const privateKey = Fq.sub(y1, Fq.mul(slope, x1))
-
-    return Fq.normalize(privateKey)
-  }
-
-  /**
-   * Recovers secret from two shares from the same internalNullifier (user) and epoch
-   * @param proof1 x1
-   * @param proof2 x2
-   * @returns identity secret
-   */
-  public static retrieveSecret(proof1: RLNFullProof, proof2: RLNFullProof): bigint {
-    if (!isProofSameExternalNullifier(proof1, proof2)) {
-      throw new Error('External Nullifiers do not match! Cannot recover secret.')
-    }
-    const snarkProof1 = proof1.snarkProof
-    const snarkProof2 = proof2.snarkProof
-    if (snarkProof1.publicSignals.internalNullifier !== snarkProof2.publicSignals.internalNullifier) {
-      // The internalNullifier is made up of the identityCommitment + epoch + rlnappID,
-      // so if they are different, the proofs are from:
-      // different users,
-      // different epochs,
-      // or different rln applications
-      throw new Error('Internal Nullifiers do not match! Cannot recover secret.')
-    }
-    return RLN._shamirRecovery(
-      BigInt(snarkProof1.publicSignals.signalHash),
-      BigInt(snarkProof2.publicSignals.signalHash),
-      BigInt(snarkProof1.publicSignals.yShare),
-      BigInt(snarkProof2.publicSignals.yShare),
-    )
-  }
-
-  /**
-   *
-   * @returns unique identifier of the rln dapp
-   */
-  public static _genIdentifier(): bigint {
-    return Fq.random()
-  }
-
-  public static _bigintToUint8Array(input: bigint): Uint8Array {
-    // const bigIntAsStr = input.toString()
-    // return Uint8Array.from(Array.from(bigIntAsStr).map(letter => letter.charCodeAt(0)));
-    return new Uint8Array(new BigUint64Array([input]).buffer)
-  }
-
-  public export(): RLNExportedT {
-    console.debug('Exporting RLN instance')
-    return {
-      identity: this.identity.toString(),
-      rlnIdentifier: String(this.rlnIdentifier),
-      verificationKey: JSON.stringify(this.verificationKey),
-      wasmFilePath: this.wasmFilePath,
-      finalZkeyPath: this.finalZkeyPath,
-    }
-  }
-
-  public static import(rlnInstance: RLNExportedT): RLN {
-    console.debug('Importing RLN instance')
-    return new RLN(
-      rlnInstance.wasmFilePath,
-      rlnInstance.finalZkeyPath,
-      JSON.parse(rlnInstance.verificationKey),
-      BigInt(rlnInstance.rlnIdentifier),
-      rlnInstance.identity,
-    )
-  }
-
-  public static async fromJSRLNProof(bytes: Uint8Array): Promise<RLNFullProof> {
-    const bn254 = await instantiateBn254()
-    return deserializeJSRLNProof(bn254, bytes)
-  }
-
-  public static async toJSRLNProof(rlnFullProof: RLNFullProof): Promise<Uint8Array> {
-    const bn254 = await instantiateBn254()
-    return serializeJSRLNProof(bn254, rlnFullProof)
-  }
 }

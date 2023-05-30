@@ -9,7 +9,8 @@
     - [Registry](#registry)
     - [Cache](#cache)
   - [Install](#install)
-    - [Building the circuits](#building-the-circuits)
+    - [Building the circuits with script](#build-the-circuits-with-script)
+    - [Clone the circuits and build them manually](#clone-the-circuits-and-build-them-manually)
     - [Add RLNjs to your project](#add-rlnjs-to-your-project)
   - [Usage](#usage)
     - [RLN](#rln-1)
@@ -51,18 +52,36 @@ The `Cache` class provides the ability to cache proofs by epoch and automaticall
 
 ## Install
 
-Circuit related files `verification_key.json`, `rln.wasm`, and `rln_final.zkey` are needed when instantiating a [RLN](src/rln.ts) instance. They can be built from [rln-circuit](ttps://github.com/Rate-Limiting-Nullifier/rln-circuits.git) with the following steps.
+Circuit related files `verification_key.json`, `rln.wasm`, and `rln_final.zkey` are needed when instantiating a [RLN](src/rln.ts) instance. RLN v2 is targeting [rln-circuits-v2](https://github.com/Rate-Limiting-Nullifier/rln-circuits-v2). You can choose to build the circuits [with script](#build-the-circuits-with-script) or [manually](#clone-the-circuits-and-build-them-manually).
 
-### Building the circuits
+### Build the circuits with script
+
+Run the script [scripts/build-zkeys.sh](scripts/build-zkeys.sh) and it will build the circuits for you.
+
+```bash
+./scripts/build-zkeys.sh
+```
+
+In the project root, you should can see the zkey files in the `./zkeyFiles` folder.
+```bash
+$ tree ./zkeyFiles
+zkeyFiles
+└── rln-v2-same
+    ├── rln.wasm
+    ├── rln_final.zkey
+    └── verification_key.json
+```
+
+### Clone the circuits and build them manually
 
 > Circom needs to be installed, please see this [link](https://docs.circom.io/getting-started/installation/) for installation instructions.
 
 ```bash
-git clone https://github.com/Rate-Limiting-Nullifier/rln-circuits.git &&
-cd rln-circuits
+git clone https://github.com/Rate-Limiting-Nullifier/rln-circuits-v2.git &&
+cd rln-circuits-v2
 ```
 
-> Make sure the depth in both rlnjs and rln-circuits are the same, otherwise verification might not be working. You will need to rebuild the circuits every time the circuit is changed.
+> Make sure the depth of the merkle tree are the same in both rlnjs and rln-circuits, otherwise verification might not be working. You will need to rebuild the circuits every time the circuit is changed.
 
 ```bash
 npm i &&
@@ -73,8 +92,8 @@ The previous step should have produced the following files:
 
 ```bash
 ./build/zkeyFiles/verification_key.json
-./build/zkeyFiles/rln.wasm
-./build/zkeyFiles/rln_final.zkey
+./build/zkeyFiles/rln-same.wasm
+./build/zkeyFiles/rln.zkey
 ```
 
 ### Add RLNjs to your project
@@ -93,13 +112,15 @@ npm install rlnjs
 import { RLN } from "rlnjs"
 
 // This assumes you have built the circom circuits and placed them into the folder ./zkeyFiles
-const zkeyFilesPath = "./zkeyFiles"
+const zkeyFilesPath = "./zkeyFiles/rln-v2-same";
 const vkeyPath = path.join(zkeyFilesPath, "verification_key.json")
 const vKey = JSON.parse(fs.readFileSync(vkeyPath, "utf-8"))
 const wasmFilePath = path.join(zkeyFilesPath, "rln.wasm")
 const finalZkeyPath = path.join(zkeyFilesPath, "rln_final.zkey")
 
-// Instantiate RLN
+// Instantiate RLN. The following parameters are optional:
+// - `rlnIdentifier` and `identity` are generated randomly since they're not given as parameters
+// - `messageLimit`: default is 10
 const rlnInstance = new RLN(wasmFilePath, finalZkeyPath, vKey)
 ```
 
@@ -115,7 +136,7 @@ const identityCommitment = rlnInstance.commitment()
 
 #### Generating a proof
 
-From the `rlnInstance` you can generate a proof by calling `rlnInstance.generateProof()`.
+From the `rlnInstance` you can generate a proof by calling `rlnInstance.generateProof()`. Note that for an epoch, you can only generate up to `messageLimit` proofs, each of them with a unique `messageId` within the range `[1, messageLimit]`. If a `messageId` is used twice, your secret will be leaked.
 
 Using RLN Registry:
 
@@ -123,7 +144,9 @@ Using RLN Registry:
 const epoch = 123
 const signal = "This is a test signal"
 const merkleProof = registryInstance.generateMerkleProof(rlnInstance.commitment) // Read more about creating a registryInstance below
-const proof = await rlnInstance.generateProof(signal, merkleProof, epoch)
+const messageId = 1 // The message id of the message you are sending
+
+const proof = await rlnInstance.generateProof(signal, merkleProof, epoch, messageId)
 ```
 
 Without RLN Registry:
@@ -133,6 +156,7 @@ const treeDepth = 20
 const zeroValue = BigInt(0)
 const epoch = BigInt(Math.floor(Date.now() / 1000)) // This epoch example is the nearest second
 const signal = "This is a test signal" // Example Message
+const messageId = 1  // the message id of the message you are sending
 const leaves = [] // Array of identity commitments
 const merkleProof = Registry.generateMerkleProof(
   treeDepth,
@@ -140,7 +164,7 @@ const merkleProof = Registry.generateMerkleProof(
   leaves,
   rlnInstance.commitment
 )
-const proof = await rlnInstance.generateProof(signal, merkleProof, epoch)
+const proof = await rlnInstance.generateProof(signal, merkleProof, epoch, messageId)
 ```
 
 Without RLN Registry or an RLN Instance:
@@ -150,21 +174,22 @@ const treeDepth = 20
 const zeroValue = BigInt(0)
 const epoch = BigInt(Math.floor(Date.now() / 1000)) // This epoch example is the nearest second
 const signal = "This is a test signal" // Example Message
+const messageId = 1  // the message id of the message you are sending
 const leaves = [] // Array of identity commitments
-const merkleProof = Registry.generateMerkleProof(
-  treeDepth,
-  zeroValue,
-  leaves,
-  identityCommitment
-)
-const proof = await RLN.generateProof(signal, merkleProof, epoch)
+const merkleProof = Registry.generateMerkleProof(treeDepth, zeroValue, leaves, identityCommitment)
+const proof = await rlnInstance.generateProof(signal, merkleProof, epoch, messageId)
 ```
 
 #### Verifying a proof
 
 ```js
-const proofResult = await RLN.verifyProof(vKey, proof)
+const proofResult = await rlnInstance.verifyProof(proof)
 ```
+
+A proof can be rejected in the following conditions:
+- The proof is not for you. You're using a different `rlnIdentifier` or `messageLimit`
+- The proof is not for the current epoch
+- The snark proof itself is invalid
 
 ### Registry
 
@@ -213,8 +238,8 @@ const cache = new Cache(rlnIdentifier)
 #### Add a Proof to the Cache
 
 ```js
-const epoch = 42424242
-let result = cache.addProof(epoch, proof)
+const epoch  = 42424242
+const result = cache.addProof(epoch, proof)
 console.log(result.status) // "added" or "breach" or "invalid"
 ```
 

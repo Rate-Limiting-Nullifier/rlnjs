@@ -1,15 +1,32 @@
-import { utils } from 'ffjavascript'
-import { RLNFullProof, StrBigInt } from './types'
-import RLN from './rln'
-import { isSameProof } from './utils'
+/**
+ * @module cache
+ * @description `ICache` is only responsible for storing necessary information to detect spams and automatically
+ * evaluating proofs for rate limit breaches. No proof validation inside and thus proofs **must** be validated
+ * before added to the `ICache`.
+ */
+import { StrBigInt } from './types'
+import { shamirRecovery } from './common'
+
+/**
+ * Store necessary information of a proof to detect spams
+ */
+export type CachedProof = {
+  x: StrBigInt,
+  y: StrBigInt,
+  // epoch is used to remove stale proofs
+  epoch: StrBigInt,
+  // internalNullifier
+  nullifier: StrBigInt,
+}
 
 type EpochCache = {
-  [nullifier: string]: RLNFullProof[]
+  [nullifier: string]: CachedProof[]
 }
 
 type CacheMap = {
   [epoch: string]: EpochCache
 }
+
 
 export enum Status {
   ADDED = 'added',
@@ -24,62 +41,64 @@ export type EvaluatedProof = {
   msg?: string,
 }
 
+export interface ICache {
+  addProof(proof: CachedProof): EvaluatedProof
+}
+
+const DEFAULT_CACHE_SIZE = 100
 /**
  * Cache for storing proofs and automatically evaluating them for rate limit breaches
+ * in the memory.
  */
-export default class Cache {
+export class MemoryCache implements ICache {
   cacheLength: number
-
-  rlnIdentifier: bigint
 
   cache: CacheMap
 
   epochs: string[]
 
   /**
-   * @param rlnIdentifier the RLN identifier for this cache
    * @param cacheLength the maximum number of epochs to store in the cache, default is 100, set to 0 to automatic pruning
    * @param cache the cache object to use, default is an empty object
    */
-  constructor(rlnIdentifier: StrBigInt, cacheLength?: number) {
-    this.rlnIdentifier = BigInt(rlnIdentifier)
-    this.cacheLength = cacheLength ? cacheLength : 100
+  constructor(cacheLength?: number) {
+    this.cacheLength = cacheLength ? cacheLength : DEFAULT_CACHE_SIZE
     this.cache = {}
     this.epochs = []
   }
 
   /**
    *  Adds a proof to the cache
-   * @param proof the RLNFullProof to add to the cache
+   * @param proof CachedProof
    * @returns an object with the status of the proof and the nullifier and secret if the proof is a breach
    */
-  addProof(fullProof: RLNFullProof): EvaluatedProof {
-    // Make sure epoch is a BigInt
-    const epochBigInt = BigInt(fullProof.epoch)
-    const expectedExternalNullifier = RLN._genNullifier(epochBigInt, this.rlnIdentifier)
-    const snarkProof = fullProof.snarkProof
-    // Check the proof matches the epoch and rlnIdentifier
-    if (BigInt(snarkProof.publicSignals.externalNullifier) !== expectedExternalNullifier) {
-      return { status: Status.INVALID, msg: 'Proof is not for this rlnIdentifier' }
-    }
+  addProof(proof: CachedProof): EvaluatedProof {
+    // epoch, nullifier, x, y
+    // Since `BigInt` can't be used as key, use String instead
+    const epochString = String(proof.epoch)
+    const nullifier = String(proof.nullifier)
 
-    // Use epoch as string as key since BigInt can't be used as key
-    const epochString = String(epochBigInt)
-    // Convert epoch and nullifier to string, can't use BigInt as a key
-    const nullifier = String(snarkProof.publicSignals.internalNullifier)
     this.evaluateEpoch(epochString)
     // If nullifier doesn't exist for this epoch, create an empty array
     this.cache[epochString][nullifier] = this.cache[epochString][nullifier] || []
 
     // Check if the proof already exists. It's O(n) but it's not a big deal since n is exactly the
     // rate limit and it's usually small.
-    const sameProofs = this.cache[epochString][nullifier].filter(p => isSameProof(p, fullProof))
+    function isSameProof(proof1: CachedProof, proof2: CachedProof): boolean {
+      return (
+        BigInt(proof1.x) === BigInt(proof2.x) &&
+        BigInt(proof1.y) === BigInt(proof2.y) &&
+        BigInt(proof1.epoch) === BigInt(proof2.epoch) &&
+        BigInt(proof1.nullifier) === BigInt(proof2.nullifier)
+      )
+    }
+    const sameProofs = this.cache[epochString][nullifier].filter(p => isSameProof(p, proof))
     if (sameProofs.length > 0) {
       return { status: Status.INVALID, msg: 'Proof already exists' }
     }
 
     // Add proof to cache
-    this.cache[epochString][nullifier].push(fullProof)
+    this.cache[epochString][nullifier].push(proof)
 
     // Check if there is more than 1 proof for this nullifier for this epoch
     return this.evaluateNullifierAtEpoch(epochString, nullifier)
@@ -89,7 +108,9 @@ export default class Cache {
     const proofs = this.cache[epoch][nullifier]
     if (proofs.length > 1) {
       // If there is more than 1 proof, return breach and secret
-      const secret = RLN.retrieveSecret(proofs[0], proofs[1])
+      const [x1, y1] = [BigInt(proofs[0].x), BigInt(proofs[0].y)]
+      const [x2, y2] = [BigInt(proofs[1].x), BigInt(proofs[1].y)]
+      const secret = shamirRecovery(x1, x2, y1, y2)
       return { status: Status.BREACH, nullifier: nullifier, secret: secret, msg: 'Rate limit breach, secret attached' }
     } else {
       // If there is only 1 proof, return added
@@ -115,35 +136,5 @@ export default class Cache {
   private removeEpoch(epoch: string) {
     delete this.cache[epoch]
     this.epochs.shift()
-  }
-
-  /**
-   * Exports the cache instance
-   * @returns the exported cache in JSON format string
-   */
-  public export(): string {
-    // Stringify all BigInts
-    const stringified = utils.stringifyBigInts(this)
-    return JSON.stringify(stringified)
-  }
-
-  /**
-   * Imports a cache instance from a exported previously exported cache
-   * @param exportedString exported string from `export` method
-   * @returns the cache instance
-   * @throws Error if the cache object is invalid
-   **/
-  public static import(cacheString: string): Cache {
-    const bigintsStringified = JSON.parse(cacheString)
-    const cacheObj = utils.unstringifyBigInts(bigintsStringified)
-    // All fields must exist
-    if (!cacheObj.rlnIdentifier || !cacheObj.cacheLength || !cacheObj.cache || !cacheObj.epochs) {
-      throw new Error('Invalid cache object')
-    }
-
-    const cacheInstance = new Cache(cacheObj.rlnIdentifier, cacheObj.cacheLength)
-    cacheInstance.cache = cacheObj.cache
-    cacheInstance.epochs = cacheObj.epochs
-    return cacheInstance
   }
 }
