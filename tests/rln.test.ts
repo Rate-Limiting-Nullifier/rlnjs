@@ -22,15 +22,18 @@ describe("RLN", function () {
     describe("constructor params", function () {
         const rlnIdentifierA = BigInt(1);
 
-        it("should fail when no proving params and verification key", async function () {
+        it("should fail when neither proving params nor verification key is given", async function () {
             expect(() => {
                 new RLN({
                     rlnIdentifier: rlnIdentifierA,
                 });
-            }).toThrow("Either both `wasmFilePath` and `finalZkeyPath` must be supplied");
+            }).toThrow(
+                'Either both `wasmFilePath` and `finalZkeyPath` must be supplied to generate proofs, ' +
+                'or `verificationKey` must be provided to verify proofs.'
+            );
         });
 
-        it("should fail when proving if no proving params given", async function () {
+        it("should fail to prove if no proving params is given as constructor arguments", async function () {
             const verificationKey = parseVerificationKeyJSON(fs.readFileSync(rlnParamsPath.vkeyPath, "utf-8"))
             const rln = new RLN({
                 rlnIdentifier: rlnIdentifierA,
@@ -41,7 +44,7 @@ describe("RLN", function () {
             }).rejects.toThrow("Prover is not initialized");
         });
 
-        it("should fail when verifying if no verification key given", async function () {
+        it("should fail when verifying if no verification key is given as constructor arguments", async function () {
             const rln = new RLN({
                 rlnIdentifier: rlnIdentifierA,
                 wasmFilePath: rlnParamsPath.wasmFilePath,
