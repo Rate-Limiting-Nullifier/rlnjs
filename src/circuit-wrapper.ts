@@ -163,3 +163,51 @@ export class RLNVerifier {
     )
   }
 }
+
+type SNARKProof = {
+  proof: Proof
+  publicSignals: StrBigInt[]
+}
+
+/**
+ * Wrapper of Withdraw circuit for proof generation.
+ */
+export class WithdrawProver {
+  wasmFilePath: string
+
+  finalZkeyPath: string
+
+  constructor(wasmFilePath: string, finalZkeyPath: string) {
+    this.wasmFilePath = wasmFilePath
+    this.finalZkeyPath = finalZkeyPath
+  }
+
+  async generateProof(args: { identitySecret: bigint, address: bigint }): Promise<SNARKProof> {
+    return await groth16.fullProve(
+      args,
+      this.wasmFilePath,
+      this.finalZkeyPath,
+      null,
+    ) as SNARKProof
+  }
+}
+
+/**
+ * Wrapper of Withdraw circuit for verification. Since verifier is deployed
+ * on-chain, this class mainly used for testing.
+ */
+export class WithdrawVerifier {
+  verificationKey: VerificationKey
+
+  constructor(verificationKey: VerificationKey) {
+    this.verificationKey = verificationKey
+  }
+
+  async verifyProof(proof: SNARKProof): Promise<boolean> {
+    return groth16.verify(
+      this.verificationKey,
+      proof.publicSignals,
+      proof.proof,
+    )
+  }
+}

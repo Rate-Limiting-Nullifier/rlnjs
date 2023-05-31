@@ -1,6 +1,6 @@
 import { MemoryCache } from "../src"
 import { CachedProof, Status } from '../src/cache'
-import { fieldFactory } from "./factories"
+import { fieldFactory } from "./utils"
 
 describe("MemoryCache", () => {
   const signal1 = BigInt(11111)

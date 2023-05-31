@@ -1,11 +1,29 @@
-import * as fs from "fs";
 import { RLN, RLNFullProof } from "../src";
-import { MemoryCache, Status } from "../src/cache";
-import { rlnParamsPath } from "./configs";
-import { parseVerificationKeyJSON, rlnInstanceFactory } from "./factories";
+import { ICache, MemoryCache, Status } from "../src/cache";
+import { rlnParams } from "./configs";
 import { MemoryMessageIDCounter } from "../src/message-id-counter";
-import { MemoryRLNRegistry } from "../src/registry";
+import { IRLNRegistry, MemoryRLNRegistry } from "../src/registry";
+import { Identity } from "@semaphore-protocol/identity";
+import { fieldFactory } from "./utils";
 
+
+function rlnInstanceFactory(args: {
+    rlnIdentifier?: bigint,
+    identity?: Identity,
+    registry?: IRLNRegistry,
+    cache?: ICache,
+}) {
+    const rlnIdentifier = args.rlnIdentifier ? args.rlnIdentifier : fieldFactory()
+    return new RLN({
+        wasmFilePath: rlnParams.wasmFilePath,
+        finalZkeyPath: rlnParams.finalZkeyPath,
+        verificationKey: rlnParams.verificationKey,
+        rlnIdentifier,
+        identity: args.identity,
+        registry: args.registry,
+        cache: args.cache,
+    })
+}
 
 class FakeMessageIDCounter extends MemoryMessageIDCounter {
     reset(epoch: bigint) {
@@ -34,10 +52,9 @@ describe("RLN", function () {
         });
 
         it("should fail to prove if no proving params is given as constructor arguments", async function () {
-            const verificationKey = parseVerificationKeyJSON(fs.readFileSync(rlnParamsPath.vkeyPath, "utf-8"))
             const rln = new RLN({
                 rlnIdentifier: rlnIdentifierA,
-                verificationKey,
+                verificationKey: rlnParams.verificationKey,
             })
             expect(async () => {
                 await rln.createProof(BigInt(0), "abc")
@@ -47,8 +64,8 @@ describe("RLN", function () {
         it("should fail when verifying if no verification key is given as constructor arguments", async function () {
             const rln = new RLN({
                 rlnIdentifier: rlnIdentifierA,
-                wasmFilePath: rlnParamsPath.wasmFilePath,
-                finalZkeyPath: rlnParamsPath.finalZkeyPath,
+                wasmFilePath: rlnParams.wasmFilePath,
+                finalZkeyPath: rlnParams.finalZkeyPath,
             })
             const mockProof = {} as RLNFullProof
             expect(async () => {
