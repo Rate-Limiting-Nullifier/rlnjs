@@ -1,7 +1,7 @@
 import { IncrementalMerkleTree } from "@zk-kit/incremental-merkle-tree"
 import { calculateRateCommitment } from '../src/common';
 import { MemoryRLNRegistry } from '../src/registry'
-import { fieldFactory } from './factories';
+import { fieldFactory } from './utils';
 import poseidon from "poseidon-lite";
 
 import { zeroPad } from '@ethersproject/bytes'
