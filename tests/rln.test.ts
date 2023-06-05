@@ -275,5 +275,7 @@ describe("RLN", function () {
             const resA11 = await rlnA2.saveProof(proofA11);
             expect(resA11.status).toBe(Status.INVALID);
         });
+
+        // TODO: Add tests to set messageIDCounter
     });
 });

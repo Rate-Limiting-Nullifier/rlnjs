@@ -39,6 +39,25 @@ function proofToArray(proof: Proof) {
   ]
 }
 
+
+export type EventMemberRegistered = {
+  name: 'MemberRegistered',
+  identityCommitment: bigint,
+  messageLimit: bigint,
+  index: bigint,
+}
+
+export type EventMemberWithdrawn = {
+  name: 'MemberWithdrawn',
+  index: bigint,
+}
+
+export type EventMemberSlashed = {
+  name: 'MemberSlashed',
+  index: bigint,
+  slasher: string,
+}
+
 export class RLNContract {
   // Either a signer (with private key)  or a provider (without private key and read-only)
   provider: ethers.Provider
@@ -68,25 +87,64 @@ export class RLNContract {
     this.numBlocksDelayed = args.numBlocksDelayed
   }
 
-  async getAllLogs() {
+  async getLogs() {
+    const rlnContractAddress = await this.rlnContract.getAddress()
     const currentBlockNumber = await this.provider.getBlockNumber()
     if (currentBlockNumber < this.contractAtBlock) {
       throw new Error('Current block number is lower than the block number at which the contract was deployed')
     }
     const targetBlockNumber = currentBlockNumber - this.numBlocksDelayed
     const logs = await this.provider.getLogs({
+      address: rlnContractAddress,
       fromBlock: this.contractAtBlock,
       toBlock: targetBlockNumber,
     })
-    return logs
+    const events = await Promise.all(logs.map(log => this.handleLog(log)))
+    return events.filter(x => x !== undefined) as (EventMemberRegistered | EventMemberWithdrawn | EventMemberSlashed)[]
   }
 
-  async register(identityCommitment: bigint, amount: bigint): Promise<ethers.TransactionReceipt> {
+  private async handleLog(log: ethers.Log): Promise<EventMemberRegistered | EventMemberWithdrawn | EventMemberSlashed | undefined> {
+    const memberRegisteredFilter = this.rlnContract.filters.MemberRegistered()
+    const memberWithdrawnFilter = this.rlnContract.filters.MemberWithdrawn()
+    const memberSlashedFilter = this.rlnContract.filters.MemberSlashed()
+    const memberRegisteredTopics: ethers.TopicFilter = await memberRegisteredFilter.getTopicFilter()
+    const memberWithdrawnTopics: ethers.TopicFilter = await memberWithdrawnFilter.getTopicFilter()
+    const memberSlashedTopics: ethers.TopicFilter = await memberSlashedFilter.getTopicFilter()
+
+    if (log.topics[0] === memberRegisteredTopics[0]) {
+      const decoded = this.rlnContract.interface.decodeEventLog(memberRegisteredFilter.fragment, log.data)
+      return {
+        name: 'MemberRegistered',
+        identityCommitment: decoded.identityCommitment,
+        messageLimit: decoded.messageLimit,
+        index: decoded.index,
+      }
+    } else if (log.topics[0] === memberWithdrawnTopics[0]) {
+      const decoded = this.rlnContract.interface.decodeEventLog(memberWithdrawnFilter.fragment, log.data)
+      return {
+        name: 'MemberWithdrawn',
+        index: decoded.index,
+      }
+    } else if (log.topics[0] === memberSlashedTopics[0]) {
+      const decoded = this.rlnContract.interface.decodeEventLog(memberSlashedFilter.fragment, log.data)
+      return {
+        name: 'MemberSlashed',
+        index: decoded.index,
+        slasher: decoded.slasher,
+      }
+    } else {
+      // Just skip this log
+      return undefined
+    }
+  }
+
+  async register(identityCommitment: bigint, messageLimit: bigint): Promise<ethers.TransactionReceipt> {
     const rlnContractAddress = await this.rlnContract.getAddress()
+    const pricePerMessageLimit = await this.rlnContract.MINIMAL_DEPOSIT()
+    const amount = messageLimit * pricePerMessageLimit
     const txApprove = await this.tokenContract.approve(rlnContractAddress, amount)
     await txApprove.wait()
     const txRegister = await this.rlnContract.register(identityCommitment, amount)
-    // TODO: Wait until the MemberRegistered event is emitted?
     const receipt = await txRegister.wait()
     return receipt
   }
