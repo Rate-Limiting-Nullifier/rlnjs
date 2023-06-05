@@ -1,8 +1,6 @@
 import { Identity } from '@semaphore-protocol/identity'
-import poseidon from 'poseidon-lite'
-
 import { VerificationKey } from './types'
-import { calculateSignalHash } from './common'
+import { calculateIdentityCommitment, calculateSignalHash } from './common'
 import { IRLNRegistry, MemoryRLNRegistry } from './registry'
 import { MemoryCache, EvaluatedProof, ICache } from './cache'
 import { IMessageIDCounter, MemoryMessageIDCounter } from './message-id-counter'
@@ -133,10 +131,7 @@ export class RLN implements IRLN {
   }
 
   private get identitySecret(): bigint {
-    return poseidon([
-      this.identity.getNullifier(),
-      this.identity.getTrapdoor(),
-    ])
+    return calculateIdentityCommitment(this.identity)
   }
 
   get rateCommitment(): bigint {

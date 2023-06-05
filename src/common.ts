@@ -5,6 +5,7 @@ import { keccak256 } from '@ethersproject/keccak256'
 import { ZqField } from 'ffjavascript'
 
 import poseidon from 'poseidon-lite'
+import { Identity } from '@semaphore-protocol/identity'
 
 /*
   This is the "Baby Jubjub" curve described here:
@@ -14,6 +15,13 @@ export const SNARK_FIELD_SIZE = BigInt('2188824287183927522224640574525727508854
 
 // Creates the finite field
 export const Fq = new ZqField(SNARK_FIELD_SIZE)
+
+export function calculateIdentityCommitment(identity: Identity): bigint {
+  return poseidon([
+    identity.getNullifier(),
+    identity.getTrapdoor(),
+  ])
+}
 
 export function calculateExternalNullifier(epoch: bigint, rlnIdentifier: bigint): bigint {
   return poseidon([epoch, rlnIdentifier])

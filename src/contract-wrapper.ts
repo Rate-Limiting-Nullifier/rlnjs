@@ -20,19 +20,26 @@ type User = {
     event MemberSlashed(uint256 index, address slasher);
  */
 
-/**
- * Interface to interact with RLN contract.
- */
-interface IRLNContract {
-  // getTreeDepth(): Promise<number>
-  // getMinimalDeposit(): Promise<bigint>
-
-  register(identityCommitment: bigint, amount: bigint): Promise<void>
-  withdraw(identityCommitment: bigint, proof: Proof): Promise<void>
-  slash(identityCommitment: bigint, receiver: string, proof: Proof): Promise<void>
+function proofToArray(proof: Proof) {
+  // verifier.verifyProof(
+  //     [proof[0], proof[1]],
+  //     [[proof[2], proof[3]], [proof[4], proof[5]]],
+  //     [proof[6], proof[7]],
+  //     [identityCommitment, uint256(uint160(receiver))]
+  // );
+  return [
+    BigInt(proof.pi_a[0]),
+    BigInt(proof.pi_a[1]),
+    BigInt(proof.pi_b[0][0]),
+    BigInt(proof.pi_b[0][1]),
+    BigInt(proof.pi_b[1][0]),
+    BigInt(proof.pi_b[1][1]),
+    BigInt(proof.pi_c[0]),
+    BigInt(proof.pi_c[1]),
+  ]
 }
 
-export class RLNContract implements IRLNContract {
+export class RLNContract {
   // Either a signer (with private key)  or a provider (without private key and read-only)
   provider: ethers.Provider
 
@@ -74,14 +81,14 @@ export class RLNContract implements IRLNContract {
     return logs
   }
 
-  async register(identityCommitment: bigint, amount: bigint): Promise<void> {
+  async register(identityCommitment: bigint, amount: bigint): Promise<ethers.TransactionReceipt> {
     const rlnContractAddress = await this.rlnContract.getAddress()
     const txApprove = await this.tokenContract.approve(rlnContractAddress, amount)
     await txApprove.wait()
     const txRegister = await this.rlnContract.register(identityCommitment, amount)
-    await txRegister.wait()
     // TODO: Wait until the MemberRegistered event is emitted?
-    // TODO: Check message limit?
+    const receipt = await txRegister.wait()
+    return receipt
   }
 
   async getUser(identityCommitment: bigint): Promise<User> {
@@ -93,30 +100,28 @@ export class RLNContract implements IRLNContract {
     }
   }
 
-  async withdraw(identityCommitment: bigint, _: Proof): Promise<void> {
-    // verifier.verifyProof(
-    //     [proof[0], proof[1]],
-    //     [[proof[2], proof[3]], [proof[4], proof[5]]],
-    //     [proof[6], proof[7]],
-    //     [identityCommitment, uint256(uint160(receiver))]
-    // );
-    // FIXME: parse proof and pass it to `withdraw`
-    const tx = await this.rlnContract.withdraw(identityCommitment, [])
-    await tx.wait()
+  async withdraw(identityCommitment: bigint, proof: Proof): Promise<ethers.TransactionReceipt> {
+    const proofArray = proofToArray(proof)
+    const tx = await this.rlnContract.withdraw(identityCommitment, proofArray)
+    const receipt = await tx.wait()
+    return receipt
   }
 
-  async slash(identityCommitment: bigint, receiver: EthereumAddress, proof: Proof): Promise<void> {
-    const tx = await this.rlnContract.slash(identityCommitment, receiver, proof)
-    await tx.wait()
-  }
-
-  async release(identityCommitment: bigint): Promise<void> {
+  async release(identityCommitment: bigint): Promise<ethers.TransactionReceipt> {
     const tx = await this.rlnContract.release(identityCommitment)
-    await tx.wait()
+    const receipt = await tx.wait()
+    return receipt
+  }
+
+  async slash(identityCommitment: bigint, receiver: EthereumAddress, proof: Proof): Promise<ethers.TransactionReceipt> {
+    const proofArray = proofToArray(proof)
+    const tx = await this.rlnContract.slash(identityCommitment, receiver, proofArray)
+    const receipt = await tx.wait()
+    return receipt
   }
 
   async isRegistered(identityCommitment: bigint): Promise<boolean> {
-    const address = await this.rlnContract.members(identityCommitment)
-    return address !== ethers.ZeroAddress
+    const user = await this.getUser(identityCommitment)
+    return user.userAddress !== ethers.ZeroAddress
   }
 }

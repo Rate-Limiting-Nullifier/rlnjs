@@ -56,7 +56,7 @@ describe("RLN", function () {
                 rlnIdentifier: rlnIdentifierA,
                 verificationKey: rlnParams.verificationKey,
             })
-            expect(async () => {
+            await expect(async () => {
                 await rln.createProof(BigInt(0), "abc")
             }).rejects.toThrow("Prover is not initialized");
         });
@@ -68,10 +68,10 @@ describe("RLN", function () {
                 finalZkeyPath: rlnParams.finalZkeyPath,
             })
             const mockProof = {} as RLNFullProof
-            expect(async () => {
+            await expect(async () => {
                 await rln.verifyProof(mockProof)
             }).rejects.toThrow("Verifier is not initialized");
-            expect(async () => {
+            await expect(async () => {
                 await rln.saveProof(mockProof)
             }).rejects.toThrow("Verifier is not initialized");
         });
@@ -116,7 +116,7 @@ describe("RLN", function () {
         });
 
         it("should fail when creating proof if not registered", async function () {
-            expect(async () => {
+            await expect(async () => {
                 await rlnA0.createProof(BigInt(0), "abc")
             }).rejects.toThrow("User has not registered before");
         });
@@ -149,7 +149,7 @@ describe("RLN", function () {
             const currentMessageID = await messageIDCounterA0.peekNextMessageID(epoch0);
             // Sanity check: messageID should be equal to limit now
             expect(currentMessageID).toBe(messageLimitA0);
-            expect(async () => {
+            await expect(async () => {
                 await rlnA0.createProof(epoch0, message0);
             }).rejects.toThrow("Message ID counter exceeded message limit")
         });
@@ -182,7 +182,7 @@ describe("RLN", function () {
         });
 
         it("should fail to create proof after withdraw", async function () {
-            expect(async () => {
+            await expect(async () => {
                 await rlnA0.createProof(epoch0, message0);
             }).rejects.toThrow("User has not registered before");
         });
