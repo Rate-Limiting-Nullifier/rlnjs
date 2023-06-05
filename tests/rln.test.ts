@@ -110,9 +110,9 @@ describe("RLN", function () {
 
 
         it("should have correct members after initialization", async function () {
-            expect(rlnA0.isRegistered).toBe(false);
-            expect(rlnA0.allRateCommitments.length).toBe(0);
-            expect(rlnA0.merkleRoot).toBe(rlnA1.merkleRoot);
+            expect(await rlnA0.isRegistered()).toBe(false);
+            expect((await rlnA0.getAllRateCommitments()).length).toBe(0);
+            expect(await rlnA0.getMerkleRoot()).toBe(await rlnA1.getMerkleRoot());
         });
 
         it("should fail when creating proof if not registered", async function () {
@@ -122,17 +122,18 @@ describe("RLN", function () {
         });
 
         it("should register A0 successfully", async function () {
-            rlnA0.register(messageLimitA0, messageIDCounterA0);
+            await rlnA0.register(messageLimitA0, messageIDCounterA0);
             // A0 has not been updated in the registry
-            expect(rlnA0.isRegistered).toBe(false);
-            expect(rlnA0.allRateCommitments.length).toBe(0);
+            expect(await rlnA0.isRegistered()).toBe(false);
+            expect((await rlnA0.getAllRateCommitments()).length).toBe(0);
         });
 
         it("should update registry for A0 successfully", async function () {
-            rlnA0.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
-            expect(rlnA0.isRegistered).toBe(true);
-            expect(rlnA0.allRateCommitments.length).toBe(1);
-            expect(rlnA0.allRateCommitments[0]).toBe(rlnA0.rateCommitment);
+            await rlnA0.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
+            expect(await rlnA0.isRegistered()).toBe(true);
+            const allRateCommitments = await rlnA0.getAllRateCommitments();
+            expect(allRateCommitments.length).toBe(1);
+            expect(allRateCommitments[0]).toBe(await rlnA0.getRateCommitment());
         });
 
         it("should be able to create proof", async function () {
@@ -169,16 +170,16 @@ describe("RLN", function () {
         });
 
         it("should be able to withdraw", async function () {
-            rlnA0.withdraw();
+            await rlnA0.withdraw();
             // A0 has not been updated in the registry
-            expect(rlnA0.isRegistered).toBe(true);
-            expect(rlnA0.allRateCommitments.length).toBe(1);
+            expect(await rlnA0.isRegistered()).toBe(true);
+            expect((await rlnA0.getAllRateCommitments()).length).toBe(1);
         });
 
         it("should update the registry for A0 successfully", async function () {
-            rlnA0.removeRegisteredMember(rlnA0.identityCommitment);
-            expect(rlnA0.isRegistered).toBe(false);
-            expect(rlnA0.allRateCommitments.length).toBe(1);
+            await rlnA0.removeRegisteredMember(rlnA0.identityCommitment);
+            expect(await rlnA0.isRegistered()).toBe(false);
+            expect((await rlnA0.getAllRateCommitments()).length).toBe(1);
         });
 
         it("should fail to create proof after withdraw", async function () {
@@ -188,20 +189,22 @@ describe("RLN", function () {
         });
 
         it("should be able to update A0's register/withdraw record to A1", async function () {
-            rlnA1.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
-            rlnA1.removeRegisteredMember(rlnA0.identityCommitment);
-            expect(rlnA1.isRegistered).toBe(false);
-            expect(rlnA1.allRateCommitments.length).toBe(1);
-            expect(rlnA1.allRateCommitments[0]).toBe(rlnA0.allRateCommitments[0]);
-            expect(rlnA1.merkleRoot).toBe(rlnA0.merkleRoot);
+            await rlnA1.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
+            await rlnA1.removeRegisteredMember(rlnA0.identityCommitment);
+            expect(await rlnA1.isRegistered()).toBe(false);
+            const allRateCommitmentsA1 = await rlnA1.getAllRateCommitments();
+            expect(allRateCommitmentsA1.length).toBe(1);
+            expect(allRateCommitmentsA1[0]).toBe((await rlnA0.getAllRateCommitments())[0]);
+            expect(await rlnA1.getMerkleRoot()).toBe(await rlnA0.getMerkleRoot());
         });
 
         it("should be able to register A1", async function () {
-            rlnA1.register(messageLimitA1, messageIDCounterA1);
-            rlnA1.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
-            expect(rlnA1.isRegistered).toBe(true);
-            expect(rlnA1.allRateCommitments.length).toBe(2);
-            expect(rlnA1.allRateCommitments[1]).toBe(rlnA1.rateCommitment);
+            await rlnA1.register(messageLimitA1, messageIDCounterA1);
+            await rlnA1.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
+            expect(await rlnA1.isRegistered()).toBe(true);
+            const allRateCommitmentsA1 = await rlnA1.getAllRateCommitments();
+            expect(allRateCommitmentsA1.length).toBe(2);
+            expect(allRateCommitmentsA1[1]).toBe(await rlnA1.getRateCommitment());
         });
 
         it("should reveal its secret by itself if A1 creates more than `messageLimitA1` messages", async function () {
@@ -229,7 +232,7 @@ describe("RLN", function () {
 
         it("should be slashed by others too", async function () {
             // A0 adds rlnA1 to its registry
-            rlnA0.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
+            await rlnA0.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
             // Test: A0 is up-to-date and receives more than `messageLimitA1` proofs,
             // so A1's secret is breached by A0
             const resA10 = await rlnA0.saveProof(proofA10);
@@ -242,9 +245,9 @@ describe("RLN", function () {
             // Create another rlnInstance with different rlnIdentifier
             const rlnB = rlnInstanceFactory({rlnIdentifier: rlnIdentifierB})
             // Make it up-to-date with the latest membership
-            rlnB.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
-            rlnB.removeRegisteredMember(rlnA0.identityCommitment);
-            rlnB.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
+            await rlnB.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
+            await rlnB.removeRegisteredMember(rlnA0.identityCommitment);
+            await rlnB.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
             // Test: verifyProof fails since proofA10.rlnIdentifier mismatches rlnB's rlnIdentifier
             expect(await rlnB.verifyProof(proofA10)).toBe(false);
         });
@@ -255,20 +258,21 @@ describe("RLN", function () {
                 rlnIdentifier: rlnIdentifierA,
                 registry: registryA1,
             })
-            expect(rlnA2.merkleRoot).toBe(rlnA1.merkleRoot);
+            expect(await rlnA2.getMerkleRoot()).toBe(await rlnA1.getMerkleRoot());
         });
 
-        it("should be able to reuse cache", async function () {
-            // Test: A2's cache is sync with A1 by reusing A1's cache
+        it("should be able to reuse registry and cache", async function () {
+            // Test: A2's cache is sync with A1 by reusing A1's registry and cache
             const rlnA2 = rlnInstanceFactory({
                 rlnIdentifier: rlnIdentifierA,
+                registry: registryA1,
                 cache: cacheA1,
             })
             // Since the cache already contains both proofA10 and proofA11,
             // both results are invalid, due to adding duplicate proofs.
-            const resA10 = await rlnA1.saveProof(proofA10);
+            const resA10 = await rlnA2.saveProof(proofA10);
             expect(resA10.status).toBe(Status.INVALID);
-            const resA11 = await rlnA1.saveProof(proofA11);
+            const resA11 = await rlnA2.saveProof(proofA11);
             expect(resA11.status).toBe(Status.INVALID);
         });
     });

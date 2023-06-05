@@ -19,77 +19,77 @@ describe('RLNRegistry', () => {
   const treeDepth = 20
   const registry = new MemoryRLNRegistry(rlnIdentifier, treeDepth)
 
-  it('should be initialized correctly', () => {
-    expect(registry.rateCommitments).toEqual([])
+  it('should be initialized correctly', async () => {
+    expect(await registry.getAllRateCommitments()).toEqual([])
     expect(registry.registeredRecords).toEqual([])
     expect(registry.deletedRecords).toEqual([])
   });
 
-  it('should fail when we query `identityCommitment0` before registration', () => {
-    expect(registry.isRegistered(identityCommitment0)).toBeFalsy()
-    expect(() => {
-      registry.getMessageLimit(identityCommitment0)
-    }).toThrow()
-    expect(() => {
-      registry.getRateCommitment(identityCommitment0)
-    }).toThrow()
-    expect(() => {
-      registry.generateMerkleProof(identityCommitment0)
-    }).toThrow()
+  it('should fail when we query `identityCommitment0` before registration', async () => {
+    expect(await registry.isRegistered(identityCommitment0)).toBeFalsy()
+    await expect(async () => {
+      await registry.getMessageLimit(identityCommitment0)
+    }).rejects.toThrow()
+    await expect(async () => {
+      await registry.getRateCommitment(identityCommitment0)
+    }).rejects.toThrow()
+    await expect(async () => {
+      await registry.generateMerkleProof(identityCommitment0)
+    }).rejects.toThrow()
   });
 
-  it('should register with `messageLimit`', () => {
-    registry.addNewRegistered(identityCommitment0, messageLimit0)
-    expect(registry.isRegistered(identityCommitment0)).toBeTruthy()
-    expect(registry.getMessageLimit(identityCommitment0)).toEqual(messageLimit0)
+  it('should register with `messageLimit`', async () => {
+    await registry.addNewRegistered(identityCommitment0, messageLimit0)
+    expect(await registry.isRegistered(identityCommitment0)).toBeTruthy()
+    expect(await registry.getMessageLimit(identityCommitment0)).toEqual(messageLimit0)
     const expectedRateCommitment = calculateRateCommitment(identityCommitment0, messageLimit0);
-    expect(registry.getRateCommitment(identityCommitment0)).toEqual(expectedRateCommitment)
+    expect(await registry.getRateCommitment(identityCommitment0)).toEqual(expectedRateCommitment)
   });
 
-  it('should fail to register `identityCommitment0` again', () => {
-    expect(() => {
-      registry.addNewRegistered(identityCommitment0, messageLimit0)
-    }).toThrow()
+  it('should fail to register `identityCommitment0` again', async () => {
+    await expect(async () => {
+      await registry.addNewRegistered(identityCommitment0, messageLimit0)
+    }).rejects.toThrow()
     // Even with different message limit
-    expect(() => {
-      registry.addNewRegistered(identityCommitment0, messageLimit1)
-    }).toThrow()
+    await expect(async () => {
+      await registry.addNewRegistered(identityCommitment0, messageLimit1)
+    }).rejects.toThrow()
   });
 
-  it('should register `identityCommitment1`', () => {
-    registry.addNewRegistered(identityCommitment1, messageLimit1)
-    expect(registry.isRegistered(identityCommitment1)).toBeTruthy()
-    expect(registry.getMessageLimit(identityCommitment1)).toEqual(messageLimit1)
+  it('should register `identityCommitment1`', async () => {
+    await registry.addNewRegistered(identityCommitment1, messageLimit1)
+    expect(await registry.isRegistered(identityCommitment1)).toBeTruthy()
+    expect(await registry.getMessageLimit(identityCommitment1)).toEqual(messageLimit1)
     const expectedRateCommitment = calculateRateCommitment(identityCommitment1, messageLimit1);
-    expect(registry.getRateCommitment(identityCommitment1)).toEqual(expectedRateCommitment)
+    expect(await registry.getRateCommitment(identityCommitment1)).toEqual(expectedRateCommitment)
   });
 
-  it('should delete `identityCommitment0`', () => {
-    registry.deleteRegistered(identityCommitment0)
-    expect(registry.isRegistered(identityCommitment0)).toBeFalsy()
-    expect(() => {
-      registry.getMessageLimit(identityCommitment0)
-    }).toThrow()
-    expect(() => {
-      registry.getRateCommitment(identityCommitment0)
-    }).toThrow()
+  it('should delete `identityCommitment0`', async () => {
+    await registry.deleteRegistered(identityCommitment0)
+    expect(await registry.isRegistered(identityCommitment0)).toBeFalsy()
+    await expect(async () => {
+      await registry.getMessageLimit(identityCommitment0)
+    }).rejects.toThrow()
+    await expect(async () => {
+      await registry.getRateCommitment(identityCommitment0)
+    }).rejects.toThrow()
   });
 
-  it('should fail to delete `identityCommitment0` again', () => {
-    expect(() => {
-      registry.deleteRegistered(identityCommitment0)
-    }).toThrow()
+  it('should fail to delete `identityCommitment0` again', async () => {
+    await expect(async () => {
+      await registry.deleteRegistered(identityCommitment0)
+    }).rejects.toThrow()
   });
 
-  it('should return correct final states', () => {
+  it('should return correct final states', async () => {
     expect(registry.registeredRecords.length).toEqual(2)
-    expect(registry.rateCommitments.length).toEqual(2)
+    expect((await registry.getAllRateCommitments()).length).toEqual(2)
     expect(registry.deletedRecords.length).toEqual(1)
   });
 
-  it('should generate valid merkle proof for `identityCommitment1`', () => {
-    const proof = registry.generateMerkleProof(identityCommitment1)
-    expect(proof.root).toEqual(registry.merkleRoot)
+  it('should generate valid merkle proof for `identityCommitment1`', async () => {
+    const proof = await registry.generateMerkleProof(identityCommitment1)
+    expect(proof.root).toEqual(await registry.getMerkleRoot())
 
 
     function calculateZeroValue(message: bigint): bigint {
