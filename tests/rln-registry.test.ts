@@ -1,17 +1,17 @@
 import { IncrementalMerkleTree } from "@zk-kit/incremental-merkle-tree"
 import { calculateRateCommitment } from '../src/common';
-import { ContractRLNRegistry, IRLNRegistry, MemoryRLNRegistry } from '../src/registry'
+import { ContractRLNRegistry, IRLNRegistry } from '../src/registry'
 import { fieldFactory } from './utils';
 import poseidon from "poseidon-lite";
 
 import { zeroPad } from '@ethersproject/bytes'
 import { BigNumber } from '@ethersproject/bignumber'
 import { keccak256 } from '@ethersproject/keccak256'
-import { Proof } from "../src";
 
 import { ChildProcessWithoutNullStreams } from "child_process";
 
 import { setupTestingContracts } from "./factories";
+import { withdrawParams } from "./configs";
 
 describe('RLNRegistry', () => {
   let node: ChildProcessWithoutNullStreams
@@ -19,8 +19,10 @@ describe('RLNRegistry', () => {
   let registry: IRLNRegistry;
 
   const rlnIdentifier = BigInt(1)
-  const identityCommitment0 = fieldFactory();
-  const identityCommitment1 = fieldFactory([identityCommitment0]);
+  const identitySecret0 = fieldFactory();
+  const identitySecret1 = fieldFactory([identitySecret0]);
+  const identityCommitment0 = poseidon([identitySecret0]);
+  const identityCommitment1 = poseidon([identitySecret1]);
 
   const messageLimit0 = BigInt(100)
   const messageLimit1 = BigInt(101)
@@ -33,24 +35,6 @@ describe('RLNRegistry', () => {
   const feePercentage = BigInt(10)
   const feeReceiver = "0x0000000000000000000000000000000000005566"
   const freezePeriod = BigInt(1)
-  const expectedMessageLimit = BigInt(2)
-
-  const mockProof: Proof = {
-    pi_a: [fieldFactory(), fieldFactory()],
-    pi_b: [
-        [
-            fieldFactory(),
-            fieldFactory(),
-        ],
-        [
-            fieldFactory(),
-            fieldFactory(),
-        ],
-    ],
-    pi_c: [fieldFactory(), fieldFactory()],
-    protocol: "groth",
-    curve: "bn128",
-  }
 
   beforeAll(async () => {
       const deployed = await setupTestingContracts({
@@ -60,14 +44,16 @@ describe('RLNRegistry', () => {
           feePercentage,
           feeReceiver,
           freezePeriod,
-          expectedMessageLimit,
       });
       node = deployed.node
       waitUntilFreezePeriodPassed = deployed.waitUntilFreezePeriodPassed
-      registry = new ContractRLNRegistry(rlnIdentifier, deployed.rlnContractWrapper, treeDepth)
-
-      // registry = new MemoryRLNRegistry(rlnIdentifier, treeDepth)
-      // waitUntilFreezePeriodPassed = async () => {}
+      registry = new ContractRLNRegistry({
+        rlnIdentifier,
+        rlnContract: deployed.rlnContractWrapper,
+        treeDepth,
+        withdrawWasmFilePath: withdrawParams.wasmFilePath,
+        withdrawFinalZkeyPath: withdrawParams.finalZkeyPath,
+      })
   });
 
   afterAll(() => {
@@ -120,7 +106,7 @@ describe('RLNRegistry', () => {
   });
 
   it('should delete `identityCommitment0`', async () => {
-    await registry.withdraw(identityCommitment0, mockProof)
+    await registry.withdraw(identitySecret0)
     await waitUntilFreezePeriodPassed()
     await registry.releaseWithdrawal(identityCommitment0)
     expect(await registry.isRegistered(identityCommitment0)).toBeFalsy()
@@ -134,7 +120,7 @@ describe('RLNRegistry', () => {
 
   it('should fail to delete `identityCommitment0` again', async () => {
     await expect(async () => {
-      await registry.withdraw(identityCommitment0, mockProof)
+      await registry.withdraw(identitySecret0)
     }).rejects.toThrow()
   });
 

@@ -1,13 +1,28 @@
 import { Identity } from '@semaphore-protocol/identity'
 import { VerificationKey } from './types'
 import { calculateIdentityCommitment, calculateSignalHash } from './common'
-import { IRLNRegistry, MemoryRLNRegistry } from './registry'
+import { IRLNRegistry, ContractRLNRegistry } from './registry'
 import { MemoryCache, EvaluatedProof, ICache } from './cache'
 import { IMessageIDCounter, MemoryMessageIDCounter } from './message-id-counter'
 import { RLNFullProof, RLNProver, RLNVerifier } from './circuit-wrapper'
+import { ethers } from 'ethers'
+import { RLNContract } from './contract-wrapper'
 
 
 type RLNArgs = {
+  /** Required */
+  /* App configs */
+  // The unique identifier of the app using RLN. The identifier must be unique for every app.
+  rlnIdentifier: bigint
+  provider: ethers.Provider
+  tokenAddress: string
+  contractAddress: string
+
+  /** Optional */
+  /* User configs */
+  // Semaphore identity of the user. If not provided, a new `Identity` is created.
+  identity?: Identity
+
   /* System configs */
   // File paths of the wasm and zkey file. If not provided, `createProof` will not work.
   wasmFilePath?: string
@@ -17,13 +32,12 @@ type RLNArgs = {
   // Tree depth of the merkle tree used by the circuit. If not provided, the default value will be used.
   treeDepth?: number
 
-  /* App configs */
-  // The unique identifier of the app using RLN. The identifier must be unique for every app.
-  rlnIdentifier: bigint
-
-  /* User configs */
-  // Semaphore identity of the user. If not provided, a new `Identity` is created.
-  identity?: Identity
+  /* Registry configs */
+  withdrawWasmFilePath?: string,
+  withdrawFinalZkeyPath?: string,
+  signer?: ethers.Signer,
+  contractAtBlock?: number,
+  numBlocksDelayed?: number,
 
   /* Others */
   // `IRegistry` that stores the registered users. If not provided, a new `Registry` is created.
@@ -40,14 +54,11 @@ type RLNArgs = {
 export interface IRLN {
   /* Membership */
   // User registers to the registry
-  register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter): void
+  register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter): Promise<void>
   // User withdraws from the registry
-  withdraw(): void
+  withdraw(): Promise<void>
+  // slash(): Promise<void>
 
-  // Callback when other users register to the registry
-  addRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint): void
-  // Callback when other users withdraw from the registry
-  removeRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint): void
   /* Proof-related */
   createProof(epoch: bigint, message: string): Promise<RLNFullProof>
   verifyProof(proof: RLNFullProof): Promise<boolean>
@@ -61,7 +72,6 @@ export class RLN implements IRLN {
   // the unique identifier of the app using RLN
   readonly rlnIdentifier: bigint
 
-  // TODO: we can also support raw secrets instead of just semaphore identity
   // the semaphore identity of the user
   private identity: Identity
 
@@ -91,7 +101,21 @@ export class RLN implements IRLN {
       )
     }
 
-    this.registry = args.registry ? args.registry : new MemoryRLNRegistry(args.rlnIdentifier, args.treeDepth)
+    const rlnContractWrapper = new RLNContract({
+      provider: args.provider,
+      signer: args.signer,
+      tokenAddress: args.tokenAddress,
+      contractAddress: args.contractAddress,
+      contractAtBlock: args.contractAtBlock ? args.contractAtBlock : 0,
+      numBlocksDelayed: args.numBlocksDelayed ? args.numBlocksDelayed : 0,
+    })
+    this.registry = args.registry ? args.registry : new ContractRLNRegistry({
+      rlnIdentifier: this.rlnIdentifier,
+      rlnContract: rlnContractWrapper,
+      treeDepth: args.treeDepth,
+      withdrawWasmFilePath: args.withdrawWasmFilePath,
+      withdrawFinalZkeyPath: args.withdrawFinalZkeyPath,
+    })
     this.cache = args.cache ? args.cache : new MemoryCache(args.cacheSize)
 
     if (args.wasmFilePath !== undefined && args.finalZkeyPath !== undefined) {
@@ -151,12 +175,7 @@ export class RLN implements IRLN {
    * @param messageIDCounter the messageIDCounter that the user wants to use. If not provided, a new `MemoryMessageIDCounter` is created.
    */
   async register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter) {
-    if (await this.isRegistered() === true) {
-      throw new Error(
-        `User has already registered before: identityCommitment=${this.identityCommitment}, ` +
-        `userMessageLimit=${userMessageLimit}`,
-      )
-    }
+    await this.registry.register(this.identityCommitment, userMessageLimit)
     this.messageIDCounter = messageIDCounter ? messageIDCounter : new MemoryMessageIDCounter(userMessageLimit)
   }
 
@@ -164,41 +183,18 @@ export class RLN implements IRLN {
    * User withdraws from the registry.
    */
   async withdraw() {
-    if (await this.isRegistered() === false) {
-      throw new Error(
-        `User has not registered before: identityCommitment=${this.identityCommitment}`,
-      )
-    }
+    await this.registry.withdraw(this.identitySecret)
     this.messageIDCounter = undefined
   }
 
-  /**
-   * Callback when a user registers to the registry.
-   * @param identityCommitment the identity commitment of the user
-   * @param userMessageLimit the maximum number of messages that the user can send in one epoch
-   */
-  async addRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint) {
-    if (await this.registry.isRegistered(identityCommitment) === true) {
-      throw new Error(
-        `User has already registered before: identityCommitment=${identityCommitment}, ` +
-        `userMessageLimit=${userMessageLimit}`,
-      )
-    }
-    await this.registry.addNewRegistered(identityCommitment, userMessageLimit)
+  async releaseWithdrawal() {
+    await this.registry.releaseWithdrawal(this.identityCommitment)
+    this.messageIDCounter = undefined
   }
 
-  /**
-   * Callback when a user withdraws from the registry.
-   * @param identityCommitment the identity commitment of the user
-   */
-  async removeRegisteredMember(identityCommitment: bigint) {
-    if (await this.registry.isRegistered(identityCommitment) === false) {
-      throw new Error(
-        `User has not registered before: identityCommitment=${identityCommitment}`,
-      )
-    }
-    await this.registry.deleteRegistered(identityCommitment)
-  }
+  // async slash(secret: bigint) {
+
+  // }
 
   /**
    * Create a proof for the given epoch and message.

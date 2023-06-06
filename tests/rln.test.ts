@@ -1,29 +1,13 @@
 import { RLN, RLNFullProof } from "../src";
 import { ICache, MemoryCache, Status } from "../src/cache";
-import { rlnParams } from "./configs";
+import { rlnParams, withdrawParams } from "./configs";
 import { MemoryMessageIDCounter } from "../src/message-id-counter";
-import { IRLNRegistry, MemoryRLNRegistry } from "../src/registry";
-import { Identity } from "@semaphore-protocol/identity";
-import { fieldFactory } from "./utils";
+import { IRLNRegistry } from "../src/registry";
+import { ethers } from "ethers";
+import { setupTestingContracts, url } from "./factories";
+import { ContractRLNRegistry } from "../src/registry";
+import { ChildProcessWithoutNullStreams } from "child_process";
 
-
-function rlnInstanceFactory(args: {
-    rlnIdentifier?: bigint,
-    identity?: Identity,
-    registry?: IRLNRegistry,
-    cache?: ICache,
-}) {
-    const rlnIdentifier = args.rlnIdentifier ? args.rlnIdentifier : fieldFactory()
-    return new RLN({
-        wasmFilePath: rlnParams.wasmFilePath,
-        finalZkeyPath: rlnParams.finalZkeyPath,
-        verificationKey: rlnParams.verificationKey,
-        rlnIdentifier,
-        identity: args.identity,
-        registry: args.registry,
-        cache: args.cache,
-    })
-}
 
 class FakeMessageIDCounter extends MemoryMessageIDCounter {
     reset(epoch: bigint) {
@@ -39,11 +23,17 @@ class FakeMessageIDCounter extends MemoryMessageIDCounter {
 describe("RLN", function () {
     describe("constructor params", function () {
         const rlnIdentifierA = BigInt(1);
+        const fakeProvider = {} as ethers.Provider
+        const fakeTokenAddress = "0x0000000000000000000000000000000000001234"
+        const fakeContractAddress = "0x0000000000000000000000000000000000005678"
 
         it("should fail when neither proving params nor verification key is given", async function () {
             expect(() => {
                 new RLN({
                     rlnIdentifier: rlnIdentifierA,
+                    provider: fakeProvider,
+                    tokenAddress: fakeTokenAddress,
+                    contractAddress: fakeContractAddress,
                 });
             }).toThrow(
                 'Either both `wasmFilePath` and `finalZkeyPath` must be supplied to generate proofs, ' +
@@ -54,6 +44,9 @@ describe("RLN", function () {
         it("should fail to prove if no proving params is given as constructor arguments", async function () {
             const rln = new RLN({
                 rlnIdentifier: rlnIdentifierA,
+                provider: fakeProvider,
+                tokenAddress: fakeTokenAddress,
+                contractAddress: fakeContractAddress,
                 verificationKey: rlnParams.verificationKey,
             })
             await expect(async () => {
@@ -64,6 +57,9 @@ describe("RLN", function () {
         it("should fail when verifying if no verification key is given as constructor arguments", async function () {
             const rln = new RLN({
                 rlnIdentifier: rlnIdentifierA,
+                provider: fakeProvider,
+                tokenAddress: fakeTokenAddress,
+                contractAddress: fakeContractAddress,
                 wasmFilePath: rlnParams.wasmFilePath,
                 finalZkeyPath: rlnParams.finalZkeyPath,
             })
@@ -88,26 +84,95 @@ describe("RLN", function () {
         const message0 = "abc";
         const message1 = "abcd";
 
-        const rlnA0 = rlnInstanceFactory({
-            rlnIdentifier: rlnIdentifierA,
-        });
+        let node: ChildProcessWithoutNullStreams
+        let deployed;
+        let waitUntilFreezePeriodPassed: () => Promise<void>
+
+        let rlnA0: RLN;
         const messageLimitA0 = BigInt(1);
         const messageIDCounterA0 = new FakeMessageIDCounter(messageLimitA0)
         let proofA00: RLNFullProof;
 
         const cacheA1 = new MemoryCache();
-        const registryA1 = new MemoryRLNRegistry(rlnIdentifierA);
-        const rlnA1 = rlnInstanceFactory({
-            rlnIdentifier: rlnIdentifierA,
-            registry: registryA1,
-            cache: cacheA1,
-        });
+        let registryA1: ContractRLNRegistry
+        let rlnA1: RLN;
+        let tokenAddress: string
+        let contractAddress: string
         const messageLimitA1 = BigInt(1);
         // Use a fake messageIDCounter which allows us to adjust reset message id for testing
         const messageIDCounterA1 = new FakeMessageIDCounter(messageLimitA1)
         let proofA10: RLNFullProof;
         let proofA11: RLNFullProof;
 
+        const treeDepth = 20
+
+        const tokenAmount = BigInt("1000000000000000000")
+        // 10 token
+        const minimalDeposit = BigInt(10)
+        // 10%
+        const feePercentage = BigInt(10)
+        const feeReceiver = "0x0000000000000000000000000000000000005566"
+        const freezePeriod = BigInt(1)
+
+        function rlnInstanceFactory(args: {
+            rlnIdentifier: bigint,
+            registry?: IRLNRegistry,
+            cache?: ICache,
+            signer?: ethers.Signer,
+        }) {
+            return new RLN({
+                wasmFilePath: rlnParams.wasmFilePath,
+                finalZkeyPath: rlnParams.finalZkeyPath,
+                verificationKey: rlnParams.verificationKey,
+                rlnIdentifier: args.rlnIdentifier,
+                registry: args.registry,
+                cache: args.cache,
+                provider: deployed.provider,
+                signer: args.signer,
+                tokenAddress,
+                contractAddress,
+                withdrawWasmFilePath: withdrawParams.wasmFilePath,
+                withdrawFinalZkeyPath: withdrawParams.finalZkeyPath,
+            })
+        }
+
+        beforeAll(async () => {
+            deployed = await setupTestingContracts({
+                initialTokenAmount: tokenAmount,
+                minimalDeposit,
+                treeDepth,
+                feePercentage,
+                feeReceiver,
+                freezePeriod,
+            });
+            node = deployed.node
+            waitUntilFreezePeriodPassed = deployed.waitUntilFreezePeriodPassed
+
+            tokenAddress = await deployed.erc20Contract.getAddress()
+            contractAddress = await deployed.rlnContract.getAddress()
+
+            rlnA0 = rlnInstanceFactory({
+                rlnIdentifier: rlnIdentifierA,
+                signer: deployed.signer0,
+            });
+            registryA1 = new ContractRLNRegistry({
+                rlnIdentifier: rlnIdentifierA,
+                rlnContract: deployed.rlnContractWrapper,
+                treeDepth,
+                withdrawWasmFilePath: withdrawParams.wasmFilePath,
+                withdrawFinalZkeyPath: withdrawParams.finalZkeyPath,
+            });
+            rlnA1 = rlnInstanceFactory({
+                rlnIdentifier: rlnIdentifierA,
+                signer: deployed.signer1,
+                registry: registryA1,
+                cache: cacheA1,
+            });
+        });
+
+        afterAll(async () => {
+            node.kill()
+        });
 
         it("should have correct members after initialization", async function () {
             expect(await rlnA0.isRegistered()).toBe(false);
@@ -124,12 +189,6 @@ describe("RLN", function () {
         it("should register A0 successfully", async function () {
             await rlnA0.register(messageLimitA0, messageIDCounterA0);
             // A0 has not been updated in the registry
-            expect(await rlnA0.isRegistered()).toBe(false);
-            expect((await rlnA0.getAllRateCommitments()).length).toBe(0);
-        });
-
-        it("should update registry for A0 successfully", async function () {
-            await rlnA0.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
             expect(await rlnA0.isRegistered()).toBe(true);
             const allRateCommitments = await rlnA0.getAllRateCommitments();
             expect(allRateCommitments.length).toBe(1);
@@ -171,13 +230,8 @@ describe("RLN", function () {
 
         it("should be able to withdraw", async function () {
             await rlnA0.withdraw();
-            // A0 has not been updated in the registry
-            expect(await rlnA0.isRegistered()).toBe(true);
-            expect((await rlnA0.getAllRateCommitments()).length).toBe(1);
-        });
-
-        it("should update the registry for A0 successfully", async function () {
-            await rlnA0.removeRegisteredMember(rlnA0.identityCommitment);
+            await waitUntilFreezePeriodPassed()
+            await rlnA0.releaseWithdrawal();
             expect(await rlnA0.isRegistered()).toBe(false);
             expect((await rlnA0.getAllRateCommitments()).length).toBe(1);
         });
@@ -188,9 +242,7 @@ describe("RLN", function () {
             }).rejects.toThrow("User has not registered before");
         });
 
-        it("should be able to update A0's register/withdraw record to A1", async function () {
-            await rlnA1.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
-            await rlnA1.removeRegisteredMember(rlnA0.identityCommitment);
+        it("should be able to get the latest state with A1", async function () {
             expect(await rlnA1.isRegistered()).toBe(false);
             const allRateCommitmentsA1 = await rlnA1.getAllRateCommitments();
             expect(allRateCommitmentsA1.length).toBe(1);
@@ -200,7 +252,6 @@ describe("RLN", function () {
 
         it("should be able to register A1", async function () {
             await rlnA1.register(messageLimitA1, messageIDCounterA1);
-            await rlnA1.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
             expect(await rlnA1.isRegistered()).toBe(true);
             const allRateCommitmentsA1 = await rlnA1.getAllRateCommitments();
             expect(allRateCommitmentsA1.length).toBe(2);
@@ -231,8 +282,6 @@ describe("RLN", function () {
         });
 
         it("should be slashed by others too", async function () {
-            // A0 adds rlnA1 to its registry
-            await rlnA0.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
             // Test: A0 is up-to-date and receives more than `messageLimitA1` proofs,
             // so A1's secret is breached by A0
             const resA10 = await rlnA0.saveProof(proofA10);
@@ -243,11 +292,9 @@ describe("RLN", function () {
 
         it("should be incompatible for RLN if rlnIdentifier is different", async function () {
             // Create another rlnInstance with different rlnIdentifier
-            const rlnB = rlnInstanceFactory({rlnIdentifier: rlnIdentifierB})
-            // Make it up-to-date with the latest membership
-            await rlnB.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
-            await rlnB.removeRegisteredMember(rlnA0.identityCommitment);
-            await rlnB.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
+            const rlnB = rlnInstanceFactory({
+                rlnIdentifier: rlnIdentifierB,
+            });
             // Test: verifyProof fails since proofA10.rlnIdentifier mismatches rlnB's rlnIdentifier
             expect(await rlnB.verifyProof(proofA10)).toBe(false);
         });
@@ -275,7 +322,7 @@ describe("RLN", function () {
             const resA11 = await rlnA2.saveProof(proofA11);
             expect(resA11.status).toBe(Status.INVALID);
         });
-
+        // TODO: Add tests for slash
         // TODO: Add tests to set messageIDCounter
     });
 });

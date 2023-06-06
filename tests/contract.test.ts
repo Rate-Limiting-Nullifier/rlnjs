@@ -62,17 +62,16 @@ describe("RLNContract", () => {
             feePercentage,
             feeReceiver,
             freezePeriod,
-            expectedMessageLimit,
         });
         node = deployed.node
         provider = deployed.provider
-        signer = deployed.signer
+        signer = deployed.signer0
         mockVerifierContract = deployed.mockVerifierContract
         erc20Contract = deployed.erc20Contract
         rlnContract = deployed.rlnContract
         rlnContractWrapper = deployed.rlnContractWrapper
         waitUntilFreezePeriodPassed = deployed.waitUntilFreezePeriodPassed
-        signerAnother = await provider.getSigner(1)
+        signerAnother = deployed.signer1
         rlnContractWrapperAnother = new RLNContract({
             provider,
             signer: signerAnother,
@@ -88,8 +87,8 @@ describe("RLNContract", () => {
         node.kill('SIGKILL')
     });
 
-    it("should be tokens in signer account", async () => {
-        expect(await erc20Contract.balanceOf(await signer.getAddress())).toBe(tokenAmount)
+    it("should be enough tokens in signer account", async () => {
+        expect(await erc20Contract.balanceOf(await signer.getAddress())).toBeGreaterThanOrEqual(expectedDepositAmount)
     });
 
     // RLNContract
@@ -126,9 +125,6 @@ describe("RLNContract", () => {
     });
 
     it("should register another and slash with proof", async () => {
-        // Transfer tokens to another signer
-        await (await erc20Contract.transfer(await signerAnother.getAddress(), expectedDepositAmount)).wait()
-
         // Test: should register
         await rlnContractWrapperAnother.register(identityCommitmentAnother, expectedMessageLimit)
         const user = await rlnContractWrapperAnother.getUser(identityCommitmentAnother)
