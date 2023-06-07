@@ -8,7 +8,6 @@ import { setupTestingContracts, url } from "./factories";
 import { ContractRLNRegistry } from "../src/registry";
 import { ChildProcessWithoutNullStreams } from "child_process";
 
-
 class FakeMessageIDCounter extends MemoryMessageIDCounter {
     reset(epoch: bigint) {
         const epochStr = epoch.toString()
@@ -18,7 +17,6 @@ class FakeMessageIDCounter extends MemoryMessageIDCounter {
         this.epochToMessageID[epochStr] = BigInt(0)
     }
 }
-
 
 describe("RLN", function () {
     describe("constructor params", function () {
@@ -75,7 +73,6 @@ describe("RLN", function () {
     });
 
     describe("functionalities", function () {
-
         const rlnIdentifierA = BigInt(1);
         const rlnIdentifierB = BigInt(2);
 
@@ -93,8 +90,6 @@ describe("RLN", function () {
         const messageIDCounterA0 = new FakeMessageIDCounter(messageLimitA0)
         let proofA00: RLNFullProof;
 
-        const cacheA1 = new MemoryCache();
-        let registryA1: ContractRLNRegistry
         let rlnA1: RLN;
         let tokenAddress: string
         let contractAddress: string
@@ -116,8 +111,6 @@ describe("RLN", function () {
 
         function rlnInstanceFactory(args: {
             rlnIdentifier: bigint,
-            registry?: IRLNRegistry,
-            cache?: ICache,
             signer?: ethers.Signer,
         }) {
             return new RLN({
@@ -125,8 +118,6 @@ describe("RLN", function () {
                 finalZkeyPath: rlnParams.finalZkeyPath,
                 verificationKey: rlnParams.verificationKey,
                 rlnIdentifier: args.rlnIdentifier,
-                registry: args.registry,
-                cache: args.cache,
                 provider: deployed.provider,
                 signer: args.signer,
                 tokenAddress,
@@ -155,18 +146,9 @@ describe("RLN", function () {
                 rlnIdentifier: rlnIdentifierA,
                 signer: deployed.signer0,
             });
-            registryA1 = new ContractRLNRegistry({
-                rlnIdentifier: rlnIdentifierA,
-                rlnContract: deployed.rlnContractWrapper,
-                treeDepth,
-                withdrawWasmFilePath: withdrawParams.wasmFilePath,
-                withdrawFinalZkeyPath: withdrawParams.finalZkeyPath,
-            });
             rlnA1 = rlnInstanceFactory({
                 rlnIdentifier: rlnIdentifierA,
                 signer: deployed.signer1,
-                registry: registryA1,
-                cache: cacheA1,
             });
         });
 
@@ -275,19 +257,34 @@ describe("RLN", function () {
             proofA11 = await rlnA1.createProof(epoch0, message1);
             const resA11 = await rlnA1.saveProof(proofA11);
             expect(resA11.status).toBe(Status.BREACH);
+            if (resA11.secret === undefined) {
+                throw new Error("secret should not be undefined")
+            }
+            // Test: but A1 cannot slash itself
+            const secret = resA11.secret;
+            await expect(async () => {
+                await rlnA1.slash(secret)
+            }).rejects.toThrow('execution reverted: "RLN, slash: self-slashing is prohibited"');
+
             // Test: epoch1 is a new epoch, so A1 can create 1 proof
             const proofA12 = await rlnA1.createProof(epoch1, message1);
             const resA12 = await rlnA1.saveProof(proofA12);
             expect(resA12.status).toBe(Status.ADDED);
         });
 
-        it("should be slashed by others too", async function () {
+        it("should reveal its secret by others and get slashed", async function () {
             // Test: A0 is up-to-date and receives more than `messageLimitA1` proofs,
             // so A1's secret is breached by A0
             const resA10 = await rlnA0.saveProof(proofA10);
             expect(resA10.status).toBe(Status.ADDED);
             const resA12 = await rlnA0.saveProof(proofA11);
             expect(resA12.status).toBe(Status.BREACH);
+            if (resA12.secret === undefined) {
+                throw new Error("secret should not be undefined")
+            }
+            // Test: A0 should be able to slash A1
+            await rlnA0.slash(resA12.secret)
+            expect(await rlnA1.isRegistered()).toBe(false);
         });
 
         it("should be incompatible for RLN if rlnIdentifier is different", async function () {
@@ -298,31 +295,6 @@ describe("RLN", function () {
             // Test: verifyProof fails since proofA10.rlnIdentifier mismatches rlnB's rlnIdentifier
             expect(await rlnB.verifyProof(proofA10)).toBe(false);
         });
-
-        it("should be able to reuse registry", async function () {
-            // Test: A2's membership is sync with A1 by reusing A1's registry
-            const rlnA2 = rlnInstanceFactory({
-                rlnIdentifier: rlnIdentifierA,
-                registry: registryA1,
-            })
-            expect(await rlnA2.getMerkleRoot()).toBe(await rlnA1.getMerkleRoot());
-        });
-
-        it("should be able to reuse registry and cache", async function () {
-            // Test: A2's cache is sync with A1 by reusing A1's registry and cache
-            const rlnA2 = rlnInstanceFactory({
-                rlnIdentifier: rlnIdentifierA,
-                registry: registryA1,
-                cache: cacheA1,
-            })
-            // Since the cache already contains both proofA10 and proofA11,
-            // both results are invalid, due to adding duplicate proofs.
-            const resA10 = await rlnA2.saveProof(proofA10);
-            expect(resA10.status).toBe(Status.INVALID);
-            const resA11 = await rlnA2.saveProof(proofA11);
-            expect(resA11.status).toBe(Status.INVALID);
-        });
-        // TODO: Add tests for slash
         // TODO: Add tests to set messageIDCounter
     });
 });

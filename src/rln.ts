@@ -57,7 +57,7 @@ export interface IRLN {
   register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter): Promise<void>
   // User withdraws from the registry
   withdraw(): Promise<void>
-  // slash(): Promise<void>
+  slash(secretToBeSlashed: bigint, receiver?: string): Promise<void>
 
   /* Proof-related */
   createProof(epoch: bigint, message: string): Promise<RLNFullProof>
@@ -184,7 +184,6 @@ export class RLN implements IRLN {
    */
   async withdraw() {
     await this.registry.withdraw(this.identitySecret)
-    this.messageIDCounter = undefined
   }
 
   async releaseWithdrawal() {
@@ -192,9 +191,9 @@ export class RLN implements IRLN {
     this.messageIDCounter = undefined
   }
 
-  // async slash(secret: bigint) {
-
-  // }
+  async slash(secretToBeSlashed: bigint, receiver?: string) {
+    await this.registry.slash(secretToBeSlashed, receiver)
+  }
 
   /**
    * Create a proof for the given epoch and message.

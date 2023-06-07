@@ -32,9 +32,9 @@ export async function setupTestingContracts(args: {
     feeReceiver: string,
     freezePeriod: bigint,
 }) {
-    const node = spawn("anvil")
-
-    await sleep(1000)
+    const node = spawn("npx", ["hardhat", "node"])
+    // FIXME: sleep for 5 seconds is not a good way to wait for the node to start
+    await sleep(5000)
 
     const provider = new ethers.JsonRpcProvider(url)
     const signer0 = await provider.getSigner(0)

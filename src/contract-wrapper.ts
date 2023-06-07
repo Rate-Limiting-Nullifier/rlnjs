@@ -6,7 +6,6 @@ const erc20ABI = JSON.parse('[{"constant": true, "inputs": [], "name": "name", "
 
 export const rlnContractABI = JSON.parse('[{"inputs": [{"internalType": "uint256", "name": "minimalDeposit", "type": "uint256"}, {"internalType": "uint256", "name": "depth", "type": "uint256"}, {"internalType": "uint8", "name": "feePercentage", "type": "uint8"}, {"internalType": "address", "name": "feeReceiver", "type": "address"}, {"internalType": "uint256", "name": "freezePeriod", "type": "uint256"}, {"internalType": "address", "name": "_token", "type": "address"}, {"internalType": "address", "name": "_verifier", "type": "address"}], "stateMutability": "nonpayable", "type": "constructor"}, {"anonymous": false, "inputs": [{"indexed": false, "internalType": "uint256", "name": "identityCommitment", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "messageLimit", "type": "uint256"}, {"indexed": false, "internalType": "uint256", "name": "index", "type": "uint256"}], "name": "MemberRegistered", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": false, "internalType": "uint256", "name": "index", "type": "uint256"}, {"indexed": false, "internalType": "address", "name": "slasher", "type": "address"}], "name": "MemberSlashed", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": false, "internalType": "uint256", "name": "index", "type": "uint256"}], "name": "MemberWithdrawn", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "previousOwner", "type": "address"}, {"indexed": true, "internalType": "address", "name": "newOwner", "type": "address"}], "name": "OwnershipTransferred", "type": "event"}, {"inputs": [], "name": "DEPTH", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "MINIMAL_DEPOSIT", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "SET_SIZE", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "identityCommitmentIndex", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "name": "members", "outputs": [{"internalType": "address", "name": "userAddress", "type": "address"}, {"internalType": "uint256", "name": "messageLimit", "type": "uint256"}, {"internalType": "uint256", "name": "index", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "owner", "outputs": [{"internalType": "address", "name": "", "type": "address"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "uint256", "name": "identityCommitment", "type": "uint256"}, {"internalType": "uint256", "name": "amount", "type": "uint256"}], "name": "register", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [{"internalType": "uint256", "name": "identityCommitment", "type": "uint256"}], "name": "release", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [], "name": "renounceOwnership", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [{"internalType": "uint256", "name": "identityCommitment", "type": "uint256"}, {"internalType": "address", "name": "receiver", "type": "address"}, {"internalType": "uint256[8]", "name": "proof", "type": "uint256[8]"}], "name": "slash", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [], "name": "token", "outputs": [{"internalType": "contract IERC20", "name": "", "type": "address"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "address", "name": "newOwner", "type": "address"}], "name": "transferOwnership", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [], "name": "verifier", "outputs": [{"internalType": "contract IVerifier", "name": "", "type": "address"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "uint256", "name": "identityCommitment", "type": "uint256"}, {"internalType": "uint256[8]", "name": "proof", "type": "uint256[8]"}], "name": "withdraw", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "name": "withdrawals", "outputs": [{"internalType": "uint256", "name": "blockNumber", "type": "uint256"}, {"internalType": "uint256", "name": "amount", "type": "uint256"}, {"internalType": "address", "name": "receiver", "type": "address"}], "stateMutability": "view", "type": "function"}]')
 
-
 type User = {
   userAddress: string,
   messageLimit: bigint,
@@ -19,11 +18,6 @@ type Withdrawal = {
   receiver: string,
 }
 
-/**
-    event MemberRegistered(uint256 identityCommitment, uint256 messageLimit, uint256 index);
-    event MemberWithdrawn(uint256 index);
-    event MemberSlashed(uint256 index, address slasher);
- */
 
 function proofToArray(proof: Proof) {
   // verifier.verifyProof(
@@ -44,7 +38,11 @@ function proofToArray(proof: Proof) {
   ]
 }
 
-
+/**
+    event MemberRegistered(uint256 identityCommitment, uint256 messageLimit, uint256 index);
+    event MemberWithdrawn(uint256 index);
+    event MemberSlashed(uint256 index, address slasher);
+ */
 export type EventMemberRegistered = {
   name: 'MemberRegistered',
   identityCommitment: bigint,
@@ -65,15 +63,17 @@ export type EventMemberSlashed = {
 
 export class RLNContract {
   // Either a signer (with private key)  or a provider (without private key and read-only)
-  provider: ethers.Provider
+  private provider: ethers.Provider
 
-  tokenContract: ethers.Contract
+  private signer?: ethers.Signer
 
-  rlnContract: ethers.Contract
+  private tokenContract: ethers.Contract
 
-  contractAtBlock: number
+  private rlnContract: ethers.Contract
 
-  numBlocksDelayed: number
+  private contractAtBlock: number
+
+  private numBlocksDelayed: number
 
   constructor(args: {
     provider: ethers.Provider,
@@ -84,12 +84,20 @@ export class RLNContract {
     numBlocksDelayed: number,
   }) {
     this.provider = args.provider
+    this.signer = args.signer
     // If signer is given, use signer. Else, use provider.
     const contractRunner = args.signer || this.provider
     this.tokenContract = new ethers.Contract(args.tokenAddress, erc20ABI, contractRunner)
     this.rlnContract = new ethers.Contract(args.contractAddress, rlnContractABI, contractRunner)
     this.contractAtBlock = args.contractAtBlock
     this.numBlocksDelayed = args.numBlocksDelayed
+  }
+
+  async getSignerAddress() {
+    if (this.signer === undefined) {
+      throw new Error('Cannot get signer address if signer is not set')
+    }
+    return this.signer.getAddress()
   }
 
   async getLogs() {

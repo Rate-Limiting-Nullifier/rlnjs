@@ -1,5 +1,5 @@
 import { Group } from '@semaphore-protocol/group'
-import { StrBigInt, MerkleProof, Proof } from './types'
+import { StrBigInt, MerkleProof } from './types'
 import { calculateRateCommitment } from './common'
 import { RLNContract } from './contract-wrapper'
 import { ethers } from 'ethers'
@@ -19,7 +19,7 @@ export interface IRLNRegistry {
   register(identityCommitment: bigint, messageLimit: bigint): Promise<void>
   withdraw(identitySecret: bigint): Promise<void>
   releaseWithdrawal(identityCommitment: bigint): Promise<void>
-  slash(identitySecret: bigint, receiver: string, proof: Proof): Promise<void>
+  slash(identitySecret: bigint, receiver?: string): Promise<void>
 }
 
 export class ContractRLNRegistry implements IRLNRegistry {
@@ -46,6 +46,10 @@ export class ContractRLNRegistry implements IRLNRegistry {
     if (args.withdrawWasmFilePath !== undefined && args.withdrawFinalZkeyPath !== undefined) {
       this.withdrawProver = new WithdrawProver(args.withdrawWasmFilePath, args.withdrawFinalZkeyPath)
     }
+  }
+
+  async getSignerAddress(): Promise<string> {
+    return this.rlnContract.getSignerAddress()
   }
 
   async isRegistered(identityCommitment: bigint): Promise<boolean> {
@@ -149,11 +153,12 @@ export class ContractRLNRegistry implements IRLNRegistry {
     await this.rlnContract.release(identityCommitment)
   }
 
-  async slash(identitySecret: bigint, receiver: string): Promise<void> {
+  async slash(identitySecret: bigint, receiver?: string): Promise<void> {
     if (this.withdrawProver === undefined) {
       throw new Error('Withdraw prover is not initialized')
     }
     const identityCommitment = poseidon([identitySecret])
+    receiver = receiver ? receiver : await this.rlnContract.getSignerAddress()
     const receiverBigInt = BigInt(receiver)
 
     const proof = await this.withdrawProver.generateProof({
