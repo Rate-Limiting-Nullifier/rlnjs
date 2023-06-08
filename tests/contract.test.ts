@@ -18,6 +18,7 @@ describe("RLNContract", () => {
     let mockVerifierContract: ethers.Contract
     let rlnContractWrapper: RLNContract
     let waitUntilFreezePeriodPassed: () => Promise<void>
+    let killNode: () => Promise<void>
 
     let signerAnother: ethers.Signer
     let rlnContractWrapperAnother: RLNContract
@@ -71,6 +72,7 @@ describe("RLNContract", () => {
         rlnContract = deployed.rlnContract
         rlnContractWrapper = deployed.rlnContractWrapper
         waitUntilFreezePeriodPassed = deployed.waitUntilFreezePeriodPassed
+        killNode = deployed.killNode
         signerAnother = deployed.signer1
         rlnContractWrapperAnother = new RLNContract({
             provider,
@@ -84,7 +86,8 @@ describe("RLNContract", () => {
 
     afterAll(async () => {
         console.log("killing node")
-        node.kill('SIGKILL')
+        await killNode()
+        console.log("node killed")
     });
 
     it("should be enough tokens in signer account", async () => {

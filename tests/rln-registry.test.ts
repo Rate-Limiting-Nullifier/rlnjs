@@ -16,6 +16,7 @@ import { withdrawParams } from "./configs";
 describe('RLNRegistry', () => {
   let node: ChildProcessWithoutNullStreams
   let waitUntilFreezePeriodPassed: () => Promise<void>
+  let killNode: () => Promise<void>
   let registry: IRLNRegistry;
 
   const rlnIdentifier = BigInt(1)
@@ -47,6 +48,7 @@ describe('RLNRegistry', () => {
       });
       node = deployed.node
       waitUntilFreezePeriodPassed = deployed.waitUntilFreezePeriodPassed
+      killNode = deployed.killNode
       registry = new ContractRLNRegistry({
         rlnIdentifier,
         rlnContract: deployed.rlnContractWrapper,
@@ -56,10 +58,10 @@ describe('RLNRegistry', () => {
       })
   });
 
-  afterAll(() => {
-    if (node !== undefined) {
-      node.kill()
-    }
+  afterAll(async () => {
+    console.log("killing node")
+    await killNode()
+    console.log("node killed")
   });
 
   it('should be initialized correctly', async () => {

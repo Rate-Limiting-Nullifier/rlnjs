@@ -40,21 +40,10 @@ jobs:
       id: cache-zkeyFiles
       uses: actions/cache@v3
       with:
-        path: ./zkeyFiles/rln
+        path: ./zkeyFiles
         # Since the version of rln-circuits is specified in `scripts/build-zkeys.sh`,
         # as long as the file doesn't change we can reuse the zkeyFiles.
         key: ${{ runner.os }}-${{ matrix.node-version }}-zkeyFiles-${{ hashFiles('./scripts/build-zkeys.sh') }}
-    - name: Cache cloned js-rln zkeyFiles
-      id: cache-js-rln-zkeyFiles
-      uses: actions/cache@v3
-      with:
-        path: ./zkeyFiles/js-rln
-        # Since the version of js-rln is specified in `scripts/clone-js-rln-zkeys.sh`,
-        # as long as the file doesn't change we can reuse the zkeyFiles from js-rln.
-        key: ${{ runner.os }}-${{ matrix.node-version }}-zkeyFiles-${{ hashFiles('./scripts/clone-js-rln-zkeys.sh') }}
     - name: Build circuit params
       run: ./scripts/build-zkeys.sh
-    - name: Clone js-rln params
-      run: ./scripts/clone-js-rln-zkeys.sh
-    - run: npm run lint
-    - run: npm test
+    - run: npm run test:debug

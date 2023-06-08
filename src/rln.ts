@@ -57,11 +57,15 @@ export interface IRLN {
   register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter): Promise<void>
   // User withdraws from the registry
   withdraw(): Promise<void>
+  // User slashes another user with their secret
   slash(secretToBeSlashed: bigint, receiver?: string): Promise<void>
 
   /* Proof-related */
+  // Generate a proof for the given epoch and message
   createProof(epoch: bigint, message: string): Promise<RLNFullProof>
+  // Verify a proof
   verifyProof(proof: RLNFullProof): Promise<boolean>
+  // Verify a proof and check if the proof is valid
   saveProof(proof: RLNFullProof): Promise<EvaluatedProof>
 }
 
@@ -265,5 +269,4 @@ export class RLN implements IRLN {
     const { x, y, nullifier } = snarkProof.publicSignals
     return this.cache.addProof({ x, y, nullifier, epoch })
   }
-
 }

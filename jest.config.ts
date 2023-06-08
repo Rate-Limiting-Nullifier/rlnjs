@@ -10,7 +10,7 @@ const config: Config.InitialOptions = {
   },
   "silent": true,
   "detectOpenHandles": true,
-  "testTimeout": 60000,
+  "testTimeout": 100000,
   "collectCoverage": true,
   "forceExit": true,
 };

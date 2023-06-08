@@ -1,11 +1,9 @@
 import { RLN, RLNFullProof } from "../src";
-import { ICache, MemoryCache, Status } from "../src/cache";
+import { Status } from "../src/cache";
 import { rlnParams, withdrawParams } from "./configs";
 import { MemoryMessageIDCounter } from "../src/message-id-counter";
-import { IRLNRegistry } from "../src/registry";
 import { ethers } from "ethers";
-import { setupTestingContracts, url } from "./factories";
-import { ContractRLNRegistry } from "../src/registry";
+import { setupTestingContracts } from "./factories";
 import { ChildProcessWithoutNullStreams } from "child_process";
 
 class FakeMessageIDCounter extends MemoryMessageIDCounter {
@@ -84,6 +82,7 @@ describe("RLN", function () {
         let node: ChildProcessWithoutNullStreams
         let deployed;
         let waitUntilFreezePeriodPassed: () => Promise<void>
+        let killNode: () => Promise<void>
 
         let rlnA0: RLN;
         const messageLimitA0 = BigInt(1);
@@ -138,6 +137,7 @@ describe("RLN", function () {
             });
             node = deployed.node
             waitUntilFreezePeriodPassed = deployed.waitUntilFreezePeriodPassed
+            killNode = deployed.killNode
 
             tokenAddress = await deployed.erc20Contract.getAddress()
             contractAddress = await deployed.rlnContract.getAddress()
@@ -153,7 +153,9 @@ describe("RLN", function () {
         });
 
         afterAll(async () => {
-            node.kill()
+            console.log("killing node")
+            await killNode()
+            console.log("node killed")
         });
 
         it("should have correct members after initialization", async function () {

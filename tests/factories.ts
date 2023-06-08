@@ -5,13 +5,10 @@ import { rlnContractABI, RLNContract } from "../src/contract-wrapper";
 
 import { rlnContractBytecode, testERC20ContractBytecode, mockVerifierBytecode } from "./configs";
 
-export const url = "http://127.0.0.1:8545"
+const url = "http://127.0.0.1:8545"
 const testERC20ABI = '[{"inputs": [{"internalType": "uint256", "name": "amount", "type": "uint256"}], "stateMutability": "nonpayable", "type": "constructor"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "owner", "type": "address"}, {"indexed": true, "internalType": "address", "name": "spender", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "value", "type": "uint256"}], "name": "Approval", "type": "event"}, {"anonymous": false, "inputs": [{"indexed": true, "internalType": "address", "name": "from", "type": "address"}, {"indexed": true, "internalType": "address", "name": "to", "type": "address"}, {"indexed": false, "internalType": "uint256", "name": "value", "type": "uint256"}], "name": "Transfer", "type": "event"}, {"inputs": [{"internalType": "address", "name": "owner", "type": "address"}, {"internalType": "address", "name": "spender", "type": "address"}], "name": "allowance", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "address", "name": "spender", "type": "address"}, {"internalType": "uint256", "name": "amount", "type": "uint256"}], "name": "approve", "outputs": [{"internalType": "bool", "name": "", "type": "bool"}], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [{"internalType": "address", "name": "account", "type": "address"}], "name": "balanceOf", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "decimals", "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "address", "name": "spender", "type": "address"}, {"internalType": "uint256", "name": "subtractedValue", "type": "uint256"}], "name": "decreaseAllowance", "outputs": [{"internalType": "bool", "name": "", "type": "bool"}], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [{"internalType": "address", "name": "spender", "type": "address"}, {"internalType": "uint256", "name": "addedValue", "type": "uint256"}], "name": "increaseAllowance", "outputs": [{"internalType": "bool", "name": "", "type": "bool"}], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [], "name": "name", "outputs": [{"internalType": "string", "name": "", "type": "string"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "symbol", "outputs": [{"internalType": "string", "name": "", "type": "string"}], "stateMutability": "view", "type": "function"}, {"inputs": [], "name": "totalSupply", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "address", "name": "to", "type": "address"}, {"internalType": "uint256", "name": "amount", "type": "uint256"}], "name": "transfer", "outputs": [{"internalType": "bool", "name": "", "type": "bool"}], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [{"internalType": "address", "name": "from", "type": "address"}, {"internalType": "address", "name": "to", "type": "address"}, {"internalType": "uint256", "name": "amount", "type": "uint256"}], "name": "transferFrom", "outputs": [{"internalType": "bool", "name": "", "type": "bool"}], "stateMutability": "nonpayable", "type": "function"}]'
 const mockVerifierABI = '[{"inputs": [], "stateMutability": "nonpayable", "type": "constructor"}, {"inputs": [{"internalType": "bool", "name": "_result", "type": "bool"}], "name": "changeResult", "outputs": [], "stateMutability": "nonpayable", "type": "function"}, {"inputs": [], "name": "result", "outputs": [{"internalType": "bool", "name": "", "type": "bool"}], "stateMutability": "view", "type": "function"}, {"inputs": [{"internalType": "uint256[2]", "name": "", "type": "uint256[2]"}, {"internalType": "uint256[2][2]", "name": "", "type": "uint256[2][2]"}, {"internalType": "uint256[2]", "name": "", "type": "uint256[2]"}, {"internalType": "uint256[2]", "name": "", "type": "uint256[2]"}], "name": "verifyProof", "outputs": [{"internalType": "bool", "name": "", "type": "bool"}], "stateMutability": "view", "type": "function"}]'
-
-async function sleep(time: number) {
-    return new Promise((resolve) => setTimeout(resolve, time));
-}
+const timeout = 30000
 
 async function deployContract(signer: ethers.Signer, bytecode: string, abi: string, args?: any[]) {
     const factory = new ethers.ContractFactory(abi, bytecode, signer)
@@ -32,9 +29,36 @@ export async function setupTestingContracts(args: {
     feeReceiver: string,
     freezePeriod: bigint,
 }) {
-    const node = spawn("npx", ["hardhat", "node"])
-    // FIXME: sleep for 5 seconds is not a good way to wait for the node to start
-    await sleep(5000)
+    const node = spawn("npx", ["hardhat", "node", "--port", "0"])
+    const pid = node.pid
+    if (!pid) {
+        throw new Error("process failed to start")
+    }
+    const endString = "Any funds sent to them on Mainnet or any other live network WILL BE LOST."
+    let url: string | undefined = undefined;
+    await new Promise((resolve, reject) => {
+        const t = setTimeout(() => {
+            reject(new Error("Timeout when waiting for hardhat node to start"))
+        }, timeout)
+        const f = (data) => {
+            const dataString = data.toString()
+            const ipAddressMatch = dataString.match(/Started HTTP and WebSocket JSON-RPC server at (http:\/\/127\.0\.0\.1:\d+)/)
+            if (ipAddressMatch !== null) {
+                url = ipAddressMatch[1]
+                return;
+            }
+            if (dataString.indexOf(endString) !== -1) {
+                clearTimeout(t)
+                resolve(undefined)
+                node.stdout.removeListener("data", f)
+            }
+        }
+        node.stdout.on("data", f);
+    })
+
+    if (url === undefined) {
+        throw new Error("Failed to get url from hardhat node")
+    }
 
     const provider = new ethers.JsonRpcProvider(url)
     const signer0 = await provider.getSigner(0)
@@ -77,6 +101,22 @@ export async function setupTestingContracts(args: {
         }
     }
 
+    const pidToKill = node.pid
+
+    async function killNode() {
+        await new Promise((resolve, reject) => {
+            const t = setTimeout(() => {
+                reject(new Error('Killing node process timeout'));
+            }, timeout);
+            node.on('exit', () => {
+                clearTimeout(t);
+                resolve(undefined)
+            });
+            node.kill(9);
+
+        })
+    }
+
     return {
         node,
         provider,
@@ -88,5 +128,6 @@ export async function setupTestingContracts(args: {
         rlnContractWrapper,
         contractAtBlock,
         waitUntilFreezePeriodPassed,
+        killNode,
     }
 }
