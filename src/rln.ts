@@ -14,8 +14,9 @@ type RLNArgs = {
   /* App configs */
   // The unique identifier of the app using RLN. The identifier must be unique for every app.
   rlnIdentifier: bigint
+  // ethers provider
   provider: ethers.Provider
-  tokenAddress: string
+  // RLN contract address
   contractAddress: string
 
   /** Optional */
@@ -108,7 +109,6 @@ export class RLN implements IRLN {
     const rlnContractWrapper = new RLNContract({
       provider: args.provider,
       signer: args.signer,
-      tokenAddress: args.tokenAddress,
       contractAddress: args.contractAddress,
       contractAtBlock: args.contractAtBlock ? args.contractAtBlock : 0,
       numBlocksDelayed: args.numBlocksDelayed ? args.numBlocksDelayed : 0,

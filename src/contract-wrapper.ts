@@ -67,8 +67,6 @@ export class RLNContract {
 
   private signer?: ethers.Signer
 
-  private tokenContract: ethers.Contract
-
   private rlnContract: ethers.Contract
 
   private contractAtBlock: number
@@ -78,19 +76,24 @@ export class RLNContract {
   constructor(args: {
     provider: ethers.Provider,
     signer?: ethers.Signer,
-    tokenAddress: string,
     contractAddress: string,
     contractAtBlock: number,
     numBlocksDelayed: number,
   }) {
     this.provider = args.provider
     this.signer = args.signer
-    // If signer is given, use signer. Else, use provider.
-    const contractRunner = args.signer || this.provider
-    this.tokenContract = new ethers.Contract(args.tokenAddress, erc20ABI, contractRunner)
-    this.rlnContract = new ethers.Contract(args.contractAddress, rlnContractABI, contractRunner)
+    this.rlnContract = new ethers.Contract(args.contractAddress, rlnContractABI, this.getContractRunner())
     this.contractAtBlock = args.contractAtBlock
     this.numBlocksDelayed = args.numBlocksDelayed
+  }
+
+  private getContractRunner() {
+    // If signer is given, use signer. Else, use provider.
+    return this.signer || this.provider
+  }
+
+  async getTokenAddress() {
+    return this.rlnContract.token()
   }
 
   async getSignerAddress() {
@@ -155,7 +158,12 @@ export class RLNContract {
     const rlnContractAddress = await this.rlnContract.getAddress()
     const pricePerMessageLimit = await this.rlnContract.MINIMAL_DEPOSIT()
     const amount = messageLimit * pricePerMessageLimit
-    const txApprove = await this.tokenContract.approve(rlnContractAddress, amount)
+    const tokenContract = new ethers.Contract(
+      await this.getTokenAddress(),
+      erc20ABI,
+      this.getContractRunner(),
+    )
+    const txApprove = await tokenContract.approve(rlnContractAddress, amount)
     await txApprove.wait()
     const txRegister = await this.rlnContract.register(identityCommitment, amount)
     const receipt = await txRegister.wait()
