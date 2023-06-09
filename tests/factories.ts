@@ -29,11 +29,13 @@ export async function setupTestingContracts(args: {
     feeReceiver: string,
     freezePeriod: bigint,
 }) {
+    // Let os choose port for us to avoid conflicts
     const node = spawn("npx", ["hardhat", "node", "--port", "0"])
     const pid = node.pid
     if (!pid) {
         throw new Error("process failed to start")
     }
+    // This line is printed when the node is ready
     const endString = "Any funds sent to them on Mainnet or any other live network WILL BE LOST."
     let url: string | undefined = undefined;
     await new Promise((resolve, reject) => {
@@ -42,11 +44,13 @@ export async function setupTestingContracts(args: {
         }, timeout)
         const f = (data) => {
             const dataString = data.toString()
+            // Get url printed from the node
             const ipAddressMatch = dataString.match(/Started HTTP and WebSocket JSON-RPC server at (http:\/\/127\.0\.0\.1:\d+)/)
             if (ipAddressMatch !== null) {
                 url = ipAddressMatch[1]
                 return;
             }
+            // If we see this line, we know the node is ready and we can return
             if (dataString.indexOf(endString) !== -1) {
                 clearTimeout(t)
                 resolve(undefined)
@@ -101,19 +105,19 @@ export async function setupTestingContracts(args: {
         }
     }
 
-    const pidToKill = node.pid
-
+    // Kill node
     async function killNode() {
         await new Promise((resolve, reject) => {
+            // Only wait for timeout seconds
             const t = setTimeout(() => {
                 reject(new Error('Killing node process timeout'));
             }, timeout);
+            // Returns when node is killed
             node.on('exit', () => {
                 clearTimeout(t);
                 resolve(undefined)
             });
             node.kill(9);
-
         })
     }
 
