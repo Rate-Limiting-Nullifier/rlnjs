@@ -1,88 +1,99 @@
 import { Group } from '@semaphore-protocol/group'
 import { StrBigInt, MerkleProof } from './types'
 import { calculateRateCommitment } from './common'
+import { RLNContract } from './contract-wrapper'
+import { ethers } from 'ethers'
+import poseidon from 'poseidon-lite'
+import { WithdrawProver } from './circuit-wrapper'
 
 export const DEFAULT_REGISTRY_TREE_DEPTH = 20
 
 export interface IRLNRegistry {
-  merkleRoot: bigint
-  rateCommitments: bigint[]
+  isRegistered(identityCommitment: bigint): Promise<boolean>
+  getMerkleRoot(): Promise<bigint>
+  getMessageLimit(identityCommitment: bigint): Promise<bigint>
+  getRateCommitment(identityCommitment: bigint): Promise<bigint>
+  getAllRateCommitments(): Promise<bigint[]>
+  generateMerkleProof(identityCommitment: StrBigInt): Promise<MerkleProof>
 
-  isRegistered(identityCommitment: bigint): boolean
-  getMessageLimit(identityCommitment: bigint): bigint
-  getRateCommitment(identityCommitment: bigint): bigint
-  generateMerkleProof(identityCommitment: StrBigInt): MerkleProof
-
-  addNewRegistered(identityCommitment: bigint, messageLimit: bigint): void
-  deleteRegistered(identityCommitment: bigint): void
+  register(identityCommitment: bigint, messageLimit: bigint): Promise<void>
+  withdraw(identitySecret: bigint): Promise<void>
+  releaseWithdrawal(identityCommitment: bigint): Promise<void>
+  slash(identitySecret: bigint, receiver?: string): Promise<void>
 }
 
+export class ContractRLNRegistry implements IRLNRegistry {
+  private rlnContract: RLNContract
 
-type Record = {
-  identityCommitment: bigint
-  messageLimit: bigint
-}
+  // the withdrawProver allows user to generate withdraw proof, which is verified in the RLN contract
+  private withdrawProver?: WithdrawProver
 
-type SlashedRecord = Record & { index: number }
+  private rlnIdentifier: bigint
 
-export class MemoryRLNRegistry implements IRLNRegistry {
-  private identityCommitmentToIndex: Map<bigint, number>
+  private treeDepth: number
 
-  private group: Group
+  constructor(args: {
+    rlnIdentifier: bigint,
+    rlnContract: RLNContract,
+    treeDepth?: number,
+    withdrawWasmFilePath?: string,
+    withdrawFinalZkeyPath?: string,
+  }) {
+    this.treeDepth = args.treeDepth ? args.treeDepth : DEFAULT_REGISTRY_TREE_DEPTH
+    this.rlnContract = args.rlnContract
+    this.rlnIdentifier = args.rlnIdentifier
 
-  private registered: Record[]
-
-  private deleted: SlashedRecord[]
-
-  /**
-   * Initializes the registry with the tree depth and the zero value.
-   * @param treeDepth Tree depth (int).
-   */
-  constructor(rlnIdentifier: bigint, treeDepth?: number) {
-    this.identityCommitmentToIndex = new Map()
-    treeDepth = treeDepth ? treeDepth : DEFAULT_REGISTRY_TREE_DEPTH
-    if (treeDepth < 16 || treeDepth > 32) {
-      throw new Error('The tree depth must be between 16 and 32')
+    if (args.withdrawWasmFilePath !== undefined && args.withdrawFinalZkeyPath !== undefined) {
+      this.withdrawProver = new WithdrawProver(args.withdrawWasmFilePath, args.withdrawFinalZkeyPath)
     }
-    this.group = new Group(rlnIdentifier, treeDepth)
-    this.registered = []
-    this.deleted = []
   }
 
-  get merkleRoot(): bigint {
-    return BigInt(this.group.root)
+  async getSignerAddress(): Promise<string> {
+    return this.rlnContract.getSignerAddress()
   }
 
-  get rateCommitments(): bigint[] {
-    return this.group.members.map((member) => BigInt(member))
+  async isRegistered(identityCommitment: bigint): Promise<boolean> {
+    return this.rlnContract.isRegistered(identityCommitment)
   }
 
-  get registeredRecords(): Record[] {
-    return this.registered
-  }
-
-  get deletedRecords(): SlashedRecord[] {
-    return this.deleted
-  }
-
-  isRegistered(identityCommitment: bigint): boolean {
-    return this.identityCommitmentToIndex.has(identityCommitment)
-  }
-
-  getMessageLimit(identityCommitment: bigint): bigint {
-    const index = this.identityCommitmentToIndex.get(identityCommitment)
-    if (index === undefined) {
+  async getMessageLimit(identityCommitment: bigint): Promise<bigint> {
+    const user = await this.rlnContract.getUser(identityCommitment)
+    if (user.userAddress === ethers.ZeroAddress) {
       throw new Error('Identity commitment is not registered')
     }
-    return this.registered[index].messageLimit
+    return user.messageLimit
   }
 
-  getRateCommitment(identityCommitment: bigint): bigint {
-    const index = this.identityCommitmentToIndex.get(identityCommitment)
-    if (index === undefined) {
-      throw new Error('Identity commitment is not registered')
+  async getRateCommitment(identityCommitment: bigint): Promise<bigint> {
+    const messageLimit = await this.getMessageLimit(identityCommitment)
+    return calculateRateCommitment(identityCommitment, messageLimit)
+  }
+
+  private async generateLatestGroup(): Promise<Group> {
+    const group = new Group(this.rlnIdentifier, this.treeDepth)
+    const events = await this.rlnContract.getLogs()
+    for (const event of events) {
+      if (event.name === 'MemberRegistered') {
+        const identityCommitment = BigInt(event.identityCommitment)
+        const messageLimit = BigInt(event.messageLimit)
+        const rateCommitment = calculateRateCommitment(identityCommitment, messageLimit)
+        group.addMember(rateCommitment)
+      } else if (event.name === 'MemberWithdrawn' || event.name === 'MemberSlashed') {
+        const index = event.index
+        group.removeMember(Number(index))
+      }
     }
-    return this.rateCommitments[index]
+    return group
+  }
+
+  async getAllRateCommitments(): Promise<bigint[]> {
+    const group = await this.generateLatestGroup()
+    return group.members.map((member) => BigInt(member))
+  }
+
+  async getMerkleRoot(): Promise<bigint> {
+    const group = await this.generateLatestGroup()
+    return BigInt(group.root)
   }
 
   /**
@@ -90,32 +101,70 @@ export class MemoryRLNRegistry implements IRLNRegistry {
    * @param identityCommitment The leaf for which Merkle proof should be created.
    * @returns The Merkle proof.
    */
-  generateMerkleProof(identityCommitment: bigint): MerkleProof {
-    const index = this.identityCommitmentToIndex.get(identityCommitment)
-    if (index === undefined) {
+  async generateMerkleProof(identityCommitment: bigint): Promise<MerkleProof> {
+    const group = await this.generateLatestGroup()
+    const user = await this.rlnContract.getUser(identityCommitment)
+    if (user.userAddress === ethers.ZeroAddress) {
       throw new Error('Identity commitment is not registered')
     }
-    return this.group.generateMerkleProof(index)
+    const rateCommitment = calculateRateCommitment(identityCommitment, user.messageLimit)
+    const index = group.indexOf(rateCommitment)
+    if (index === -1) {
+      // Should only happen when a user was registered before `const user = ...` and then withdraw/slashed
+      // after `const user = ...`.
+      throw new Error('Rate commitment is not in the merkle tree')
+    }
+    return group.generateMerkleProof(index)
   }
 
-  addNewRegistered(identityCommitment: bigint, messageLimit: bigint): void {
-    if (this.isRegistered(identityCommitment)) {
+  async register(identityCommitment: bigint, messageLimit: bigint): Promise<void> {
+    if (await this.isRegistered(identityCommitment)) {
       throw new Error('Identity commitment is already registered')
     }
-    const expectedIndex = this.registered.length
-    this.registered.push({ identityCommitment, messageLimit })
-    const rateCommitment = calculateRateCommitment(identityCommitment, messageLimit)
-    this.group.addMember(rateCommitment)
-    this.identityCommitmentToIndex.set(identityCommitment, expectedIndex)
+    await this.rlnContract.register(identityCommitment, messageLimit)
   }
 
-  deleteRegistered(identityCommitment: bigint): void {
-    const index = this.identityCommitmentToIndex.get(identityCommitment)
-    if (index === undefined) {
+  async withdraw(identitySecret: bigint): Promise<void> {
+    if (this.withdrawProver === undefined) {
+      throw new Error('Withdraw prover is not initialized')
+    }
+    const identityCommitment = poseidon([identitySecret])
+    const user = await this.rlnContract.getUser(identityCommitment)
+    if (user.userAddress === ethers.ZeroAddress) {
       throw new Error('Identity commitment is not registered')
     }
-    this.identityCommitmentToIndex.delete(identityCommitment)
-    this.group.removeMember(index)
-    this.deleted.push({ ...this.registered[index], index })
+    const userAddressBigInt = BigInt(user.userAddress)
+
+    const proof = await this.withdrawProver.generateProof({
+      identitySecret,
+      address: userAddressBigInt,
+    })
+    await this.rlnContract.withdraw(identityCommitment, proof.proof)
+  }
+
+  async releaseWithdrawal(identityCommitment: bigint): Promise<void> {
+    if (!await this.isRegistered(identityCommitment)) {
+      throw new Error('Identity commitment is not registered')
+    }
+    const withdrawal = await this.rlnContract.getWithdrawal(identityCommitment)
+    if (withdrawal.blockNumber == BigInt(0)) {
+      throw new Error('Withdrawal is not initiated')
+    }
+    await this.rlnContract.release(identityCommitment)
+  }
+
+  async slash(identitySecret: bigint, receiver?: string): Promise<void> {
+    if (this.withdrawProver === undefined) {
+      throw new Error('Withdraw prover is not initialized')
+    }
+    const identityCommitment = poseidon([identitySecret])
+    receiver = receiver ? receiver : await this.rlnContract.getSignerAddress()
+    const receiverBigInt = BigInt(receiver)
+
+    const proof = await this.withdrawProver.generateProof({
+      identitySecret,
+      address: receiverBigInt,
+    })
+    await this.rlnContract.slash(identityCommitment, receiver, proof.proof)
   }
 }

@@ -1,15 +1,28 @@
 import { Identity } from '@semaphore-protocol/identity'
-import poseidon from 'poseidon-lite'
-
 import { VerificationKey } from './types'
-import { calculateSignalHash } from './common'
-import { IRLNRegistry, MemoryRLNRegistry } from './registry'
+import { calculateIdentityCommitment, calculateSignalHash } from './common'
+import { IRLNRegistry, ContractRLNRegistry } from './registry'
 import { MemoryCache, EvaluatedProof, ICache } from './cache'
 import { IMessageIDCounter, MemoryMessageIDCounter } from './message-id-counter'
 import { RLNFullProof, RLNProver, RLNVerifier } from './circuit-wrapper'
+import { ethers } from 'ethers'
+import { RLNContract } from './contract-wrapper'
 
 
 type RLNArgs = {
+  /** Required */
+  /* App configs */
+  // The unique identifier of the app using RLN. The identifier must be unique for every app.
+  rlnIdentifier: bigint
+  provider: ethers.Provider
+  tokenAddress: string
+  contractAddress: string
+
+  /** Optional */
+  /* User configs */
+  // Semaphore identity of the user. If not provided, a new `Identity` is created.
+  identity?: Identity
+
   /* System configs */
   // File paths of the wasm and zkey file. If not provided, `createProof` will not work.
   wasmFilePath?: string
@@ -19,17 +32,12 @@ type RLNArgs = {
   // Tree depth of the merkle tree used by the circuit. If not provided, the default value will be used.
   treeDepth?: number
 
-  /* App configs */
-  // The unique identifier of the app using RLN. The identifier must be unique for every app.
-  rlnIdentifier: bigint
-
-  /* User configs */
-  // Semaphore identity of the user. If not provided, a new `Identity` is created.
-  identity?: Identity
-
-  // If user has been registered to the registry, the `messageIDCounter` can be provided to reuse
-  // the old message ID counter. If not provided, a new `MemoryMessageIDCounter` is created.
-  messageIDCounter?: IMessageIDCounter
+  /* Registry configs */
+  withdrawWasmFilePath?: string,
+  withdrawFinalZkeyPath?: string,
+  signer?: ethers.Signer,
+  contractAtBlock?: number,
+  numBlocksDelayed?: number,
 
   /* Others */
   // `IRegistry` that stores the registered users. If not provided, a new `Registry` is created.
@@ -46,17 +54,18 @@ type RLNArgs = {
 export interface IRLN {
   /* Membership */
   // User registers to the registry
-  register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter): void
+  register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter): Promise<void>
   // User withdraws from the registry
-  withdraw(): void
+  withdraw(): Promise<void>
+  // User slashes another user with their secret
+  slash(secretToBeSlashed: bigint, receiver?: string): Promise<void>
 
-  // Callback when other users register to the registry
-  addRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint): void
-  // Callback when other users withdraw from the registry
-  removeRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint): void
   /* Proof-related */
+  // Generate a proof for the given epoch and message
   createProof(epoch: bigint, message: string): Promise<RLNFullProof>
+  // Verify a proof
   verifyProof(proof: RLNFullProof): Promise<boolean>
+  // Verify a proof and check if the proof is valid
   saveProof(proof: RLNFullProof): Promise<EvaluatedProof>
 }
 
@@ -67,7 +76,6 @@ export class RLN implements IRLN {
   // the unique identifier of the app using RLN
   readonly rlnIdentifier: bigint
 
-  // TODO: we can also support raw secrets instead of just semaphore identity
   // the semaphore identity of the user
   private identity: Identity
 
@@ -84,7 +92,7 @@ export class RLN implements IRLN {
   private cache: ICache
 
   // the messageIDCounter is used to **safely** generate the latest messageID for the user
-  private messageIDCounter?: IMessageIDCounter
+  public messageIDCounter?: IMessageIDCounter
 
   constructor(args: RLNArgs) {
     this.rlnIdentifier = args.rlnIdentifier
@@ -97,17 +105,22 @@ export class RLN implements IRLN {
       )
     }
 
-    this.registry = args.registry ? args.registry : new MemoryRLNRegistry(args.rlnIdentifier, args.treeDepth)
+    const rlnContractWrapper = new RLNContract({
+      provider: args.provider,
+      signer: args.signer,
+      tokenAddress: args.tokenAddress,
+      contractAddress: args.contractAddress,
+      contractAtBlock: args.contractAtBlock ? args.contractAtBlock : 0,
+      numBlocksDelayed: args.numBlocksDelayed ? args.numBlocksDelayed : 0,
+    })
+    this.registry = args.registry ? args.registry : new ContractRLNRegistry({
+      rlnIdentifier: this.rlnIdentifier,
+      rlnContract: rlnContractWrapper,
+      treeDepth: args.treeDepth,
+      withdrawWasmFilePath: args.withdrawWasmFilePath,
+      withdrawFinalZkeyPath: args.withdrawFinalZkeyPath,
+    })
     this.cache = args.cache ? args.cache : new MemoryCache(args.cacheSize)
-
-    if (this.isRegistered === true) {
-      if (args.messageIDCounter !== undefined) {
-        this.messageIDCounter = args.messageIDCounter
-      } else {
-        const userMessageLimit = this.registry.getMessageLimit(this.identityCommitment)
-        this.messageIDCounter = new MemoryMessageIDCounter(userMessageLimit)
-      }
-    }
 
     if (args.wasmFilePath !== undefined && args.finalZkeyPath !== undefined) {
       this.prover = new RLNProver(
@@ -124,8 +137,20 @@ export class RLN implements IRLN {
     }
   }
 
-  get merkleRoot(): bigint {
-    return this.registry.merkleRoot
+  async setMessageIDCounter(messageIDCounter?: IMessageIDCounter) {
+    if (await this.isRegistered() === false) {
+      throw new Error('Cannot set messageIDCounter for an unregistered user.')
+    }
+    if (messageIDCounter !== undefined) {
+      this.messageIDCounter = messageIDCounter
+    } else {
+      const userMessageLimit = await this.registry.getMessageLimit(this.identityCommitment)
+      this.messageIDCounter = new MemoryMessageIDCounter(userMessageLimit)
+    }
+  }
+
+  async getMerkleRoot(): Promise<bigint> {
+    return this.registry.getMerkleRoot()
   }
 
   get identityCommitment(): bigint {
@@ -133,79 +158,45 @@ export class RLN implements IRLN {
   }
 
   private get identitySecret(): bigint {
-    return poseidon([
-      this.identity.getNullifier(),
-      this.identity.getTrapdoor(),
-    ])
+    return calculateIdentityCommitment(this.identity)
   }
 
-  get rateCommitment(): bigint {
+  async getRateCommitment(): Promise<bigint> {
     return this.registry.getRateCommitment(this.identityCommitment)
   }
 
-  get isRegistered(): boolean {
+  async isRegistered(): Promise<boolean> {
     return this.registry.isRegistered(this.identityCommitment)
   }
 
-  get allRateCommitments(): bigint[] {
-    return this.registry.rateCommitments
+  async getAllRateCommitments(): Promise<bigint[]> {
+    return this.registry.getAllRateCommitments()
   }
 
   /**
-   * TODO: right now it's just a stub.
    * User registers to the registry.
    * @param userMessageLimit the maximum number of messages that the user can send in one epoch
    * @param messageIDCounter the messageIDCounter that the user wants to use. If not provided, a new `MemoryMessageIDCounter` is created.
    */
-  register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter) {
-    if (this.registry.isRegistered(this.identityCommitment) === true) {
-      throw new Error(
-        `User has already registered before: identityCommitment=${this.identityCommitment}, ` +
-        `userMessageLimit=${userMessageLimit}`,
-      )
-    }
+  async register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter) {
+    await this.registry.register(this.identityCommitment, userMessageLimit)
     this.messageIDCounter = messageIDCounter ? messageIDCounter : new MemoryMessageIDCounter(userMessageLimit)
   }
 
   /**
-   * TODO: right now it's just a stub.
    * User withdraws from the registry.
    */
-  withdraw() {
-    if (this.registry.isRegistered(this.identityCommitment) === false) {
-      throw new Error(
-        `User has not registered before: identityCommitment=${this.identityCommitment}`,
-      )
-    }
+  async withdraw() {
+    await this.registry.withdraw(this.identitySecret)
+  }
+
+  async releaseWithdrawal() {
+    await this.registry.releaseWithdrawal(this.identityCommitment)
     this.messageIDCounter = undefined
   }
 
-  /**
-   * Callback when a user registers to the registry.
-   * @param identityCommitment the identity commitment of the user
-   * @param userMessageLimit the maximum number of messages that the user can send in one epoch
-   */
-  addRegisteredMember(identityCommitment: bigint, userMessageLimit: bigint) {
-    if (this.registry.isRegistered(identityCommitment) === true) {
-      throw new Error(
-        `User has already registered before: identityCommitment=${identityCommitment}, ` +
-        `userMessageLimit=${userMessageLimit}`,
-      )
-    }
-    this.registry.addNewRegistered(identityCommitment, userMessageLimit)
-  }
-
-  /**
-   * Callback when a user withdraws from the registry.
-   * @param identityCommitment the identity commitment of the user
-   */
-  removeRegisteredMember(identityCommitment: bigint) {
-    if (this.registry.isRegistered(identityCommitment) === false) {
-      throw new Error(
-        `User has not registered before: identityCommitment=${identityCommitment}`,
-      )
-    }
-    this.registry.deleteRegistered(identityCommitment)
+  async slash(secretToBeSlashed: bigint, receiver?: string) {
+    await this.registry.slash(secretToBeSlashed, receiver)
   }
 
   /**
@@ -219,7 +210,7 @@ export class RLN implements IRLN {
       throw new Error('Prover is not initialized')
 
     }
-    if (!this.registry.isRegistered(this.identityCommitment)) {
+    if (!await this.isRegistered()) {
       throw new Error('User has not registered before')
     }
     if (this.messageIDCounter === undefined) {
@@ -228,9 +219,9 @@ export class RLN implements IRLN {
         'If user is currently registered, `messageIDCounter` should be non-undefined',
       )
     }
-    const merkleProof = this.registry.generateMerkleProof(this.identityCommitment)
+    const merkleProof = await this.registry.generateMerkleProof(this.identityCommitment)
     const messageID = await this.messageIDCounter.getMessageIDAndIncrement(epoch)
-    const userMessageLimit = this.registry.getMessageLimit(this.identityCommitment)
+    const userMessageLimit = await this.registry.getMessageLimit(this.identityCommitment)
     return this.prover.generateProof({
       identitySecret: this.identitySecret,
       userMessageLimit: userMessageLimit,
@@ -253,9 +244,10 @@ export class RLN implements IRLN {
     // Check if the proof is using the same parameters
     const { snarkProof, rlnIdentifier } = proof
     const { root } = snarkProof.publicSignals
+    const registryMerkleRoot = await this.registry.getMerkleRoot()
     if (
       BigInt(rlnIdentifier) !== this.rlnIdentifier ||
-            BigInt(root) !== this.registry.merkleRoot
+            BigInt(root) !== registryMerkleRoot
     ) {
       return false
     }
@@ -277,5 +269,4 @@ export class RLN implements IRLN {
     const { x, y, nullifier } = snarkProof.publicSignals
     return this.cache.addProof({ x, y, nullifier, epoch })
   }
-
 }

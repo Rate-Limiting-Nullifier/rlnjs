@@ -1,29 +1,10 @@
 import { RLN, RLNFullProof } from "../src";
-import { ICache, MemoryCache, Status } from "../src/cache";
-import { rlnParams } from "./configs";
+import { Status } from "../src/cache";
+import { rlnParams, withdrawParams } from "./configs";
 import { MemoryMessageIDCounter } from "../src/message-id-counter";
-import { IRLNRegistry, MemoryRLNRegistry } from "../src/registry";
-import { Identity } from "@semaphore-protocol/identity";
-import { fieldFactory } from "./utils";
-
-
-function rlnInstanceFactory(args: {
-    rlnIdentifier?: bigint,
-    identity?: Identity,
-    registry?: IRLNRegistry,
-    cache?: ICache,
-}) {
-    const rlnIdentifier = args.rlnIdentifier ? args.rlnIdentifier : fieldFactory()
-    return new RLN({
-        wasmFilePath: rlnParams.wasmFilePath,
-        finalZkeyPath: rlnParams.finalZkeyPath,
-        verificationKey: rlnParams.verificationKey,
-        rlnIdentifier,
-        identity: args.identity,
-        registry: args.registry,
-        cache: args.cache,
-    })
-}
+import { ethers } from "ethers";
+import { setupTestingContracts } from "./factories";
+import { ChildProcessWithoutNullStreams } from "child_process";
 
 class FakeMessageIDCounter extends MemoryMessageIDCounter {
     reset(epoch: bigint) {
@@ -35,15 +16,20 @@ class FakeMessageIDCounter extends MemoryMessageIDCounter {
     }
 }
 
-
 describe("RLN", function () {
     describe("constructor params", function () {
         const rlnIdentifierA = BigInt(1);
+        const fakeProvider = {} as ethers.Provider
+        const fakeTokenAddress = "0x0000000000000000000000000000000000001234"
+        const fakeContractAddress = "0x0000000000000000000000000000000000005678"
 
         it("should fail when neither proving params nor verification key is given", async function () {
             expect(() => {
                 new RLN({
                     rlnIdentifier: rlnIdentifierA,
+                    provider: fakeProvider,
+                    tokenAddress: fakeTokenAddress,
+                    contractAddress: fakeContractAddress,
                 });
             }).toThrow(
                 'Either both `wasmFilePath` and `finalZkeyPath` must be supplied to generate proofs, ' +
@@ -54,9 +40,12 @@ describe("RLN", function () {
         it("should fail to prove if no proving params is given as constructor arguments", async function () {
             const rln = new RLN({
                 rlnIdentifier: rlnIdentifierA,
+                provider: fakeProvider,
+                tokenAddress: fakeTokenAddress,
+                contractAddress: fakeContractAddress,
                 verificationKey: rlnParams.verificationKey,
             })
-            expect(async () => {
+            await expect(async () => {
                 await rln.createProof(BigInt(0), "abc")
             }).rejects.toThrow("Prover is not initialized");
         });
@@ -64,14 +53,17 @@ describe("RLN", function () {
         it("should fail when verifying if no verification key is given as constructor arguments", async function () {
             const rln = new RLN({
                 rlnIdentifier: rlnIdentifierA,
+                provider: fakeProvider,
+                tokenAddress: fakeTokenAddress,
+                contractAddress: fakeContractAddress,
                 wasmFilePath: rlnParams.wasmFilePath,
                 finalZkeyPath: rlnParams.finalZkeyPath,
             })
             const mockProof = {} as RLNFullProof
-            expect(async () => {
+            await expect(async () => {
                 await rln.verifyProof(mockProof)
             }).rejects.toThrow("Verifier is not initialized");
-            expect(async () => {
+            await expect(async () => {
                 await rln.saveProof(mockProof)
             }).rejects.toThrow("Verifier is not initialized");
         });
@@ -79,7 +71,6 @@ describe("RLN", function () {
     });
 
     describe("functionalities", function () {
-
         const rlnIdentifierA = BigInt(1);
         const rlnIdentifierB = BigInt(2);
 
@@ -88,51 +79,104 @@ describe("RLN", function () {
         const message0 = "abc";
         const message1 = "abcd";
 
-        const rlnA0 = rlnInstanceFactory({
-            rlnIdentifier: rlnIdentifierA,
-        });
+        let node: ChildProcessWithoutNullStreams
+        let deployed;
+        let waitUntilFreezePeriodPassed: () => Promise<void>
+        let killNode: () => Promise<void>
+
+        let rlnA0: RLN;
         const messageLimitA0 = BigInt(1);
         const messageIDCounterA0 = new FakeMessageIDCounter(messageLimitA0)
         let proofA00: RLNFullProof;
 
-        const cacheA1 = new MemoryCache();
-        const registryA1 = new MemoryRLNRegistry(rlnIdentifierA);
-        const rlnA1 = rlnInstanceFactory({
-            rlnIdentifier: rlnIdentifierA,
-            registry: registryA1,
-            cache: cacheA1,
-        });
+        let rlnA1: RLN;
+        let tokenAddress: string
+        let contractAddress: string
         const messageLimitA1 = BigInt(1);
         // Use a fake messageIDCounter which allows us to adjust reset message id for testing
         const messageIDCounterA1 = new FakeMessageIDCounter(messageLimitA1)
         let proofA10: RLNFullProof;
         let proofA11: RLNFullProof;
 
+        const treeDepth = 20
+
+        const tokenAmount = BigInt("1000000000000000000")
+        // 10 token
+        const minimalDeposit = BigInt(10)
+        // 10%
+        const feePercentage = BigInt(10)
+        const feeReceiver = "0x0000000000000000000000000000000000005566"
+        const freezePeriod = BigInt(1)
+
+        function rlnInstanceFactory(args: {
+            rlnIdentifier: bigint,
+            signer?: ethers.Signer,
+        }) {
+            return new RLN({
+                wasmFilePath: rlnParams.wasmFilePath,
+                finalZkeyPath: rlnParams.finalZkeyPath,
+                verificationKey: rlnParams.verificationKey,
+                rlnIdentifier: args.rlnIdentifier,
+                provider: deployed.provider,
+                signer: args.signer,
+                tokenAddress,
+                contractAddress,
+                withdrawWasmFilePath: withdrawParams.wasmFilePath,
+                withdrawFinalZkeyPath: withdrawParams.finalZkeyPath,
+            })
+        }
+
+        beforeAll(async () => {
+            deployed = await setupTestingContracts({
+                initialTokenAmount: tokenAmount,
+                minimalDeposit,
+                treeDepth,
+                feePercentage,
+                feeReceiver,
+                freezePeriod,
+            });
+            node = deployed.node
+            waitUntilFreezePeriodPassed = deployed.waitUntilFreezePeriodPassed
+            killNode = deployed.killNode
+
+            tokenAddress = await deployed.erc20Contract.getAddress()
+            contractAddress = await deployed.rlnContract.getAddress()
+
+            rlnA0 = rlnInstanceFactory({
+                rlnIdentifier: rlnIdentifierA,
+                signer: deployed.signer0,
+            });
+            rlnA1 = rlnInstanceFactory({
+                rlnIdentifier: rlnIdentifierA,
+                signer: deployed.signer1,
+            });
+        });
+
+        afterAll(async () => {
+            console.log("killing node")
+            await killNode()
+            console.log("node killed")
+        });
 
         it("should have correct members after initialization", async function () {
-            expect(rlnA0.isRegistered).toBe(false);
-            expect(rlnA0.allRateCommitments.length).toBe(0);
-            expect(rlnA0.merkleRoot).toBe(rlnA1.merkleRoot);
+            expect(await rlnA0.isRegistered()).toBe(false);
+            expect((await rlnA0.getAllRateCommitments()).length).toBe(0);
+            expect(await rlnA0.getMerkleRoot()).toBe(await rlnA1.getMerkleRoot());
         });
 
         it("should fail when creating proof if not registered", async function () {
-            expect(async () => {
+            await expect(async () => {
                 await rlnA0.createProof(BigInt(0), "abc")
             }).rejects.toThrow("User has not registered before");
         });
 
         it("should register A0 successfully", async function () {
-            rlnA0.register(messageLimitA0, messageIDCounterA0);
+            await rlnA0.register(messageLimitA0, messageIDCounterA0);
             // A0 has not been updated in the registry
-            expect(rlnA0.isRegistered).toBe(false);
-            expect(rlnA0.allRateCommitments.length).toBe(0);
-        });
-
-        it("should update registry for A0 successfully", async function () {
-            rlnA0.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
-            expect(rlnA0.isRegistered).toBe(true);
-            expect(rlnA0.allRateCommitments.length).toBe(1);
-            expect(rlnA0.allRateCommitments[0]).toBe(rlnA0.rateCommitment);
+            expect(await rlnA0.isRegistered()).toBe(true);
+            const allRateCommitments = await rlnA0.getAllRateCommitments();
+            expect(allRateCommitments.length).toBe(1);
+            expect(allRateCommitments[0]).toBe(await rlnA0.getRateCommitment());
         });
 
         it("should be able to create proof", async function () {
@@ -149,7 +193,7 @@ describe("RLN", function () {
             const currentMessageID = await messageIDCounterA0.peekNextMessageID(epoch0);
             // Sanity check: messageID should be equal to limit now
             expect(currentMessageID).toBe(messageLimitA0);
-            expect(async () => {
+            await expect(async () => {
                 await rlnA0.createProof(epoch0, message0);
             }).rejects.toThrow("Message ID counter exceeded message limit")
         });
@@ -169,39 +213,33 @@ describe("RLN", function () {
         });
 
         it("should be able to withdraw", async function () {
-            rlnA0.withdraw();
-            // A0 has not been updated in the registry
-            expect(rlnA0.isRegistered).toBe(true);
-            expect(rlnA0.allRateCommitments.length).toBe(1);
-        });
-
-        it("should update the registry for A0 successfully", async function () {
-            rlnA0.removeRegisteredMember(rlnA0.identityCommitment);
-            expect(rlnA0.isRegistered).toBe(false);
-            expect(rlnA0.allRateCommitments.length).toBe(1);
+            await rlnA0.withdraw();
+            await waitUntilFreezePeriodPassed()
+            await rlnA0.releaseWithdrawal();
+            expect(await rlnA0.isRegistered()).toBe(false);
+            expect((await rlnA0.getAllRateCommitments()).length).toBe(1);
         });
 
         it("should fail to create proof after withdraw", async function () {
-            expect(async () => {
+            await expect(async () => {
                 await rlnA0.createProof(epoch0, message0);
             }).rejects.toThrow("User has not registered before");
         });
 
-        it("should be able to update A0's register/withdraw record to A1", async function () {
-            rlnA1.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
-            rlnA1.removeRegisteredMember(rlnA0.identityCommitment);
-            expect(rlnA1.isRegistered).toBe(false);
-            expect(rlnA1.allRateCommitments.length).toBe(1);
-            expect(rlnA1.allRateCommitments[0]).toBe(rlnA0.allRateCommitments[0]);
-            expect(rlnA1.merkleRoot).toBe(rlnA0.merkleRoot);
+        it("should be able to get the latest state with A1", async function () {
+            expect(await rlnA1.isRegistered()).toBe(false);
+            const allRateCommitmentsA1 = await rlnA1.getAllRateCommitments();
+            expect(allRateCommitmentsA1.length).toBe(1);
+            expect(allRateCommitmentsA1[0]).toBe((await rlnA0.getAllRateCommitments())[0]);
+            expect(await rlnA1.getMerkleRoot()).toBe(await rlnA0.getMerkleRoot());
         });
 
         it("should be able to register A1", async function () {
-            rlnA1.register(messageLimitA1, messageIDCounterA1);
-            rlnA1.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
-            expect(rlnA1.isRegistered).toBe(true);
-            expect(rlnA1.allRateCommitments.length).toBe(2);
-            expect(rlnA1.allRateCommitments[1]).toBe(rlnA1.rateCommitment);
+            await rlnA1.register(messageLimitA1, messageIDCounterA1);
+            expect(await rlnA1.isRegistered()).toBe(true);
+            const allRateCommitmentsA1 = await rlnA1.getAllRateCommitments();
+            expect(allRateCommitmentsA1.length).toBe(2);
+            expect(allRateCommitmentsA1[1]).toBe(await rlnA1.getRateCommitment());
         });
 
         it("should reveal its secret by itself if A1 creates more than `messageLimitA1` messages", async function () {
@@ -221,55 +259,44 @@ describe("RLN", function () {
             proofA11 = await rlnA1.createProof(epoch0, message1);
             const resA11 = await rlnA1.saveProof(proofA11);
             expect(resA11.status).toBe(Status.BREACH);
+            if (resA11.secret === undefined) {
+                throw new Error("secret should not be undefined")
+            }
+            // Test: but A1 cannot slash itself
+            const secret = resA11.secret;
+            await expect(async () => {
+                await rlnA1.slash(secret)
+            }).rejects.toThrow('execution reverted: "RLN, slash: self-slashing is prohibited"');
+
             // Test: epoch1 is a new epoch, so A1 can create 1 proof
             const proofA12 = await rlnA1.createProof(epoch1, message1);
             const resA12 = await rlnA1.saveProof(proofA12);
             expect(resA12.status).toBe(Status.ADDED);
         });
 
-        it("should be slashed by others too", async function () {
-            // A0 adds rlnA1 to its registry
-            rlnA0.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
+        it("should reveal its secret by others and get slashed", async function () {
             // Test: A0 is up-to-date and receives more than `messageLimitA1` proofs,
             // so A1's secret is breached by A0
             const resA10 = await rlnA0.saveProof(proofA10);
             expect(resA10.status).toBe(Status.ADDED);
             const resA12 = await rlnA0.saveProof(proofA11);
             expect(resA12.status).toBe(Status.BREACH);
+            if (resA12.secret === undefined) {
+                throw new Error("secret should not be undefined")
+            }
+            // Test: A0 should be able to slash A1
+            await rlnA0.slash(resA12.secret)
+            expect(await rlnA1.isRegistered()).toBe(false);
         });
 
         it("should be incompatible for RLN if rlnIdentifier is different", async function () {
             // Create another rlnInstance with different rlnIdentifier
-            const rlnB = rlnInstanceFactory({rlnIdentifier: rlnIdentifierB})
-            // Make it up-to-date with the latest membership
-            rlnB.addRegisteredMember(rlnA0.identityCommitment, messageLimitA0);
-            rlnB.removeRegisteredMember(rlnA0.identityCommitment);
-            rlnB.addRegisteredMember(rlnA1.identityCommitment, messageLimitA1);
+            const rlnB = rlnInstanceFactory({
+                rlnIdentifier: rlnIdentifierB,
+            });
             // Test: verifyProof fails since proofA10.rlnIdentifier mismatches rlnB's rlnIdentifier
             expect(await rlnB.verifyProof(proofA10)).toBe(false);
         });
-
-        it("should be able to reuse registry", async function () {
-            // Test: A2's membership is sync with A1 by reusing A1's registry
-            const rlnA2 = rlnInstanceFactory({
-                rlnIdentifier: rlnIdentifierA,
-                registry: registryA1,
-            })
-            expect(rlnA2.merkleRoot).toBe(rlnA1.merkleRoot);
-        });
-
-        it("should be able to reuse cache", async function () {
-            // Test: A2's cache is sync with A1 by reusing A1's cache
-            const rlnA2 = rlnInstanceFactory({
-                rlnIdentifier: rlnIdentifierA,
-                cache: cacheA1,
-            })
-            // Since the cache already contains both proofA10 and proofA11,
-            // both results are invalid, due to adding duplicate proofs.
-            const resA10 = await rlnA1.saveProof(proofA10);
-            expect(resA10.status).toBe(Status.INVALID);
-            const resA11 = await rlnA1.saveProof(proofA11);
-            expect(resA11.status).toBe(Status.INVALID);
-        });
+        // TODO: Add tests to set messageIDCounter
     });
 });
