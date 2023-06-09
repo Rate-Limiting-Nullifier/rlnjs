@@ -20,7 +20,6 @@ describe("RLN", function () {
     describe("constructor params", function () {
         const rlnIdentifierA = BigInt(1);
         const fakeProvider = {} as ethers.Provider
-        const fakeTokenAddress = "0x0000000000000000000000000000000000001234"
         const fakeContractAddress = "0x0000000000000000000000000000000000005678"
 
         it("should fail when neither proving params nor verification key is given", async function () {
@@ -28,7 +27,6 @@ describe("RLN", function () {
                 new RLN({
                     rlnIdentifier: rlnIdentifierA,
                     provider: fakeProvider,
-                    tokenAddress: fakeTokenAddress,
                     contractAddress: fakeContractAddress,
                 });
             }).toThrow(
@@ -41,7 +39,6 @@ describe("RLN", function () {
             const rln = new RLN({
                 rlnIdentifier: rlnIdentifierA,
                 provider: fakeProvider,
-                tokenAddress: fakeTokenAddress,
                 contractAddress: fakeContractAddress,
                 verificationKey: rlnParams.verificationKey,
             })
@@ -54,7 +51,6 @@ describe("RLN", function () {
             const rln = new RLN({
                 rlnIdentifier: rlnIdentifierA,
                 provider: fakeProvider,
-                tokenAddress: fakeTokenAddress,
                 contractAddress: fakeContractAddress,
                 wasmFilePath: rlnParams.wasmFilePath,
                 finalZkeyPath: rlnParams.finalZkeyPath,
@@ -119,7 +115,6 @@ describe("RLN", function () {
                 rlnIdentifier: args.rlnIdentifier,
                 provider: deployed.provider,
                 signer: args.signer,
-                tokenAddress,
                 contractAddress,
                 withdrawWasmFilePath: withdrawParams.wasmFilePath,
                 withdrawFinalZkeyPath: withdrawParams.finalZkeyPath,

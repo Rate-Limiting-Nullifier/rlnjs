@@ -77,10 +77,8 @@ describe("RLNContract", () => {
         rlnContractWrapperAnother = new RLNContract({
             provider,
             signer: signerAnother,
-            tokenAddress: await erc20Contract.getAddress(),
             contractAddress: await rlnContract.getAddress(),
             contractAtBlock: deployed.contractAtBlock,
-            numBlocksDelayed: 0,
         })
     });
 
