@@ -38,7 +38,6 @@ type RLNArgs = {
   withdrawFinalZkeyPath?: string,
   signer?: ethers.Signer,
   contractAtBlock?: number,
-  numBlocksDelayed?: number,
 
   /* Others */
   // `IRegistry` that stores the registered users. If not provided, a new `Registry` is created.
@@ -111,7 +110,6 @@ export class RLN implements IRLN {
       signer: args.signer,
       contractAddress: args.contractAddress,
       contractAtBlock: args.contractAtBlock ? args.contractAtBlock : 0,
-      numBlocksDelayed: args.numBlocksDelayed ? args.numBlocksDelayed : 0,
     })
     this.registry = args.registry ? args.registry : new ContractRLNRegistry({
       rlnIdentifier: this.rlnIdentifier,

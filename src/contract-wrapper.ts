@@ -71,20 +71,16 @@ export class RLNContract {
 
   private contractAtBlock: number
 
-  private numBlocksDelayed: number
-
   constructor(args: {
     provider: ethers.Provider,
     signer?: ethers.Signer,
     contractAddress: string,
     contractAtBlock: number,
-    numBlocksDelayed: number,
   }) {
     this.provider = args.provider
     this.signer = args.signer
     this.rlnContract = new ethers.Contract(args.contractAddress, rlnContractABI, this.getContractRunner())
     this.contractAtBlock = args.contractAtBlock
-    this.numBlocksDelayed = args.numBlocksDelayed
   }
 
   private getContractRunner() {
@@ -109,11 +105,10 @@ export class RLNContract {
     if (currentBlockNumber < this.contractAtBlock) {
       throw new Error('Current block number is lower than the block number at which the contract was deployed')
     }
-    const targetBlockNumber = currentBlockNumber - this.numBlocksDelayed
     const logs = await this.provider.getLogs({
       address: rlnContractAddress,
       fromBlock: this.contractAtBlock,
-      toBlock: targetBlockNumber,
+      toBlock: currentBlockNumber,
     })
     const events = await Promise.all(logs.map(log => this.handleLog(log)))
     return events.filter(x => x !== undefined) as (EventMemberRegistered | EventMemberWithdrawn | EventMemberSlashed)[]

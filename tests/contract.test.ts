@@ -79,7 +79,6 @@ describe("RLNContract", () => {
             signer: signerAnother,
             contractAddress: await rlnContract.getAddress(),
             contractAtBlock: deployed.contractAtBlock,
-            numBlocksDelayed: 0,
         })
     });
 

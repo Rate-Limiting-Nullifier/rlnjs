@@ -87,7 +87,6 @@ export async function setupTestingContracts(args: {
         signer: signer0,
         contractAddress: await rlnContract.getAddress(),
         contractAtBlock,
-        numBlocksDelayed: 0,
     })
 
     async function waitUntilFreezePeriodPassed() {
