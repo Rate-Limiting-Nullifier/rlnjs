@@ -1,16 +1,8 @@
 // Imports
-import { RLN } from './rln'
-import { IRLNRegistry, ContractRLNRegistry }  from './registry'
-import { ICache, MemoryCache, CachedProof } from './cache'
-
-export {
-  RLN,
-  IRLNRegistry,
-  ContractRLNRegistry,
-  ICache,
-  MemoryCache,
-  CachedProof,
-}
+export { IRLN, RLN } from './rln'
+export { IRLNRegistry, ContractRLNRegistry }  from './registry'
+export { ICache, MemoryCache, CachedProof, Status } from './cache'
+export { IMessageIDCounter } from './message-id-counter'
 
 export * from './types'
 
