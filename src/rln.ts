@@ -8,49 +8,6 @@ import { RLNFullProof, RLNProver, RLNVerifier } from './circuit-wrapper'
 import { ethers } from 'ethers'
 import { RLNContract } from './contract-wrapper'
 
-
-type RLNArgs = {
-  /** Required */
-  /* App configs */
-  // The unique identifier of the app using RLN. The identifier must be unique for every app.
-  rlnIdentifier: bigint
-  // ethers provider
-  provider: ethers.Provider
-  // RLN contract address
-  contractAddress: string
-
-  /** Optional */
-  /* User configs */
-  // Semaphore identity of the user. If not provided, a new `Identity` is created.
-  identity?: Identity
-
-  /* System configs */
-  // File paths of the wasm and zkey file. If not provided, `createProof` will not work.
-  wasmFilePath?: string
-  finalZkeyPath?: string
-  // Verification key of the circuit. If not provided, `verifyProof` and `saveProof` will not work.
-  verificationKey?: VerificationKey
-  // Tree depth of the merkle tree used by the circuit. If not provided, the default value will be used.
-  treeDepth?: number
-
-  /* Registry configs */
-  withdrawWasmFilePath?: string,
-  withdrawFinalZkeyPath?: string,
-  signer?: ethers.Signer,
-  contractAtBlock?: number,
-
-  /* Others */
-  // `IRegistry` that stores the registered users. If not provided, a new `Registry` is created.
-  registry?: IRLNRegistry
-  // `ICache` that stores proofs added by the user with `addProof`, and detect spams automatically.
-  // If not provided, a new `MemoryCache` is created.
-  cache?: ICache
-  // If cache is not provided, `cacheSize` is used to create the `MemoryCache`. `cacheSize` is
-  // the maximum number of epochs that the cache can store.
-  // If not provided, the default value will be used.
-  cacheSize?: number
-}
-
 export interface IRLN {
   /* Membership */
   // User registers to the registry
@@ -94,7 +51,47 @@ export class RLN implements IRLN {
   // the messageIDCounter is used to **safely** generate the latest messageID for the user
   public messageIDCounter?: IMessageIDCounter
 
-  constructor(args: RLNArgs) {
+  constructor(args: {
+    /** Required */
+    /* App configs */
+    // The unique identifier of the app using RLN. The identifier must be unique for every app.
+    rlnIdentifier: bigint
+    // ethers provider
+    provider: ethers.Provider
+    // RLN contract address
+    contractAddress: string
+
+    /** Optional */
+    /* User configs */
+    // Semaphore identity of the user. If not provided, a new `Identity` is created.
+    identity?: Identity
+
+    /* System configs */
+    // File paths of the wasm and zkey file. If not provided, `createProof` will not work.
+    wasmFilePath?: string
+    finalZkeyPath?: string
+    // Verification key of the circuit. If not provided, `verifyProof` and `saveProof` will not work.
+    verificationKey?: VerificationKey
+    // Tree depth of the merkle tree used by the circuit. If not provided, the default value will be used.
+    treeDepth?: number
+
+    /* Registry configs */
+    withdrawWasmFilePath?: string,
+    withdrawFinalZkeyPath?: string,
+    signer?: ethers.Signer,
+    contractAtBlock?: number,
+
+    /* Others */
+    // `IRegistry` that stores the registered users. If not provided, a new `Registry` is created.
+    registry?: IRLNRegistry
+    // `ICache` that stores proofs added by the user with `addProof`, and detect spams automatically.
+    // If not provided, a new `MemoryCache` is created.
+    cache?: ICache
+    // If cache is not provided, `cacheSize` is used to create the `MemoryCache`. `cacheSize` is
+    // the maximum number of epochs that the cache can store.
+    // If not provided, the default value will be used.
+    cacheSize?: number
+  }) {
     this.rlnIdentifier = args.rlnIdentifier
     this.identity = args.identity ? args.identity : new Identity()
 
