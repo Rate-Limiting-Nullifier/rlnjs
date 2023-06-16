@@ -1,7 +1,27 @@
+
 # Rate Limiting Nullifier Javascript / Typescript Library
 
 ## Contents
-[ToC]
+
+- [Rate Limiting Nullifier Javascript / Typescript Library](#rate-limiting-nullifier-javascript-typescript-library)
+  * [Contents](#contents)
+  * [Description](#description)
+  * [Install](#install)
+    + [Build the circuits with script](#build-the-circuits-with-script)
+    + [Clone the circuits and build them manually](#clone-the-circuits-and-build-them-manually)
+    + [Add RLNjs to your project](#add-rlnjs-to-your-project)
+  * [Usage](#usage)
+    + [Initializing an RLN instance](#initializing-an-rln-instance)
+    + [Accessing Identity and Identity Commitment](#accessing-identity-and-identity-commitment)
+    + [Registering](#registering)
+    + [Generating a proof](#generating-a-proof)
+    + [Withdrawing](#withdrawing)
+    + [Verifying a proof](#verifying-a-proof)
+    + [Saving a proof](#saving-a-proof)
+    + [Slashing a user](#slashing-a-user)
+  * [Tests](#tests)
+  * [Bugs, Questions & Features](#bugs-questions-features)
+  * [License](#license)
 
 ## Description
 
