@@ -1,0 +1,20 @@
+{
+  "name": "example--node",
+  "version": "0.0.1",
+  "description": "An example of how to use RLN with NodeJS",
+  "main": "dist/index.js",
+  "scripts": {
+    "build-and-run": "tsc && node dist/index.js",
+    "clean": "rm -rf dist"
+  },
+  "type": "module",
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ethers": "^6.6.0",
+    "rlnjs": "^3.0.0"
+  },
+  "devDependencies": {
+    "hardhat": "^2.15.0"
+  }
+}
