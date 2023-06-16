@@ -8,64 +8,44 @@ import { RLNFullProof, RLNProver, RLNVerifier } from './circuit-wrapper'
 import { ethers } from 'ethers'
 import { RLNContract } from './contract-wrapper'
 
-
-type RLNArgs = {
-  /** Required */
-  /* App configs */
-  // The unique identifier of the app using RLN. The identifier must be unique for every app.
-  rlnIdentifier: bigint
-  // ethers provider
-  provider: ethers.Provider
-  // RLN contract address
-  contractAddress: string
-
-  /** Optional */
-  /* User configs */
-  // Semaphore identity of the user. If not provided, a new `Identity` is created.
-  identity?: Identity
-
-  /* System configs */
-  // File paths of the wasm and zkey file. If not provided, `createProof` will not work.
-  wasmFilePath?: string
-  finalZkeyPath?: string
-  // Verification key of the circuit. If not provided, `verifyProof` and `saveProof` will not work.
-  verificationKey?: VerificationKey
-  // Tree depth of the merkle tree used by the circuit. If not provided, the default value will be used.
-  treeDepth?: number
-
-  /* Registry configs */
-  withdrawWasmFilePath?: string,
-  withdrawFinalZkeyPath?: string,
-  signer?: ethers.Signer,
-  contractAtBlock?: number,
-
-  /* Others */
-  // `IRegistry` that stores the registered users. If not provided, a new `Registry` is created.
-  registry?: IRLNRegistry
-  // `ICache` that stores proofs added by the user with `addProof`, and detect spams automatically.
-  // If not provided, a new `MemoryCache` is created.
-  cache?: ICache
-  // If cache is not provided, `cacheSize` is used to create the `MemoryCache`. `cacheSize` is
-  // the maximum number of epochs that the cache can store.
-  // If not provided, the default value will be used.
-  cacheSize?: number
-}
-
 export interface IRLN {
   /* Membership */
-  // User registers to the registry
+  /**
+   * Register the user to the registry.
+   * @param userMessageLimit The message limit of the user.
+   * @param messageIDCounter The messageIDCounter is used to **safely** generate the latest messageID for the user.
+   * If not provided, a new `MemoryMessageIDCounter` is created.
+   */
   register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter): Promise<void>
-  // User withdraws from the registry
+  /**
+   * Withdraw the user from the registry.
+   */
   withdraw(): Promise<void>
-  // User slashes another user with their secret
+  /**
+   * Slash the user with the given secret.
+   * @param secretToBeSlashed The secret to be slashed.
+   * @param receiver The address of the slash reward receiver. If not provided,
+   * the signer will receive the reward.
+   */
   slash(secretToBeSlashed: bigint, receiver?: string): Promise<void>
 
   /* Proof-related */
-  // Generate a proof for the given epoch and message
+  /**
+   * Create a proof for the given epoch and message.
+   * @param epoch the timestamp of the message
+   * @param message the message to be proved
+   */
   createProof(epoch: bigint, message: string): Promise<RLNFullProof>
-  // Verify a proof
+  /**
+   * Verify a RLNFullProof
+   * @param proof the RLNFullProof to be verified
+   */
   verifyProof(proof: RLNFullProof): Promise<boolean>
-  // Verify a proof and check if the proof is valid
+  /**
+   * Verify a RLNFullProof, save it to a cache, and detect if the proof is a spam.
+   * @param proof the RLNFullProof to be verified
+   * @returns EvaluatedProof the result
+   */
   saveProof(proof: RLNFullProof): Promise<EvaluatedProof>
 }
 
@@ -77,7 +57,7 @@ export class RLN implements IRLN {
   readonly rlnIdentifier: bigint
 
   // the semaphore identity of the user
-  private identity: Identity
+  readonly identity: Identity
 
   // the prover allows user to generate proof with the RLN circuit
   private prover?: RLNProver
@@ -94,7 +74,98 @@ export class RLN implements IRLN {
   // the messageIDCounter is used to **safely** generate the latest messageID for the user
   public messageIDCounter?: IMessageIDCounter
 
-  constructor(args: RLNArgs) {
+  constructor(args: {
+    /** Required */
+    /**
+     * The unique identifier of the app using RLN. The identifier must be unique for every app.
+     */
+    rlnIdentifier: bigint
+    /**
+     * The ethers provider that is used to interact with the RLN contract.
+     * @see {@link https://docs.ethers.io/v5/api/providers/}
+     */
+    provider: ethers.Provider
+    /**
+     * The address of the RLN contract.
+     */
+    contractAddress: string
+
+    /** Optional */
+    /* User configs */
+    /**
+     * Semaphore identity of the user. If not provided, a new `Identity` is created.
+     */
+    identity?: Identity
+
+    /* System configs */
+    // File paths of the wasm and zkey file. If not provided, `createProof` will not work.
+    /**
+     * File path of the RLN wasm file. If not provided, `createProof` will not work.
+     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
+     */
+    wasmFilePath?: string
+    /**
+     * File path of the RLN final zkey file. If not provided, `createProof` will not work.
+     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
+     */
+    finalZkeyPath?: string
+    // Verification key of the circuit. If not provided, `verifyProof` and `saveProof` will not work.
+    /**
+     * Verification key of the RLN circuit. If not provided, `verifyProof` and `saveProof` will not work.
+     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
+     */
+    verificationKey?: VerificationKey
+    /**
+     * Tree depth of the merkle tree used by the circuit. If not provided, the default value will be used.
+     * @default 20
+     */
+    treeDepth?: number
+
+    /* Registry configs */
+    /**
+     * File path of the wasm file for withdraw circuit. If not provided, `withdraw` will not work.
+     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/withdraw.circom}
+     */
+    withdrawWasmFilePath?: string,
+    /**
+     * File path of the final zkey file for withdraw circuit. If not provided, `withdraw` will not work.
+     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/withdraw.circom}
+     */
+    withdrawFinalZkeyPath?: string,
+    /**
+     * The ethers signer that is used to interact with the RLN contract. If not provided,
+     * user can only do read-only operations. Functions like `register` and `withdraw` will not work
+     * since they need to send transactions to interact with the RLN contract.
+     * @see {@link https://docs.ethers.io/v5/api/signer/#Signer}
+     */
+    signer?: ethers.Signer,
+    /**
+     * The block number where the RLN contract is deployed. If not provided, `0` will be used.
+     * @default 0
+     * @see {@link https://docs.ethers.io/v5/api/providers/provider/#Provider-getLogs}
+     */
+    contractAtBlock?: number,
+
+    /** Others */
+    /**
+     * `IRegistry` that stores the registered users. If not provided, a new `ContractRLNRegistry` is created.
+     * @see {@link ContractRLNRegistry}
+     */
+    registry?: IRLNRegistry
+    /**
+     * `ICache` that stores proofs added by the user with `addProof`, and detect spams automatically.
+     * If not provided, a new `MemoryCache` is created.
+     * @see {@link MemoryCache}
+     */
+    cache?: ICache
+    /**
+     * The maximum number of epochs that the cache can store. If not provided, the default value will be used.
+     * This is only used when `cache` is not provided.
+     * @default 100
+     * @see {@link MemoryCache}
+     */
+    cacheSize?: number
+  }) {
     this.rlnIdentifier = args.rlnIdentifier
     this.identity = args.identity ? args.identity : new Identity()
 
@@ -135,6 +206,10 @@ export class RLN implements IRLN {
     }
   }
 
+  /**
+   * Set a custom messageIDCounter
+   * @param messageIDCounter The custom messageIDCounter
+   */
   async setMessageIDCounter(messageIDCounter?: IMessageIDCounter) {
     if (await this.isRegistered() === false) {
       throw new Error('Cannot set messageIDCounter for an unregistered user.')
@@ -147,10 +222,17 @@ export class RLN implements IRLN {
     }
   }
 
+  /**
+   * Get the latest merkle root of the registry.
+   * @returns the latest merkle root of the registry
+   */
   async getMerkleRoot(): Promise<bigint> {
     return this.registry.getMerkleRoot()
   }
 
+  /**
+   * Get the identity commitment of the user.
+   */
   get identityCommitment(): bigint {
     return this.identity.commitment
   }
@@ -159,14 +241,24 @@ export class RLN implements IRLN {
     return calculateIdentityCommitment(this.identity)
   }
 
+  /**
+   * Get the rate commitment of the user, i.e. hash(identitySecret, messageLimit)
+   * @returns the rate commitment
+   */
   async getRateCommitment(): Promise<bigint> {
     return this.registry.getRateCommitment(this.identityCommitment)
   }
 
+  /**
+   * @returns the user has been registered or not
+   */
   async isRegistered(): Promise<boolean> {
     return this.registry.isRegistered(this.identityCommitment)
   }
 
+  /**
+   * @returns all rate commitments in the registry
+   */
   async getAllRateCommitments(): Promise<bigint[]> {
     return this.registry.getAllRateCommitments()
   }
@@ -182,17 +274,27 @@ export class RLN implements IRLN {
   }
 
   /**
-   * User withdraws from the registry.
+   * User withdraws from the registry. User will not receive the funds immediately,
+   * they need to wait `freezePeriod + 1` blocks and call `releaseWithdrawal` to get the funds.
    */
   async withdraw() {
     await this.registry.withdraw(this.identitySecret)
   }
 
+  /**
+   * Release the funds from the pending withdrawal requested by `withdraw`.
+   */
   async releaseWithdrawal() {
     await this.registry.releaseWithdrawal(this.identityCommitment)
     this.messageIDCounter = undefined
   }
 
+  /**
+   * Slash a user by its identity secret.
+   * @param secretToBeSlashed the identity secret of the user to be slashed
+   * @param receiver the receiver of the slashed funds. If not provided, the funds will be sent to
+   * the `signer` given in the constructor.
+   */
   async slash(secretToBeSlashed: bigint, receiver?: string) {
     await this.registry.slash(secretToBeSlashed, receiver)
   }
