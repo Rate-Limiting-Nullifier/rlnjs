@@ -5,10 +5,10 @@ import { deployERC20, deployRLNContract, deployVerifier, rlnParams, treeDepth, u
 
 async function main() {
     const rlnIdentifier = BigInt(5566)
-    const expectedRateLimit = BigInt(1);
+    const messageLimit = BigInt(1);
     const message0 = "Hello World"
     const message1 = "Hello World 2"
-    const epoch = BigInt(7788)
+    const epoch = BigInt(1234)
     const signerTestERC20Amount = BigInt(100000000)
     const slasher = "0x0000000000000000000000000000000000009876"
 
@@ -69,11 +69,11 @@ async function main() {
     if (await rln.isRegistered()) {
         throw new Error(`rln should not have yet registered`);
     }
-    console.log(`Try with rate limit ${expectedRateLimit}...`)
+    console.log(`Try with rate limit ${messageLimit}...`)
 
     /* Register */
 
-    await rln.register(expectedRateLimit);
+    await rln.register(messageLimit);
     if (!await rln.isRegistered()) {
         throw new Error(`Failed to register`);
     }
@@ -86,12 +86,12 @@ async function main() {
         throw new Error(`Proof is invalid`);
     }
     console.log(`Successfully created proof`);
-    console.log(`Try creating proof for another message but it should exceed the rate limit ${expectedRateLimit}...`)
+    console.log(`Try creating proof for another message but it should exceed the rate limit ${messageLimit}...`)
     try {
         await rln.createProof(epoch, message1);
     } catch (e) {
         const message = (e as Error).toString()
-        if (!message.includes(`Error: Message ID counter exceeded message limit ${expectedRateLimit}`)) {
+        if (!message.includes(`Error: Message ID counter exceeded message limit ${messageLimit}`)) {
             throw e
         }
     }
@@ -115,7 +115,7 @@ async function main() {
 
     /* Slash */
 
-    console.log("Try `slash` by making rlnAnother create more than " + `${expectedRateLimit} proofs and get slashed by rln`)
+    console.log("Try `slash` by making rlnAnother create more than " + `${messageLimit} proofs and get slashed by rln`)
     const rlnAnother = createRLNInstance()
     console.log(`rlnAnother created: identityCommitment=${rlnAnother.identityCommitment}`)
     class FaultyMessageIDCounter {
@@ -130,7 +130,7 @@ async function main() {
         }
     }
     console.log(`Registering rlnAnother...`)
-    await rlnAnother.register(expectedRateLimit, new FaultyMessageIDCounter(expectedRateLimit));
+    await rlnAnother.register(messageLimit, new FaultyMessageIDCounter(messageLimit));
     console.log(`Creating proof0 for rlnAnother...`)
     const proof0 = await rlnAnother.createProof(epoch, message0);
     console.log(`Creating proof1 for rlnAnother...`)
