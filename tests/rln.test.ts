@@ -5,6 +5,7 @@ import { MemoryMessageIDCounter } from "../src/message-id-counter";
 import { ethers } from "ethers";
 import { setupTestingContracts } from "./factories";
 import { ChildProcessWithoutNullStreams } from "child_process";
+import { fieldFactory } from "./utils";
 
 class FakeMessageIDCounter extends MemoryMessageIDCounter {
     reset(epoch: bigint) {
@@ -55,9 +56,11 @@ describe("RLN", function () {
                 wasmFilePath: rlnParams.wasmFilePath,
                 finalZkeyPath: rlnParams.finalZkeyPath,
             })
+            const randomEpoch = fieldFactory()
+            const randomMessage = "abc"
             const mockProof = {} as RLNFullProof
             await expect(async () => {
-                await rln.verifyProof(mockProof)
+                await rln.verifyProof(randomEpoch, randomMessage, mockProof)
             }).rejects.toThrow("Verifier is not initialized");
             await expect(async () => {
                 await rln.saveProof(mockProof)
@@ -179,7 +182,7 @@ describe("RLN", function () {
             proofA00 = await rlnA0.createProof(epoch0, message0);
             const messageIDAfter = await messageIDCounterA0.peekNextMessageID(epoch0);
             expect(messageIDAfter).toBe(messageIDBefore + BigInt(1));
-            expect(await rlnA0.verifyProof(proofA00)).toBe(true);
+            expect(await rlnA0.verifyProof(epoch0, message0, proofA00)).toBe(true);
             const res = await rlnA0.saveProof(proofA00);
             expect(res.status).toBe(Status.ADDED);
         });
@@ -204,7 +207,7 @@ describe("RLN", function () {
                     publicSignals: proofA00.snarkProof.publicSignals,
                 }
             }
-            expect(await rlnA0.verifyProof(proofA00Invalid)).toBeFalsy()
+            expect(await rlnA0.verifyProof(epoch0, message0, proofA00Invalid)).toBeFalsy()
         });
 
         it("should be able to withdraw", async function () {
@@ -290,7 +293,7 @@ describe("RLN", function () {
                 rlnIdentifier: rlnIdentifierB,
             });
             // Test: verifyProof fails since proofA10.rlnIdentifier mismatches rlnB's rlnIdentifier
-            expect(await rlnB.verifyProof(proofA10)).toBe(false);
+            expect(await rlnB.verifyProof(epoch0, message0, proofA10)).toBe(false);
         });
         // TODO: Add tests to set messageIDCounter
     });
