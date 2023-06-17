@@ -38,9 +38,11 @@ export interface IRLN {
   createProof(epoch: bigint, message: string): Promise<RLNFullProof>
   /**
    * Verify a RLNFullProof
+   * @param epoch the timestamp of the message
+   * @param message the message to be proved
    * @param proof the RLNFullProof to be verified
    */
-  verifyProof(proof: RLNFullProof): Promise<boolean>
+  verifyProof(epoch: bigint, message: string, proof: RLNFullProof): Promise<boolean>
   /**
    * Verify a RLNFullProof, save it to a cache, and detect if the proof is a spam.
    * @param proof the RLNFullProof to be verified
@@ -333,22 +335,37 @@ export class RLN implements IRLN {
   }
 
   /**
-   * Verify the RLNFullProof.
+   * Verify a proof is valid and indeed for `epoch` and `message`.
+   * @param epoch the epoch to verify the proof for
+   * @param message the message to verify the proof for
    * @param proof the RLNFullProof to verify
    * @returns true if the proof is valid, false otherwise
    */
-  async verifyProof(proof: RLNFullProof): Promise<boolean> {
+  async verifyProof(epoch: bigint, message: string, proof: RLNFullProof): Promise<boolean> {
     if (this.verifier === undefined) {
       throw new Error('Verifier is not initialized')
     }
     // Check if the proof is using the same parameters
-    const { snarkProof, rlnIdentifier } = proof
-    const { root } = snarkProof.publicSignals
+    const snarkProof = proof.snarkProof
+    const epochInProof = proof.epoch
+    const rlnIdentifier = proof.rlnIdentifier
+    const { root, x } = snarkProof.publicSignals
+    // Check if the proof is using the same rlnIdentifier
+    if (BigInt(rlnIdentifier) !== this.rlnIdentifier) {
+      return false
+    }
+    // Check if the proof is using the same epoch
+    if (BigInt(epochInProof) !== epoch) {
+      return false
+    }
+    // Check if the proof and message match
+    const messageToX = calculateSignalHash(message)
+    if (BigInt(x) !== messageToX) {
+      return false
+    }
+    // Check if the merkle root is the same as the registry's
     const registryMerkleRoot = await this.registry.getMerkleRoot()
-    if (
-      BigInt(rlnIdentifier) !== this.rlnIdentifier ||
-            BigInt(root) !== registryMerkleRoot
-    ) {
+    if (BigInt(root) !== registryMerkleRoot) {
       return false
     }
     // Verify snark proof
@@ -356,13 +373,16 @@ export class RLN implements IRLN {
   }
 
   /**
-   * Verify and save the proof to the cache. If the proof is invalid, an error is thrown.
+   * Save the proof to the cache. If the proof is invalid, an error is thrown.
    * Else, the proof is saved to the cache and is checked if it's a spam.
    * @param proof the RLNFullProof to verify and save
    * @returns the EvaluatedProof if the proof is valid, an error is thrown otherwise
    */
   async saveProof(proof: RLNFullProof): Promise<EvaluatedProof> {
-    if (!await this.verifyProof(proof)) {
+    if (this.verifier === undefined) {
+      throw new Error('Verifier is not initialized')
+    }
+    if (!await this.verifier.verifyProof(proof)) {
       throw new Error('Invalid proof')
     }
     const { snarkProof, epoch } = proof
