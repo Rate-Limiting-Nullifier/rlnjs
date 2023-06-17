@@ -7,9 +7,9 @@
   * [Contents](#contents)
   * [Description](#description)
   * [Install](#install)
-    + [Build the circuits with script](#build-the-circuits-with-script)
-    + [Clone the circuits and build them manually](#clone-the-circuits-and-build-them-manually)
-    + [Add RLNjs to your project](#add-rlnjs-to-your-project)
+    + [Build circuits and get the parameter files](#build-circuits-and-get-the-parameter-files)
+      - [With script (Recommended)](#with-script-recommended)
+      - [Manually clone and build the circuits](#manually-clone-and-build-the-circuits)
   * [Usage](#usage)
     + [Initializing an RLN instance](#initializing-an-rln-instance)
     + [Accessing Identity and Identity Commitment](#accessing-identity-and-identity-commitment)
@@ -19,6 +19,7 @@
     + [Verifying a proof](#verifying-a-proof)
     + [Saving a proof](#saving-a-proof)
     + [Slashing a user](#slashing-a-user)
+  * [Example](#example)
   * [Tests](#tests)
   * [Bugs, Questions & Features](#bugs-questions-features)
   * [License](#license)
@@ -33,9 +34,17 @@ The core of RLN is in the [circuit logic](https://github.com/Rate-Limiting-Nulli
 
 ## Install
 
-Circuit related files `circuit.wasm`, `final.zkey`, and `verification_key.json` are needed when instantiating a [RLN](src/rln.ts) instance. You can choose to build the circuits [with script](#build-the-circuits-with-script) or [manually](#clone-the-circuits-and-build-them-manually).
+Install rlnjs with npm:
 
-### Build the circuits with script
+```bash
+npm install rlnjs
+```
+
+### Build circuits and get the parameter files
+
+Circuit parameter files `circuit.wasm`, `final.zkey`, and `verification_key.json` are needed when instantiating a [RLN](src/rln.ts) instance. You can choose to build the circuits with script or manually.
+
+#### With script (Recommended)
 
 Run the script [scripts/build-zkeys.sh](scripts/build-zkeys.sh) and it will build the circuits for you.
 
@@ -57,7 +66,7 @@ zkeyFiles
     └── verification_key.json
 ```
 
-### Clone the circuits and build them manually
+#### Manually clone and build the circuits
 
 > Circom needs to be installed, please see this [link](https://docs.circom.io/getting-started/installation/) for installation instructions.
 
@@ -90,23 +99,21 @@ zkeyFiles
     └── verification_key.json
 ```
 
-### Add RLNjs to your project
-
-```bash
-npm install rlnjs
-```
-
 ## Usage
-
-Below is a simple demonstration of how to use RLNjs. For a runnable version, please see the example [here](./examples/node/).
 
 ### Initializing an RLN instance
 
-```js
+```typescript
+import path from "path"
+
+import { ethers } from "ethers"
+import { Identity } from '@semaphore-protocol/identity'
 import { RLN } from "rlnjs"
 
-// This assumes you have built `rln.circom` and `withdraw.circom`, and placed them under the folder ./zkeyFiles
-/* rln circuit */
+// Assume you have built `rln.circom` and `withdraw.circom` and have placed them under the folder ./zkeyFiles/rln
+// and ./zkeyFiles/withdraw respectively.
+
+/* rln circuit parameters */
 const rlnZkeyFilesDir = path.join("zkeyFiles", "rln");
 // zkeyFiles/rln/verification_key.json
 const rlnVerificationKey = JSON.parse(
@@ -117,21 +124,27 @@ const rlnWasmFilePath = path.join(rlnZkeyFilesDir, "circuit.wasm")
 // zkeyFiles/rln/final.zkey
 const rlnFinalZkeyPath = path.join(rlnZkeyFilesDir, "final.zkey")
 
-/* withdraw circuit */
+/* withdraw circuit parameters */
 const withdrawZkeyFilesDir = path.join("zkeyFiles", "withdraw")
 // zkeyFiles/withdraw/circuit.wasm
 const withdrawWasmFilePath = path.join(withdrawZkeyFilesDir, "circuit.wasm")
 // zkeyFiles/withdraw/final.zkey
 const withdrawFinalZkeyPath = path.join(withdrawZkeyFilesDir, "final.zkey")
 
-// Instantiate RLN. The following parameters are optional:
+const rlnIdentifier = BigInt(5566)
+const provider = new ethers.JsonRpcProvider(url)
+const contractAddress = "0x..."
+const signer = await provider.getSigner(0)
+const identity = new Identity("1234")
+
 const rln = new RLN({
-  /* Required */
-  rlnIdentifier,
-  provider,  // ethers.js provider
+  /* These parameters are required */
+  rlnIdentifier, // The unique id representing your application
+  provider, // ethers.js provider
   contractAddress, // RLN contract address
 
-  /* Optional */
+  /* These parameters are optional */
+  identity, // the semaphore identity. If not given, a new identity is created
   contractAtBlock, // The block number at which the RLN contract was deployed. If not given, default is 0
   signer, // ethers.js signer. If not given, users won't be able to execute write operations to the RLN contract
   treeDepth, // The depth of the merkle tree. Default is 20
@@ -140,17 +153,19 @@ const rln = new RLN({
   verificationKey: rlnVerificationKey, // The rln circuit verification key. If not given, `verifyProof` will not work
   withdrawWasmFilePath, // The path to the withdraw circuit wasm file. If not given, `withdraw` will not work
   withdrawFinalZkeyPath, // The path to the withdraw circuit final zkey file. If not given, `withdraw` will not work
+
+  // ... See all optional parameters in RLN constructor in src/rln.ts
 })
 ```
 
 ### Accessing Identity and Identity Commitment
 
-When an instance of RLNjs is initialized, it creates an identity commitment which you can access by calling `rlnInstance.commitment`.
+When an RLN instance is initialized without `identity` given, it creates an identity commitment which you can access by calling `rlnInstance.commitment`.
 
 ```typescript
 // Example of accessing the generated identity commitment
-const identity = rln.identity()
-const identityCommitment = rln.identityCommitment()
+const identity = rln.identity
+const identityCommitment = rln.identityCommitment
 ```
 
 ### Registering
@@ -175,12 +190,12 @@ You can generate a proof by calling `rln.createProof()`. For the same epoch, you
 
 ### Withdrawing
 ```typescript
-// To withdraw, this calls the `withdraw` function in the RLN contract
+// To withdraw, rln generates
 await rln.withdraw();
 // after withdrawing, you still need to wait for the freezePeriod in order to release the withdrawal
 console.log(await rln.isRegistered()) // true
 
-// After freezePeriod, you can release the withdrawal and successfully get the funds back
+// After freezePeriod (i.e. freezePeriod + 1 blocks), you can release the withdrawal and successfully get the funds back
 await rln.releaseWithdrawal();
 console.log(await rln.isRegistered()) // false
 ```
@@ -188,7 +203,7 @@ console.log(await rln.isRegistered()) // false
 ### Verifying a proof
 
 ```typescript
-const proofResult = await rln.verifyProof(proof) // true or false
+const proofResult = await rln.verifyProof(epoch, message, proof) // true or false
 ```
 
 A proof can be invalid in the following conditions:
@@ -209,12 +224,24 @@ const status = result.status
 // if status is "breach", you can get the secret by
 const secret = result.secret
 ```
+
+> 1. `verifyProof(epoch, message, proof)` and `saveProof(proof)` are different. `verifyProof` not only verifies the snark proof but ensure the proof matches `epoch` and `message`, while `saveProof()` only verifies the snark proof itself also then saves the proof to the cache to detect spam. If one wants to make sure the proof is for `epoch` and `message` and also detect spams, they should call both `verifyProof` and `saveProof`.
+
+> 2. `saveProof` is not persistent. If you restart the application, you might fail to detect some spams. If you want to persist the proof cache, you can implement your own proof cache by implementing the [ICache](./src/cache.ts) interface and set it in the constructor.
+
 ### Slashing a user
 
 ```typescript
 const slashReceiver = "0x0000000000000000000000000000000000001234"
 await rln.slash(secret, receiver) // user using the secret gets slashed and the funds go to the receiver
 ```
+If receiver is not given, the funds will go to the signer.
+```typescript
+await rln.slash(secret) // funds go to the signer
+```
+
+## Example
+Please see the examples [here](./examples/node/) which can be run and demonstrate how to use RLNjs.
 
 ## Tests
 
