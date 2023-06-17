@@ -82,7 +82,7 @@ async function main() {
     /* Create Proof */
     console.log(`Creating proof...`)
     const proof = await rln.createProof(epoch, message0);
-    if (!await rln.verifyProof(proof)) {
+    if (!await rln.verifyProof(epoch, message0, proof)) {
         throw new Error(`Proof is invalid`);
     }
     console.log(`Successfully created proof`);
