@@ -17,7 +17,8 @@
 #
 supported_circuit_names=("rln" "withdraw")
 
-rln_circuits_version=3707313
+# https://github.com/Rate-Limiting-Nullifier/circom-rln/commit/18f6e0acd0d2a8ec0d9e19da24ab0dbb1c911647
+rln_circuits_version=18f6e0a
 rln_circuits_repo='circom-rln'
 rln_circuits_repo_url="https://github.com/Rate-Limiting-Nullifier/$rln_circuits_repo.git"
 
