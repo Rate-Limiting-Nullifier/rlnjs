@@ -5,11 +5,10 @@
   "license": "MIT",
   "repository": "https://github.com/Rate-Limiting-Nullifier/rlnjs",
   "homepage": "https://github.com/Rate-Limiting-Nullifier/rlnjs",
-  "author": {
-    "name": "AtHeartEngineer",
-    "email": "atheartengineer@gmail.com"
-  },
   "contributors": [
+    {
+      "name": "AtHeartEngineer"
+    },
     {
       "name": "Mai-Hsuan (Kevin) Chia"
     },
