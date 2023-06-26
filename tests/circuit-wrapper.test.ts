@@ -10,8 +10,8 @@ const LIMIT_BIT_SIZE = 16
 
 describe("RLN", function () {
     const rlnIdentifier = fieldFactory()
-    const rlnProver = new RLNProver(rlnParams.wasmFilePath, rlnParams.finalZkeyPath, rlnIdentifier)
-    const rlnVerifier = new RLNVerifier(rlnParams.verificationKey, rlnIdentifier)
+    const rlnProver = new RLNProver(rlnParams.wasmFilePath, rlnParams.finalZkeyPath)
+    const rlnVerifier = new RLNVerifier(rlnParams.verificationKey)
     const identitySecret = fieldFactory()
     const identityCommitment = poseidon([identitySecret])
     const leaves = [identityCommitment]
@@ -24,6 +24,7 @@ describe("RLN", function () {
     it("should generate valid proof", async function () {
         const merkleProof = generateMerkleProof(rlnIdentifier, leaves, treeDepth, 0)
         const proof = await rlnProver.generateProof({
+            rlnIdentifier,
             identitySecret,
             userMessageLimit,
             messageId,
@@ -31,7 +32,7 @@ describe("RLN", function () {
             x,
             epoch,
         })
-        expect(await rlnVerifier.verifyProof(proof)).toBeTruthy()
+        expect(await rlnVerifier.verifyProof(rlnIdentifier, proof)).toBeTruthy()
     });
 });
 

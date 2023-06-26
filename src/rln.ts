@@ -194,17 +194,10 @@ export class RLN implements IRLN {
     this.cache = args.cache ? args.cache : new MemoryCache(args.cacheSize)
 
     if (args.wasmFilePath !== undefined && args.finalZkeyPath !== undefined) {
-      this.prover = new RLNProver(
-        args.wasmFilePath,
-        args.finalZkeyPath,
-        args.rlnIdentifier,
-      )
+      this.prover = new RLNProver(args.wasmFilePath, args.finalZkeyPath)
     }
     if (args.verificationKey !== undefined) {
-      this.verifier = new RLNVerifier(
-        args.verificationKey,
-        args.rlnIdentifier,
-      )
+      this.verifier = new RLNVerifier(args.verificationKey)
     }
   }
 
@@ -325,6 +318,7 @@ export class RLN implements IRLN {
     const messageID = await this.messageIDCounter.getMessageIDAndIncrement(epoch)
     const userMessageLimit = await this.registry.getMessageLimit(this.identityCommitment)
     return this.prover.generateProof({
+      rlnIdentifier: this.rlnIdentifier,
       identitySecret: this.identitySecret,
       userMessageLimit: userMessageLimit,
       messageId: messageID,
@@ -369,7 +363,7 @@ export class RLN implements IRLN {
       return false
     }
     // Verify snark proof
-    return this.verifier.verifyProof(proof)
+    return this.verifier.verifyProof(rlnIdentifier, proof)
   }
 
   /**
@@ -382,7 +376,7 @@ export class RLN implements IRLN {
     if (this.verifier === undefined) {
       throw new Error('Verifier is not initialized')
     }
-    if (!await this.verifier.verifyProof(proof)) {
+    if (!await this.verifier.verifyProof(this.rlnIdentifier, proof)) {
       throw new Error('Invalid proof')
     }
     const { snarkProof, epoch } = proof
