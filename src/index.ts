@@ -6,4 +6,4 @@ export { IMessageIDCounter } from './message-id-counter'
 
 export * from './types'
 
-export { RLNFullProof, RLNSNARKProof, RLNWitness, RLNPublicSignals } from './circuit-wrapper'
+export { RLNFullProof, RLNSNARKProof, RLNWitness, RLNPublicSignals, RLNProver, RLNVerifier, WithdrawProver } from './circuit-wrapper'
