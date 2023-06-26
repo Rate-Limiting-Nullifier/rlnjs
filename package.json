@@ -1,15 +1,14 @@
 {
   "name": "rlnjs",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "Client library for generating and using RLN ZK proofs.",
   "license": "MIT",
   "repository": "https://github.com/Rate-Limiting-Nullifier/rlnjs",
   "homepage": "https://github.com/Rate-Limiting-Nullifier/rlnjs",
-  "author": {
-    "name": "AtHeartEngineer",
-    "email": "atheartengineer@gmail.com"
-  },
   "contributors": [
+    {
+      "name": "AtHeartEngineer"
+    },
     {
       "name": "Mai-Hsuan (Kevin) Chia"
     },

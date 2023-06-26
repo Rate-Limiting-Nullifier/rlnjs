@@ -8,21 +8,21 @@ import { calculateExternalNullifier } from './common'
 /**
  * Public signals of the SNARK proof.
  */
-type RLNPublicSignals = {
-  x: StrBigInt,
-  externalNullifier: StrBigInt,
-  y: StrBigInt,
-  root: StrBigInt,
-  nullifier: StrBigInt,
+export type RLNPublicSignals = {
+  x: StrBigInt;
+  externalNullifier: StrBigInt;
+  y: StrBigInt;
+  root: StrBigInt;
+  nullifier: StrBigInt;
 }
 
 /**
  * SNARK proof that contains both proof and public signals.
  * Can be verified directly by a SNARK verifier.
  */
-type RLNSNARKProof = {
-  proof: Proof
-  publicSignals: RLNPublicSignals
+export type RLNSNARKProof = {
+  proof: Proof;
+  publicSignals: RLNPublicSignals;
 }
 
 /**
@@ -31,23 +31,23 @@ type RLNSNARKProof = {
  * and the snarkProof is valid.
  */
 export type RLNFullProof = {
-  snarkProof: RLNSNARKProof
-  epoch: bigint
-  rlnIdentifier: bigint
+  snarkProof: RLNSNARKProof;
+  epoch: bigint;
+  rlnIdentifier: bigint;
 }
 
 /**
  * RLN witness that contains all the inputs needed for proof generation.
  */
-type RLNWitness = {
-  identitySecret: bigint,
-  userMessageLimit: bigint,
-  messageId: bigint,
+export type RLNWitness = {
+  identitySecret: bigint;
+  userMessageLimit: bigint;
+  messageId: bigint;
   // Ignore `no-explicit-any` because the type of `identity_path_elements` in zk-kit is `any[]`
-  pathElements: any[], // eslint-disable-line @typescript-eslint/no-explicit-any
-  identityPathIndex: number[],
-  x: string | bigint,
-  externalNullifier: bigint,
+  pathElements: any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+  identityPathIndex: number[];
+  x: string | bigint;
+  externalNullifier: bigint;
 }
 
 /**
@@ -74,12 +74,12 @@ export class RLNProver {
    * @returns The full SnarkJS proof.
    */
   public async generateProof(args: {
-    identitySecret: bigint,
-    userMessageLimit: bigint,
-    messageId: bigint,
-    merkleProof: MerkleProof,
-    x: bigint,
-    epoch: bigint,
+    identitySecret: bigint;
+    userMessageLimit: bigint;
+    messageId: bigint;
+    merkleProof: MerkleProof;
+    x: bigint;
+    epoch: bigint;
   }): Promise<RLNFullProof> {
     const witness: RLNWitness = {
       identitySecret: args.identitySecret,
@@ -130,11 +130,11 @@ export class RLNVerifier {
   }
 
   /**
-     * Verifies a RLN full proof.
-     * @param fullProof The SnarkJS full proof.
-     * @returns True if the proof is valid, false otherwise.
-     * @throws Error if the proof is using different parameters.
-     */
+   * Verifies a RLN full proof.
+   * @param fullProof The SnarkJS full proof.
+   * @returns True if the proof is valid, false otherwise.
+   * @throws Error if the proof is using different parameters.
+   */
   public async verifyProof(rlnRullProof: RLNFullProof): Promise<boolean> {
     const expectedExternalNullifier = calculateExternalNullifier(
       BigInt(rlnRullProof.epoch),
@@ -144,8 +144,8 @@ export class RLNVerifier {
     if (expectedExternalNullifier !== BigInt(actualExternalNullifier)) {
       throw new Error(
         `External nullifier does not match: expectedExternalNullifier=${expectedExternalNullifier}, ` +
-        `actualExternalNullifier=${actualExternalNullifier}, epoch=${rlnRullProof.epoch}, ` +
-        `this.rlnIdentifier=${this.rlnIdentifier}`,
+          `actualExternalNullifier=${actualExternalNullifier}, epoch=${rlnRullProof.epoch}, ` +
+          `this.rlnIdentifier=${this.rlnIdentifier}`,
       )
     }
 
@@ -165,8 +165,8 @@ export class RLNVerifier {
 }
 
 type SNARKProof = {
-  proof: Proof
-  publicSignals: StrBigInt[]
+  proof: Proof;
+  publicSignals: StrBigInt[];
 }
 
 /**
@@ -182,13 +182,13 @@ export class WithdrawProver {
     this.finalZkeyPath = finalZkeyPath
   }
 
-  async generateProof(args: { identitySecret: bigint, address: bigint }): Promise<SNARKProof> {
-    return await groth16.fullProve(
+  async generateProof(args: { identitySecret: bigint; address: bigint }): Promise<SNARKProof> {
+    return (await groth16.fullProve(
       args,
       this.wasmFilePath,
       this.finalZkeyPath,
       null,
-    ) as SNARKProof
+    )) as SNARKProof
   }
 }
 
@@ -204,10 +204,6 @@ export class WithdrawVerifier {
   }
 
   async verifyProof(proof: SNARKProof): Promise<boolean> {
-    return groth16.verify(
-      this.verificationKey,
-      proof.publicSignals,
-      proof.proof,
-    )
+    return groth16.verify(this.verificationKey, proof.publicSignals, proof.proof)
   }
 }
