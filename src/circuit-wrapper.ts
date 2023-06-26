@@ -59,13 +59,9 @@ export class RLNProver {
 
   finalZkeyPath: string
 
-  // app configs
-  rlnIdentifier: bigint
-
-  constructor(wasmFilePath: string, finalZkeyPath: string, rlnIdentifier: bigint) {
+  constructor(wasmFilePath: string, finalZkeyPath: string) {
     this.wasmFilePath = wasmFilePath
     this.finalZkeyPath = finalZkeyPath
-    this.rlnIdentifier = rlnIdentifier
   }
 
   /**
@@ -74,6 +70,7 @@ export class RLNProver {
    * @returns The full SnarkJS proof.
    */
   public async generateProof(args: {
+    rlnIdentifier: bigint;
     identitySecret: bigint;
     userMessageLimit: bigint;
     messageId: bigint;
@@ -88,7 +85,7 @@ export class RLNProver {
       pathElements: args.merkleProof.siblings,
       identityPathIndex: args.merkleProof.pathIndices,
       x: args.x,
-      externalNullifier: calculateExternalNullifier(args.epoch, this.rlnIdentifier),
+      externalNullifier: calculateExternalNullifier(args.epoch, args.rlnIdentifier),
     }
     const { proof, publicSignals } = await groth16.fullProve(
       witness,
@@ -109,7 +106,7 @@ export class RLNProver {
     return {
       snarkProof,
       epoch: args.epoch,
-      rlnIdentifier: this.rlnIdentifier,
+      rlnIdentifier: args.rlnIdentifier,
     }
   }
 }
@@ -121,31 +118,28 @@ export class RLNVerifier {
   // system configs
   verificationKey: VerificationKey
 
-  // app configs
-  rlnIdentifier: bigint
-
-  constructor(verificationKey: VerificationKey, rlnIdentifier: bigint) {
+  constructor(verificationKey: VerificationKey) {
     this.verificationKey = verificationKey
-    this.rlnIdentifier = rlnIdentifier
   }
 
   /**
    * Verifies a RLN full proof.
+   * @param rlnIdentifier unique identifier for a RLN app.
    * @param fullProof The SnarkJS full proof.
    * @returns True if the proof is valid, false otherwise.
    * @throws Error if the proof is using different parameters.
    */
-  public async verifyProof(rlnRullProof: RLNFullProof): Promise<boolean> {
+  public async verifyProof(rlnIdentifier: bigint, rlnRullProof: RLNFullProof): Promise<boolean> {
     const expectedExternalNullifier = calculateExternalNullifier(
       BigInt(rlnRullProof.epoch),
-      this.rlnIdentifier,
+      rlnIdentifier,
     )
     const actualExternalNullifier = rlnRullProof.snarkProof.publicSignals.externalNullifier
     if (expectedExternalNullifier !== BigInt(actualExternalNullifier)) {
       throw new Error(
         `External nullifier does not match: expectedExternalNullifier=${expectedExternalNullifier}, ` +
           `actualExternalNullifier=${actualExternalNullifier}, epoch=${rlnRullProof.epoch}, ` +
-          `this.rlnIdentifier=${this.rlnIdentifier}`,
+          `this.rlnIdentifier=${rlnIdentifier}`,
       )
     }
 

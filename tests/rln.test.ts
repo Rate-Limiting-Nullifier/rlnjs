@@ -1,4 +1,4 @@
-import { RLN, RLNFullProof } from "../src";
+import { IRLNRegistry, RLN, RLNFullProof } from "../src";
 import { Status } from "../src/cache";
 import { rlnParams, withdrawParams } from "./configs";
 import { MemoryMessageIDCounter } from "../src/message-id-counter";
