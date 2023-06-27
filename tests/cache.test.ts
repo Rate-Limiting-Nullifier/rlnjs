@@ -63,6 +63,6 @@ describe("MemoryCache", () => {
   test("should fail for proof 1 (duplicate proof)", () => {
     // Proof 1 is already in the cache
     const result1 = cache.addProof(proof1)
-    expect(result1.status).toBe(Status.INVALID)
+    expect(result1.status).toBe(Status.SEEN)
   });
 })

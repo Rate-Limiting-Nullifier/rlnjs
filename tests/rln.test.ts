@@ -1,5 +1,5 @@
 import { RLN, RLNFullProof } from "../src";
-import { Status } from "../src/cache";
+import { ICache, MemoryCache, Status } from "../src/cache";
 import { rlnParams, withdrawParams } from "./configs";
 import { MemoryMessageIDCounter } from "../src/message-id-counter";
 import { ethers } from "ethers";
@@ -138,6 +138,7 @@ describe("RLN", function () {
         const messageLimitA1 = BigInt(1);
         // Use a fake messageIDCounter which allows us to adjust reset message id for testing
         const messageIDCounterA1 = new FakeMessageIDCounter(messageLimitA1)
+        const cacheA1 = new MemoryCache()
         let proofA10: RLNFullProof;
         let proofA11: RLNFullProof;
 
@@ -154,6 +155,7 @@ describe("RLN", function () {
         function rlnInstanceFactory(args: {
             rlnIdentifier: bigint,
             signer?: ethers.Signer,
+            cache?: ICache,
         }) {
             return RLN.createWithContractRegistry({
                 wasmFilePath: rlnParams.wasmFilePath,
@@ -165,6 +167,7 @@ describe("RLN", function () {
                 contractAddress,
                 withdrawWasmFilePath: withdrawParams.wasmFilePath,
                 withdrawFinalZkeyPath: withdrawParams.finalZkeyPath,
+                cache: args.cache,
             })
         }
 
@@ -189,6 +192,7 @@ describe("RLN", function () {
             rlnA1 = rlnInstanceFactory({
                 rlnIdentifier: rlnIdentifierA,
                 signer: deployed.signer1,
+                cache: cacheA1,
             });
         });
 
@@ -225,8 +229,6 @@ describe("RLN", function () {
             const messageIDAfter = await messageIDCounterA0.peekNextMessageID(epoch0);
             expect(messageIDAfter).toBe(messageIDBefore + BigInt(1));
             expect(await rlnA0.verifyProof(epoch0, message0, proofA00)).toBe(true);
-            const res = await rlnA0.saveProof(proofA00);
-            expect(res.status).toBe(Status.ADDED);
         });
 
         it("should fail to create proof if messageID exceeds limit", async function () {
@@ -286,15 +288,22 @@ describe("RLN", function () {
             // messageLimitA1 is 1, so A1 can only create 1 proof per epoch
             // Test: can save the first proof
             proofA10 = await rlnA1.createProof(epoch0, message0);
-            const resA10 = await rlnA1.saveProof(proofA10);
-            expect(resA10.status).toBe(Status.ADDED);
-            // Test: fails when saving duplicate proof
+            // Test: fails when saving duplicate proof since it has been saved in createProof
             const resA10Again = await rlnA1.saveProof(proofA10);
-            expect(resA10Again.status).toBe(Status.INVALID);
+            expect(resA10Again.status).toBe(Status.SEEN);
 
             // Reset messageIDCounterA1 at epoch0 to force it create a proof
             // when it already exceeds `messageLimitA1`
             messageIDCounterA1.reset(epoch0);
+            // Test: even messageIDCounter is reset, there is another guard `cache`
+            // to prevent creating more than `messageLimitA1` proofs
+            await expect(async () => {
+                await rlnA1.createProof(epoch0, message0);
+            }).rejects.toThrow("Proof will spam");
+
+            // Reset cache too
+            cacheA1.cache[epoch0.toString()] = {}
+
             // Test: number of proofs per epoch exceeds `messageLimitA1`, breach/ slashed when `saveProof`
             proofA11 = await rlnA1.createProof(epoch0, message1);
             const resA11 = await rlnA1.saveProof(proofA11);
@@ -309,9 +318,7 @@ describe("RLN", function () {
             }).rejects.toThrow('execution reverted: "RLN, slash: self-slashing is prohibited"');
 
             // Test: epoch1 is a new epoch, so A1 can create 1 proof
-            const proofA12 = await rlnA1.createProof(epoch1, message1);
-            const resA12 = await rlnA1.saveProof(proofA12);
-            expect(resA12.status).toBe(Status.ADDED);
+            await rlnA1.createProof(epoch1, message1);
         });
 
         it("should reveal its secret by others and get slashed", async function () {

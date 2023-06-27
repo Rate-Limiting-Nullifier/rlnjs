@@ -2,7 +2,7 @@ import { Identity } from '@semaphore-protocol/identity'
 import { VerificationKey } from './types'
 import { calculateIdentityCommitment, calculateSignalHash } from './common'
 import { IRLNRegistry, ContractRLNRegistry } from './registry'
-import { MemoryCache, EvaluatedProof, ICache } from './cache'
+import { MemoryCache, EvaluatedProof, ICache, Status } from './cache'
 import { IMessageIDCounter, MemoryMessageIDCounter } from './message-id-counter'
 import { RLNFullProof, RLNProver, RLNVerifier } from './circuit-wrapper'
 import { ethers } from 'ethers'
@@ -44,9 +44,10 @@ export interface IRLN {
    */
   verifyProof(epoch: bigint, message: string, proof: RLNFullProof): Promise<boolean>
   /**
-   * Verify a RLNFullProof, save it to a cache, and detect if the proof is a spam.
-   * @param proof the RLNFullProof to be verified
-   * @returns EvaluatedProof the result
+   * Save a proof to the cache and check if it's a spam.
+   * @param proof the RLNFullProof to save and detect spam
+   * @returns result of the check. It could be valid if the proof hasn't been seen,
+   * or invalid if the proof has been seen before, else it could be spam.
    */
   saveProof(proof: RLNFullProof): Promise<EvaluatedProof>
 }
@@ -382,7 +383,7 @@ export class RLN implements IRLN {
     const merkleProof = await this.registry.generateMerkleProof(this.identityCommitment)
     const messageID = await this.messageIDCounter.getMessageIDAndIncrement(epoch)
     const userMessageLimit = await this.registry.getMessageLimit(this.identityCommitment)
-    return this.prover.generateProof({
+    const proof = await this.prover.generateProof({
       rlnIdentifier: this.rlnIdentifier,
       identitySecret: this.identitySecret,
       userMessageLimit: userMessageLimit,
@@ -391,6 +392,20 @@ export class RLN implements IRLN {
       x: calculateSignalHash(message),
       epoch,
     })
+    // Double check if the proof will spam or not.
+    // Even if messageIDCounter is used, it is possible that the user restart and the counter is reset.
+    // In this case, the user can still spam.
+    const res = await this.saveProof(proof)
+    if (res.status === Status.SEEN) {
+      throw new Error('Proof has been generated before')
+    } else if (res.status === Status.BREACH) {
+      throw new Error('Proof will spam')
+    } else if (res.status === Status.ADDED) {
+      return proof
+    } else {
+      // Sanity check
+      throw new Error('Unknown status')
+    }
   }
 
   /**
@@ -432,17 +447,14 @@ export class RLN implements IRLN {
   }
 
   /**
-   * Save the proof to the cache. If the proof is invalid, an error is thrown.
-   * Else, the proof is saved to the cache and is checked if it's a spam.
-   * @param proof the RLNFullProof to verify and save
-   * @returns the EvaluatedProof if the proof is valid, an error is thrown otherwise
+   * Save a proof to the cache and check if it's a spam.
+   * @param proof the RLNFullProof to save and detect spam
+   * @returns result of the check. It could be 'added' if the proof is fresh,
+   * or 'seen' if the proof has been saved before, else 'breach' if the proof is a spam.
    */
   async saveProof(proof: RLNFullProof): Promise<EvaluatedProof> {
     if (this.verifier === undefined) {
       throw new Error('Verifier is not initialized')
-    }
-    if (!await this.verifier.verifyProof(this.rlnIdentifier, proof)) {
-      throw new Error('Invalid proof')
     }
     const { snarkProof, epoch } = proof
     const { x, y, nullifier } = snarkProof.publicSignals

@@ -31,7 +31,7 @@ type CacheMap = {
 export enum Status {
   ADDED = 'added',
   BREACH = 'breach',
-  INVALID = 'invalid',
+  SEEN = 'seen',
 }
 
 export type EvaluatedProof = {
@@ -94,7 +94,7 @@ export class MemoryCache implements ICache {
     }
     const sameProofs = this.cache[epochString][nullifier].filter(p => isSameProof(p, proof))
     if (sameProofs.length > 0) {
-      return { status: Status.INVALID, msg: 'Proof already exists' }
+      return { status: Status.SEEN, msg: 'Proof already exists' }
     }
 
     // Add proof to cache
