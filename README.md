@@ -108,7 +108,7 @@ import path from "path"
 
 import { ethers } from "ethers"
 import { Identity } from '@semaphore-protocol/identity'
-import { RLN } from "rlnjs"
+import { RLN, IRLNRegsitry, ContractRLNRegistry } from "rlnjs"
 
 // Assume you have built `rln.circom` and `withdraw.circom` and have placed them under the folder ./zkeyFiles/rln
 // and ./zkeyFiles/withdraw respectively.
@@ -137,15 +137,17 @@ const contractAddress = "0x..."
 const signer = await provider.getSigner(0)
 const identity = new Identity("1234")
 
-const rln = new RLN({
+// Create an RLN instance with the contract registry.
+// ethers provider and the contract address are both required then.
+const rln = RLN.createWithContractRegistry({
   /* These parameters are required */
   rlnIdentifier, // The unique id representing your application
   provider, // ethers.js provider
   contractAddress, // RLN contract address
 
   /* These parameters are optional */
-  identity, // the semaphore identity. If not given, a new identity is created
   contractAtBlock, // The block number at which the RLN contract was deployed. If not given, default is 0
+  identity, // the semaphore identity. If not given, a new identity is created
   signer, // ethers.js signer. If not given, users won't be able to execute write operations to the RLN contract
   treeDepth, // The depth of the merkle tree. Default is 20
   wasmFilePath: rlnWasmFilePath, // The path to the rln circuit wasm file. If not given, `createProof` will not work
@@ -155,6 +157,74 @@ const rln = new RLN({
   withdrawFinalZkeyPath, // The path to the withdraw circuit final zkey file. If not given, `withdraw` will not work
 
   // ... See all optional parameters in RLN constructor in src/rln.ts
+})
+```
+#### Use a registry other than the contract registry
+You can also initialize an RLN instance with the constructor, but you need to provide a registry. This is particularly useful if you want to use a custom registry instead of the contract registry.
+```typescript
+const registry: IRLNRegistry = new MemoryRLNRegistry(rlnIdentifier, treeDepth)
+const rln = new RLN({
+  /* These parameters are required */
+  rlnIdentifier, // The unique id representing your application
+  registry, // The RLN registry which implements IRLNRegistry
+
+  /* These parameters are optional */
+  identity, // the semaphore identity. If not given, a new identity is created
+  wasmFilePath: rlnWasmFilePath, // The path to the rln circuit wasm file. If not given, `createProof` will not work
+  finalZkeyPath: rlnFinalZkeyPath, // The path to the rln circuit final zkey file. If not given, `createProof` will not work
+  verificationKey: rlnVerificationKey, // The rln circuit verification key. If not given, `verifyProof` will not work
+  withdrawWasmFilePath, // The path to the withdraw circuit wasm file. If not given, `withdraw` will not work
+  withdrawFinalZkeyPath, // The path to the withdraw circuit final zkey file. If not given, `withdraw` will not work
+
+  // ... See all optional parameters in RLN constructor in src/rln.ts
+})
+```
+
+For testing, you could use `MemoryRLNRegistry` and let different RLN instances share the same registry.
+
+```typescript
+const registry: IRLNRegistry = new MemoryRLNRegistry(rlnIdentifier, treeDepth)
+const rln1 = new RLN({
+  rlnIdentifier,
+  registry,
+  wasmFilePath: rlnWasmFilePath,
+  finalZkeyPath: rlnFinalZkeyPath,
+  verificationKey: rlnVerificationKey,
+  withdrawWasmFilePath,
+  withdrawFinalZkeyPath,
+})
+const rln2 = new RLN({
+  rlnIdentifier,
+  registry,
+  wasmFilePath: rlnWasmFilePath,
+  finalZkeyPath: rlnFinalZkeyPath,
+  verificationKey: rlnVerificationKey,
+  withdrawWasmFilePath,
+  withdrawFinalZkeyPath,
+})
+
+// ...Do something with rln1 and rln2
+```
+
+#### Prover-only and Verifier-only modes
+RLN instance must at least be initialized with either `wasmFilePath` and `finalZkeyPath`, or `verificationKey`. If you only provide `wasmFilePath` and `finalZkeyPath`, you can only generate proofs. You will get an error if you try to verify a proof. If you only provide `verificationKey`, you can only verify proofs. You will get an error if you try to generate a proof. If you provide both, you can both generate and verify proofs.
+
+```typescript
+const rlnProverOnly = new RLN({
+  rlnIdentifier,
+  registry,
+  wasmFilePath: rlnWasmFilePath,
+  finalZkeyPath: rlnFinalZkeyPath,
+  verificationKey: rlnVerificationKey,
+  withdrawWasmFilePath,
+  withdrawFinalZkeyPath,
+})
+const rlnVerifierOnly = new RLN({
+  rlnIdentifier,
+  registry,
+  verificationKey: rlnVerificationKey,
+  withdrawWasmFilePath,
+  withdrawFinalZkeyPath,
 })
 ```
 
@@ -172,7 +242,8 @@ const identityCommitment = rln.identityCommitment
 
 ```typescript
 const messageLimit = BigInt(1);
-// To register, this calls the `register` function in the RLN contract and transfer your tokens to the contract
+// This registers the identity commitment to the registry
+// If you're using ContractRLNRegistry, you will send a transaction to the RLN contract, sending tokens, and get registered.
 await rln.register(messageLimit);
 console.log(await rln.isRegistered()) // true
 ```
