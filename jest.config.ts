@@ -14,5 +14,6 @@ const config: Config.InitialOptions = {
   "testTimeout": 100000,
   "collectCoverage": true,
   "openHandlesTimeout": 5 * SECONDS,
+  "forceExit": true,
 };
 export default config;
