@@ -1,11 +1,11 @@
-import { IRLNRegistry, RLN, RLNFullProof } from "../src";
+import { RLN, RLNFullProof } from "../src";
 import { Status } from "../src/cache";
 import { rlnParams, withdrawParams } from "./configs";
 import { MemoryMessageIDCounter } from "../src/message-id-counter";
 import { ethers } from "ethers";
 import { setupTestingContracts } from "./factories";
-import { ChildProcessWithoutNullStreams } from "child_process";
 import { fieldFactory } from "./utils";
+import { MemoryRLNRegistry } from "../src/registry";
 
 class FakeMessageIDCounter extends MemoryMessageIDCounter {
     reset(epoch: bigint) {
@@ -20,12 +20,58 @@ class FakeMessageIDCounter extends MemoryMessageIDCounter {
 describe("RLN", function () {
     describe("constructor params", function () {
         const rlnIdentifierA = BigInt(1);
+        const registry = new MemoryRLNRegistry(rlnIdentifierA, 20)
+
+        it("should fail when neither proving params nor verification key is given", async function () {
+            expect(() => {
+                new RLN({
+                    rlnIdentifier: rlnIdentifierA,
+                    registry,
+                });
+            }).toThrow(
+                'Either both `wasmFilePath` and `finalZkeyPath` must be supplied to generate proofs, ' +
+                'or `verificationKey` must be provided to verify proofs.'
+            );
+        });
+
+        it("should fail to prove if no proving params is given as constructor arguments", async function () {
+            const rln = new RLN({
+                rlnIdentifier: rlnIdentifierA,
+                registry,
+                verificationKey: rlnParams.verificationKey,
+            })
+            await expect(async () => {
+                await rln.createProof(BigInt(0), "abc")
+            }).rejects.toThrow("Prover is not initialized");
+        });
+
+        it("should fail when verifying if no verification key is given as constructor arguments", async function () {
+            const rln = new RLN({
+                rlnIdentifier: rlnIdentifierA,
+                registry,
+                wasmFilePath: rlnParams.wasmFilePath,
+                finalZkeyPath: rlnParams.finalZkeyPath,
+            })
+            const randomEpoch = fieldFactory()
+            const randomMessage = "abc"
+            const mockProof = {} as RLNFullProof
+            await expect(async () => {
+                await rln.verifyProof(randomEpoch, randomMessage, mockProof)
+            }).rejects.toThrow("Verifier is not initialized");
+            await expect(async () => {
+                await rln.saveProof(mockProof)
+            }).rejects.toThrow("Verifier is not initialized");
+        });
+    });
+
+    describe("createWithContractRegistry params", function () {
+        const rlnIdentifierA = BigInt(1);
         const fakeProvider = {} as ethers.Provider
         const fakeContractAddress = "0x0000000000000000000000000000000000005678"
 
         it("should fail when neither proving params nor verification key is given", async function () {
             expect(() => {
-                new RLN({
+                RLN.createWithContractRegistry({
                     rlnIdentifier: rlnIdentifierA,
                     provider: fakeProvider,
                     contractAddress: fakeContractAddress,
@@ -37,7 +83,7 @@ describe("RLN", function () {
         });
 
         it("should fail to prove if no proving params is given as constructor arguments", async function () {
-            const rln = new RLN({
+            const rln = RLN.createWithContractRegistry({
                 rlnIdentifier: rlnIdentifierA,
                 provider: fakeProvider,
                 contractAddress: fakeContractAddress,
@@ -49,7 +95,7 @@ describe("RLN", function () {
         });
 
         it("should fail when verifying if no verification key is given as constructor arguments", async function () {
-            const rln = new RLN({
+            const rln = RLN.createWithContractRegistry({
                 rlnIdentifier: rlnIdentifierA,
                 provider: fakeProvider,
                 contractAddress: fakeContractAddress,
@@ -78,7 +124,6 @@ describe("RLN", function () {
         const message0 = "abc";
         const message1 = "abcd";
 
-        let node: ChildProcessWithoutNullStreams
         let deployed;
         let waitUntilFreezePeriodPassed: () => Promise<void>
         let killNode: () => Promise<void>
@@ -89,7 +134,6 @@ describe("RLN", function () {
         let proofA00: RLNFullProof;
 
         let rlnA1: RLN;
-        let tokenAddress: string
         let contractAddress: string
         const messageLimitA1 = BigInt(1);
         // Use a fake messageIDCounter which allows us to adjust reset message id for testing
@@ -111,7 +155,7 @@ describe("RLN", function () {
             rlnIdentifier: bigint,
             signer?: ethers.Signer,
         }) {
-            return new RLN({
+            return RLN.createWithContractRegistry({
                 wasmFilePath: rlnParams.wasmFilePath,
                 finalZkeyPath: rlnParams.finalZkeyPath,
                 verificationKey: rlnParams.verificationKey,
@@ -133,11 +177,9 @@ describe("RLN", function () {
                 feeReceiver,
                 freezePeriod,
             });
-            node = deployed.node
             waitUntilFreezePeriodPassed = deployed.waitUntilFreezePeriodPassed
             killNode = deployed.killNode
 
-            tokenAddress = await deployed.erc20Contract.getAddress()
             contractAddress = await deployed.rlnContract.getAddress()
 
             rlnA0 = rlnInstanceFactory({

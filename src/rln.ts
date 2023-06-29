@@ -83,6 +83,92 @@ export class RLN implements IRLN {
      */
     rlnIdentifier: bigint
     /**
+     * `IRegistry` that stores the registered users. If not provided, a new `ContractRLNRegistry` is created.
+     * @see {@link ContractRLNRegistry}
+     */
+    registry: IRLNRegistry
+
+    /** Optional */
+    /**
+     * Semaphore identity of the user. If not provided, a new `Identity` is created.
+     */
+    identity?: Identity
+    /**
+     * Tree depth of the merkle tree used by the circuit. If not provided, the default value will be used.
+     * @default 20
+     */
+    treeDepth?: number
+    /**
+     * The maximum number of epochs that the cache can store. If not provided, the default value will be used.
+     * This is only used when `cache` is not provided.
+     * @default 100
+     * @see {@link MemoryCache}
+     */
+    cacheSize?: number
+    /**
+     * `ICache` that stores proofs added by the user with `addProof`, and detect spams automatically.
+     * If not provided, a new `MemoryCache` is created.
+     * @see {@link MemoryCache}
+     */
+    cache?: ICache
+
+    // File paths of the wasm and zkey file. If not provided, `createProof` will not work.
+    /**
+     * File path of the RLN wasm file. If not provided, `createProof` will not work.
+     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
+     */
+    wasmFilePath?: string
+    /**
+     * File path of the RLN final zkey file. If not provided, `createProof` will not work.
+     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
+     */
+    finalZkeyPath?: string
+    // Verification key of the circuit. If not provided, `verifyProof` and `saveProof` will not work.
+    /**
+     * Verification key of the RLN circuit. If not provided, `verifyProof` and `saveProof` will not work.
+     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
+     */
+    verificationKey?: VerificationKey
+    /**
+     * File path of the wasm file for withdraw circuit. If not provided, `withdraw` will not work.
+     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/withdraw.circom}
+     */
+    withdrawWasmFilePath?: string,
+    /**
+     * File path of the final zkey file for withdraw circuit. If not provided, `withdraw` will not work.
+     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/withdraw.circom}
+     */
+    withdrawFinalZkeyPath?: string,
+  }) {
+    this.rlnIdentifier = args.rlnIdentifier
+    this.registry = args.registry
+    this.cache = args.cache ? args.cache : new MemoryCache(args.cacheSize)
+    this.identity = args.identity ? args.identity : new Identity()
+
+    if ((args.wasmFilePath === undefined || args.finalZkeyPath === undefined) && args.verificationKey === undefined) {
+      throw new Error(
+        'Either both `wasmFilePath` and `finalZkeyPath` must be supplied to generate proofs, ' +
+        'or `verificationKey` must be provided to verify proofs.',
+      )
+    }
+    if (args.wasmFilePath !== undefined && args.finalZkeyPath !== undefined) {
+      this.prover = new RLNProver(args.wasmFilePath, args.finalZkeyPath)
+    }
+    if (args.verificationKey !== undefined) {
+      this.verifier = new RLNVerifier(args.verificationKey)
+    }
+  }
+
+  /**
+   * Create RLN instance, using a deployed RLN contract as registry.
+   */
+  static createWithContractRegistry(args: {
+    /** Required */
+    /**
+     * The unique identifier of the app using RLN. The identifier must be unique for every app.
+     */
+    rlnIdentifier: bigint
+    /**
      * The ethers provider that is used to interact with the RLN contract.
      * @see {@link https://docs.ethers.io/v5/api/providers/}
      */
@@ -93,13 +179,23 @@ export class RLN implements IRLN {
     contractAddress: string
 
     /** Optional */
-    /* User configs */
+    /**
+     * The ethers signer that is used to interact with the RLN contract. If not provided,
+     * user can only do read-only operations. Functions like `register` and `withdraw` will not work
+     * since they need to send transactions to interact with the RLN contract.
+     * @see {@link https://docs.ethers.io/v5/api/signer/#Signer}
+     */
+    signer?: ethers.Signer,
+    /**
+     * The block number where the RLN contract is deployed. If not provided, `0` will be used.
+     * @default 0
+     * @see {@link https://docs.ethers.io/v5/api/providers/provider/#Provider-getLogs}
+     */
+    contractAtBlock?: number,
     /**
      * Semaphore identity of the user. If not provided, a new `Identity` is created.
      */
     identity?: Identity
-
-    /* System configs */
     // File paths of the wasm and zkey file. If not provided, `createProof` will not work.
     /**
      * File path of the RLN wasm file. If not provided, `createProof` will not work.
@@ -134,26 +230,8 @@ export class RLN implements IRLN {
      * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/withdraw.circom}
      */
     withdrawFinalZkeyPath?: string,
-    /**
-     * The ethers signer that is used to interact with the RLN contract. If not provided,
-     * user can only do read-only operations. Functions like `register` and `withdraw` will not work
-     * since they need to send transactions to interact with the RLN contract.
-     * @see {@link https://docs.ethers.io/v5/api/signer/#Signer}
-     */
-    signer?: ethers.Signer,
-    /**
-     * The block number where the RLN contract is deployed. If not provided, `0` will be used.
-     * @default 0
-     * @see {@link https://docs.ethers.io/v5/api/providers/provider/#Provider-getLogs}
-     */
-    contractAtBlock?: number,
 
     /** Others */
-    /**
-     * `IRegistry` that stores the registered users. If not provided, a new `ContractRLNRegistry` is created.
-     * @see {@link ContractRLNRegistry}
-     */
-    registry?: IRLNRegistry
     /**
      * `ICache` that stores proofs added by the user with `addProof`, and detect spams automatically.
      * If not provided, a new `MemoryCache` is created.
@@ -168,37 +246,24 @@ export class RLN implements IRLN {
      */
     cacheSize?: number
   }) {
-    this.rlnIdentifier = args.rlnIdentifier
-    this.identity = args.identity ? args.identity : new Identity()
-
-    if ((args.wasmFilePath === undefined || args.finalZkeyPath === undefined) && args.verificationKey === undefined) {
-      throw new Error(
-        'Either both `wasmFilePath` and `finalZkeyPath` must be supplied to generate proofs, ' +
-        'or `verificationKey` must be provided to verify proofs.',
-      )
-    }
-
     const rlnContractWrapper = new RLNContract({
       provider: args.provider,
       signer: args.signer,
       contractAddress: args.contractAddress,
       contractAtBlock: args.contractAtBlock ? args.contractAtBlock : 0,
     })
-    this.registry = args.registry ? args.registry : new ContractRLNRegistry({
-      rlnIdentifier: this.rlnIdentifier,
+    const registry = new ContractRLNRegistry({
+      rlnIdentifier: args.rlnIdentifier,
       rlnContract: rlnContractWrapper,
       treeDepth: args.treeDepth,
       withdrawWasmFilePath: args.withdrawWasmFilePath,
       withdrawFinalZkeyPath: args.withdrawFinalZkeyPath,
     })
-    this.cache = args.cache ? args.cache : new MemoryCache(args.cacheSize)
-
-    if (args.wasmFilePath !== undefined && args.finalZkeyPath !== undefined) {
-      this.prover = new RLNProver(args.wasmFilePath, args.finalZkeyPath)
+    const argsWithRegistry = {
+      ...args,
+      registry,
     }
-    if (args.verificationKey !== undefined) {
-      this.verifier = new RLNVerifier(args.verificationKey)
-    }
+    return new RLN(argsWithRegistry)
   }
 
   /**

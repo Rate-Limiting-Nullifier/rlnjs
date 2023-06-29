@@ -1,5 +1,5 @@
 import { Group } from '@semaphore-protocol/group'
-import { StrBigInt, MerkleProof } from './types'
+import { MerkleProof } from './types'
 import { calculateRateCommitment } from './common'
 import { RLNContract } from './contract-wrapper'
 import { ethers } from 'ethers'
@@ -14,7 +14,7 @@ export interface IRLNRegistry {
   getMessageLimit(identityCommitment: bigint): Promise<bigint>
   getRateCommitment(identityCommitment: bigint): Promise<bigint>
   getAllRateCommitments(): Promise<bigint[]>
-  generateMerkleProof(identityCommitment: StrBigInt): Promise<MerkleProof>
+  generateMerkleProof(identityCommitment: bigint): Promise<MerkleProof>
 
   register(identityCommitment: bigint, messageLimit: bigint): Promise<void>
   withdraw(identitySecret: bigint): Promise<void>
@@ -166,5 +166,109 @@ export class ContractRLNRegistry implements IRLNRegistry {
       address: receiverBigInt,
     })
     await this.rlnContract.slash(identityCommitment, receiver, proof.proof)
+  }
+}
+
+export class MemoryRLNRegistry implements IRLNRegistry {
+  // map of identityCommitment -> messageLimit
+  private mapIsWithdrawing: Map<string, boolean>
+
+  private mapMessageLimit: Map<string, bigint>
+
+  private group: Group
+
+  constructor(
+    readonly rlnIdentifier: bigint,
+    readonly treeDepth?: number | undefined,
+  ) {
+    this.mapIsWithdrawing = new Map<string, boolean>()
+    this.mapMessageLimit = new Map<string, bigint>()
+    this.group = new Group(this.rlnIdentifier, this.treeDepth)
+  }
+
+  async isRegistered(identityCommitment: bigint): Promise<boolean> {
+    const messageLimit = this.mapMessageLimit.get(identityCommitment.toString())
+    return messageLimit !== undefined
+  }
+
+  async getMerkleRoot(): Promise<bigint> {
+    return BigInt(this.group.root)
+  }
+
+  async getMessageLimit(identityCommitment: bigint): Promise<bigint> {
+    const messageLimit = this.mapMessageLimit.get(identityCommitment.toString())
+    if (messageLimit === undefined) {
+      throw new Error('Identity commitment is not registered')
+    }
+    return messageLimit
+  }
+
+  async getRateCommitment(identityCommitment: bigint): Promise<bigint> {
+    const messageLimit = await this.getMessageLimit(identityCommitment)
+    return calculateRateCommitment(identityCommitment, messageLimit)
+  }
+
+  async getAllRateCommitments(): Promise<bigint[]> {
+    return this.group.members.map((member) => BigInt(member))
+  }
+
+  async generateMerkleProof(identityCommitment: bigint): Promise<MerkleProof> {
+    const rateCommitment = await this.getRateCommitment(identityCommitment)
+    const index = this.group.indexOf(rateCommitment)
+    if (index === -1) {
+      // Sanity check
+      throw new Error('Rate commitment is not in the merkle tree. This should never happen.')
+    }
+    return this.group.generateMerkleProof(index)
+  }
+
+  async register(identityCommitment: bigint, messageLimit: bigint): Promise<void> {
+    if (await this.isRegistered(identityCommitment)) {
+      throw new Error('Identity commitment is already registered')
+    }
+    this.mapMessageLimit.set(identityCommitment.toString(), messageLimit)
+    const rateCommitment = await this.getRateCommitment(identityCommitment)
+    this.group.addMember(rateCommitment)
+  }
+
+  async withdraw(identitySecret: bigint): Promise<void> {
+    const identityCommitment = poseidon([identitySecret])
+    if (!await this.isRegistered(identityCommitment)) {
+      throw new Error('Identity commitment is not registered')
+    }
+    const isWithdrawing = this.mapIsWithdrawing.get(identityCommitment.toString())
+    if (isWithdrawing !== undefined) {
+      throw new Error('Identity is already withdrawing')
+    }
+    this.mapIsWithdrawing.set(identityCommitment.toString(), true)
+  }
+
+  async releaseWithdrawal(identityCommitment: bigint): Promise<void> {
+    const rateCommitment = await this.getRateCommitment(identityCommitment)
+    const index = this.group.indexOf(rateCommitment)
+    if (index === -1) {
+      // Sanity check
+      throw new Error('Rate commitment is not in the merkle tree. This should never happen')
+    }
+    const isWithdrawing = this.mapIsWithdrawing.get(identityCommitment.toString())
+    if (isWithdrawing === undefined) {
+      throw new Error('Identity is not withdrawing')
+    }
+    this.mapIsWithdrawing.delete(identityCommitment.toString())
+    this.mapMessageLimit.delete(identityCommitment.toString())
+    this.group.removeMember(index)
+  }
+
+  async slash(identitySecret: bigint, _?: string): Promise<void> {
+    const identityCommitment = poseidon([identitySecret])
+    const rateCommitment = await this.getRateCommitment(identityCommitment)
+    const index = this.group.indexOf(rateCommitment)
+    if (index === -1) {
+      // Sanity check
+      throw new Error('Rate commitment is not in the merkle tree. This should never happen')
+    }
+    this.mapIsWithdrawing.delete(identityCommitment.toString())
+    this.mapMessageLimit.delete(identityCommitment.toString())
+    this.group.removeMember(index)
   }
 }
