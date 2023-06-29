@@ -29,7 +29,7 @@ export async function setupTestingContracts(args: {
     freezePeriod: bigint,
 }) {
     // Let os choose port for us to avoid conflicts
-    const node = spawn("npx", ["hardhat", "node", "--port", "0"])
+    const node = spawn("npx", ["hardhat", "node", "--port", "0"], {detached: true})
     const pid = node.pid
     if (!pid) {
         throw new Error("process failed to start")
@@ -110,11 +110,19 @@ export async function setupTestingContracts(args: {
                 reject(new Error('Killing node process timeout'));
             }, timeout);
             // Returns when node is killed
-            node.on('exit', () => {
+            node.on('close', function (code, signal) {
+                console.log('RPC node exited with code = ' +code+'  signal = '+signal);
                 clearTimeout(t);
                 resolve(undefined)
             });
-            node.kill(9);
+            // FIXME: Still not able to solve "A worker process has failed to exit
+            // gracefully and has been force exited. This is likely caused by tests leaking due to
+            // improper teardown. Try running with --detectOpenHandles to find leaks.
+            // Active timers can also cause this, ensure that .unref() was called on them."
+            // NOTE: No errors are shown when `detectOpenHandles: true` is set in jest.config.ts
+            node.stdin.destroy();
+            node.kill();
+            node.unref();
         })
     }
 

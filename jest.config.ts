@@ -1,5 +1,7 @@
 import type { Config } from '@jest/types';
 
+const SECONDS = 1000;
+
 const config: Config.InitialOptions = {
   preset: 'ts-jest',
   testEnvironment: 'node',
@@ -9,9 +11,8 @@ const config: Config.InitialOptions = {
     "^.+\\.tsx?$": ["ts-jest", { tsconfig: "tsconfig.test.json" }]
   },
   "silent": true,
-  "detectOpenHandles": true,
   "testTimeout": 100000,
   "collectCoverage": true,
-  "forceExit": true,
+  "openHandlesTimeout": 5 * SECONDS,
 };
 export default config;
