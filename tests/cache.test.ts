@@ -58,6 +58,9 @@ describe("MemoryCache", () => {
   test("should check proof 4", () => {
     const result4 = cache.addProof(proof4)
     expect(result4.status).toBe(Status.ADDED)
+    // two epochs are added to the cache now
+    expect(Object.keys(cache.cache).length
+    ).toBe(2)
   })
 
   test("should fail for proof 1 (duplicate proof)", () => {

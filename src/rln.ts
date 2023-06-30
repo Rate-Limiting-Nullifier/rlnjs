@@ -381,26 +381,33 @@ export class RLN implements IRLN {
       )
     }
     const merkleProof = await this.registry.generateMerkleProof(this.identityCommitment)
-    const messageID = await this.messageIDCounter.getMessageIDAndIncrement(epoch)
+    // NOTE: get the message id and increment the counter.
+    // Even if the message is not sent, the counter is still incremented.
+    // It's intended to avoid any possibly for user to reuse the same message id.
+    const messageId = await this.messageIDCounter.getMessageIDAndIncrement(epoch)
     const userMessageLimit = await this.registry.getMessageLimit(this.identityCommitment)
     const proof = await this.prover.generateProof({
       rlnIdentifier: this.rlnIdentifier,
       identitySecret: this.identitySecret,
       userMessageLimit: userMessageLimit,
-      messageId: messageID,
+      messageId,
       merkleProof,
       x: calculateSignalHash(message),
       epoch,
     })
-    // Double check if the proof will spam or not.
+    // Double check if the proof will spam or not using the cache.
     // Even if messageIDCounter is used, it is possible that the user restart and the counter is reset.
-    // In this case, the user can still spam.
-    const res = await this.saveProof(proof)
+    const res = await this.checkProof(proof)
     if (res.status === Status.SEEN) {
       throw new Error('Proof has been generated before')
     } else if (res.status === Status.BREACH) {
       throw new Error('Proof will spam')
     } else if (res.status === Status.ADDED) {
+      const resSaveProof = await this.saveProof(proof)
+      if (resSaveProof.status !== res.status) {
+        // Sanity check
+        throw new Error('Status of save proof and check proof mismatch')
+      }
       return proof
     } else {
       // Sanity check
@@ -453,11 +460,14 @@ export class RLN implements IRLN {
    * or 'seen' if the proof has been saved before, else 'breach' if the proof is a spam.
    */
   async saveProof(proof: RLNFullProof): Promise<EvaluatedProof> {
-    if (this.verifier === undefined) {
-      throw new Error('Verifier is not initialized')
-    }
     const { snarkProof, epoch } = proof
     const { x, y, nullifier } = snarkProof.publicSignals
     return this.cache.addProof({ x, y, nullifier, epoch })
+  }
+
+  private async checkProof(proof: RLNFullProof): Promise<EvaluatedProof> {
+    const { snarkProof, epoch } = proof
+    const { x, y, nullifier } = snarkProof.publicSignals
+    return this.cache.checkProof({ x, y, nullifier, epoch })
   }
 }

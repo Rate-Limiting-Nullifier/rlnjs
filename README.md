@@ -278,8 +278,7 @@ const proofResult = await rln.verifyProof(epoch, message, proof) // true or fals
 ```
 
 A proof can be invalid in the following conditions:
-- The proof is not for you. You're using a different `rlnIdentifier`
-- The proof is not for the current epoch or message
+- Proof mismatches epoch, message, or rlnIdentifier
 - The snark proof itself is invalid
 
 ### Saving a proof

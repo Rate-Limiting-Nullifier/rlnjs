@@ -1,15 +1,8 @@
-// export interface IMessageIDCounter {
-//     messageLimit: bigint;
-//     getMessageIDAndIncrement(epoch: bigint): Promise<bigint>
-//     peekNextMessageID(epoch: bigint): Promise<bigint>
-//   }
-
-import { MemoryMessageIDCounter } from "../src/message-id-counter";
-
+import { FakeMessageIDCounter } from "./utils";
 
 describe('MessageIDCounter', () => {
     const messageLimit = BigInt(1)
-    const messageIDCounter = new MemoryMessageIDCounter(messageLimit)
+    const messageIDCounter = new FakeMessageIDCounter(messageLimit)
 
     it('should return correct message limit', async () => {
         expect(messageIDCounter.messageLimit).toEqual(messageLimit)

@@ -1,21 +1,11 @@
 import { RLN, RLNFullProof } from "../src";
 import { ICache, MemoryCache, Status } from "../src/cache";
 import { rlnParams, withdrawParams } from "./configs";
-import { MemoryMessageIDCounter } from "../src/message-id-counter";
 import { ethers } from "ethers";
 import { setupTestingContracts } from "./factories";
-import { fieldFactory } from "./utils";
+import { FakeMessageIDCounter, fieldFactory } from "./utils";
 import { MemoryRLNRegistry } from "../src/registry";
 
-class FakeMessageIDCounter extends MemoryMessageIDCounter {
-    reset(epoch: bigint) {
-        const epochStr = epoch.toString()
-        if (this.epochToMessageID[epochStr] === undefined) {
-            return;
-        }
-        this.epochToMessageID[epochStr] = BigInt(0)
-    }
-}
 
 describe("RLN", function () {
     describe("constructor params", function () {
@@ -57,9 +47,6 @@ describe("RLN", function () {
             const mockProof = {} as RLNFullProof
             await expect(async () => {
                 await rln.verifyProof(randomEpoch, randomMessage, mockProof)
-            }).rejects.toThrow("Verifier is not initialized");
-            await expect(async () => {
-                await rln.saveProof(mockProof)
             }).rejects.toThrow("Verifier is not initialized");
         });
     });
@@ -108,9 +95,6 @@ describe("RLN", function () {
             await expect(async () => {
                 await rln.verifyProof(randomEpoch, randomMessage, mockProof)
             }).rejects.toThrow("Verifier is not initialized");
-            await expect(async () => {
-                await rln.saveProof(mockProof)
-            }).rejects.toThrow("Verifier is not initialized");
         });
 
     });
@@ -123,6 +107,7 @@ describe("RLN", function () {
         const epoch1 = BigInt(1);
         const message0 = "abc";
         const message1 = "abcd";
+        const message2 = "abcde";
 
         let deployed;
         let waitUntilFreezePeriodPassed: () => Promise<void>
@@ -223,6 +208,19 @@ describe("RLN", function () {
             expect(allRateCommitments[0]).toBe(await rlnA0.getRateCommitment());
         });
 
+        it("should be able to set message id counter", async function () {
+            // Test: set a new message id counter with zero message limit
+            // I.e. no message can be sent
+            const zeroMessageLimit = BigInt(0)
+            const newMessageIDCounter = new FakeMessageIDCounter(zeroMessageLimit)
+            await rlnA0.setMessageIDCounter(newMessageIDCounter)
+            await expect(async () => {
+                await rlnA0.createProof(epoch0, message1)
+            }).rejects.toThrow(`Message ID counter exceeded message limit ${zeroMessageLimit}`);
+            // Change it back to make other tests work
+            await rlnA0.setMessageIDCounter(messageIDCounterA0)
+        })
+
         it("should be able to create proof", async function () {
             const messageIDBefore = await messageIDCounterA0.peekNextMessageID(epoch0);
             proofA00 = await rlnA0.createProof(epoch0, message0);
@@ -288,31 +286,34 @@ describe("RLN", function () {
             // messageLimitA1 is 1, so A1 can only create 1 proof per epoch
             // Test: can save the first proof
             proofA10 = await rlnA1.createProof(epoch0, message0);
-            // Test: fails when saving duplicate proof since it has been saved in createProof
+            // Test: status should be 'seen' when saving duplicate proof since it has been saved in createProof
             const resA10Again = await rlnA1.saveProof(proofA10);
             expect(resA10Again.status).toBe(Status.SEEN);
 
-            // Reset messageIDCounterA1 at epoch0 to force it create a proof
-            // when it already exceeds `messageLimitA1`
-            messageIDCounterA1.reset(epoch0);
+            // Reset messageIDCounterA1 at epoch0 to bypass the message id counter and
+            // let it create a proof when it already exceeds `messageLimitA1`.
+            await rlnA1.setMessageIDCounter(new FakeMessageIDCounter(BigInt(messageLimitA1)));
+
             // Test: even messageIDCounter is reset, there is another guard `cache`
             // to prevent creating more than `messageLimitA1` proofs
             await expect(async () => {
-                await rlnA1.createProof(epoch0, message0);
+                await rlnA1.createProof(epoch0, message1);
             }).rejects.toThrow("Proof will spam");
 
-            // Reset cache too
+            // Reset cache too, to allow rln createProof
             cacheA1.cache[epoch0.toString()] = {}
-
+            // Reset messageIDCounterA1 again to bypass the message id counter since it increments
+            // the message id counter when `createProof` even if it fails.
+            await rlnA1.setMessageIDCounter(new FakeMessageIDCounter(BigInt(messageLimitA1)));
             // Test: number of proofs per epoch exceeds `messageLimitA1`, breach/ slashed when `saveProof`
             proofA11 = await rlnA1.createProof(epoch0, message1);
-            const resA11 = await rlnA1.saveProof(proofA11);
-            expect(resA11.status).toBe(Status.BREACH);
-            if (resA11.secret === undefined) {
+            const resA10AgainAgain = await rlnA1.saveProof(proofA10);
+            expect(resA10AgainAgain.status).toBe(Status.BREACH);
+            if (resA10AgainAgain.secret === undefined) {
                 throw new Error("secret should not be undefined")
             }
             // Test: but A1 cannot slash itself
-            const secret = resA11.secret;
+            const secret = resA10AgainAgain.secret;
             await expect(async () => {
                 await rlnA1.slash(secret)
             }).rejects.toThrow('execution reverted: "RLN, slash: self-slashing is prohibited"');
@@ -321,7 +322,7 @@ describe("RLN", function () {
             await rlnA1.createProof(epoch1, message1);
         });
 
-        it("should reveal its secret by others and get slashed", async function () {
+        it("should reveal its secret and get slashed by others", async function () {
             // Test: A0 is up-to-date and receives more than `messageLimitA1` proofs,
             // so A1's secret is breached by A0
             const resA10 = await rlnA0.saveProof(proofA10);
@@ -344,6 +345,5 @@ describe("RLN", function () {
             // Test: verifyProof fails since proofA10.rlnIdentifier mismatches rlnB's rlnIdentifier
             expect(await rlnB.verifyProof(epoch0, message0, proofA10)).toBe(false);
         });
-        // TODO: Add tests to set messageIDCounter
     });
 });

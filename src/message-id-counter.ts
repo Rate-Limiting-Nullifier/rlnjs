@@ -1,7 +1,16 @@
+/**
+ * Always return **next** the current counter value and increment the counter.
+ * @param epoch epoch of the message
+ * @throws Error if the counter exceeds the message limit
+ */
 export interface IMessageIDCounter {
   messageLimit: bigint;
+  /**
+   * Return the current counter value and increment the counter.
+   *
+   * @param epoch
+   */
   getMessageIDAndIncrement(epoch: bigint): Promise<bigint>
-  peekNextMessageID(epoch: bigint): Promise<bigint>
 }
 
 type EpochMap = {
@@ -20,14 +29,6 @@ export class MemoryMessageIDCounter implements IMessageIDCounter {
 
   get messageLimit(): bigint {
     return this._messageLimit
-  }
-
-  async peekNextMessageID(epoch: bigint): Promise<bigint> {
-    const epochStr = epoch.toString()
-    if (this.epochToMessageID[epochStr] === undefined) {
-      return BigInt(0)
-    }
-    return this.epochToMessageID[epochStr]
   }
 
   async getMessageIDAndIncrement(epoch: bigint): Promise<bigint> {
