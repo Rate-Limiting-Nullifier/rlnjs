@@ -29,7 +29,7 @@ export async function setupTestingContracts(args: {
     freezePeriod: bigint,
 }) {
     // Let os choose port for us to avoid conflicts
-    const node = spawn("npx", ["hardhat", "node", "--port", "0"], {detached: true})
+    const node = spawn("npx", ["hardhat", "node", "--port", "0"])
     const pid = node.pid
     if (!pid) {
         throw new Error("process failed to start")
