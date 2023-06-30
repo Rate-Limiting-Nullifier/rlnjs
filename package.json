@@ -24,6 +24,7 @@
     "build": "rollup --config rollup.config.mjs",
     "test": "jest",
     "test:debug": "jest --silent=false",
+    "test:ci": "jest --silent=false --runInBand",
     "lint": "eslint --ext .ts,.tsx,.js,.jsx src/ -c .eslintrc.js",
     "format": "eslint --ext .ts,.tsx,.js,.jsx src/ -c .eslintrc.js --fix"
   },
