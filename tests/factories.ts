@@ -110,7 +110,10 @@ export async function setupTestingContracts(args: {
                 reject(new Error('Killing node process timeout'));
             }, timeout);
             // Returns when node is killed
-            node.on('exit', () => {
+            node.on('exit', (code, signal) => {
+                console.log(
+                    `RPC node exited with code = ${code}, signal = ${signal}`
+                );
                 clearTimeout(t);
                 resolve(undefined)
             });
@@ -120,7 +123,7 @@ export async function setupTestingContracts(args: {
             // Active timers can also cause this, ensure that .unref() was called on them."
             // NOTE: No errors are shown when `detectOpenHandles: true` is set in jest.config.ts
             node.stdin.destroy();
-            node.kill(9);
+            node.kill();
             node.unref();
         })
     }
