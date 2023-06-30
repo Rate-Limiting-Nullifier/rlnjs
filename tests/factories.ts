@@ -121,7 +121,7 @@ export async function setupTestingContracts(args: {
             // Active timers can also cause this, ensure that .unref() was called on them."
             // NOTE: No errors are shown when `detectOpenHandles: true` is set in jest.config.ts
             node.stdin.destroy();
-            node.kill();
+            node.kill(9);
             node.unref();
         })
     }
