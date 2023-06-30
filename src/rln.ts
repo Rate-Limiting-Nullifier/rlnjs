@@ -46,8 +46,8 @@ export interface IRLN {
   /**
    * Save a proof to the cache and check if it's a spam.
    * @param proof the RLNFullProof to save and detect spam
-   * @returns result of the check. It could be valid if the proof hasn't been seen,
-   * or invalid if the proof has been seen before, else it could be spam.
+   * @returns result of the check. It could be VALID if the proof hasn't been seen,
+   * or DUPLICATE if the proof has been seen before, else BREACH means it could be spam.
    */
   saveProof(proof: RLNFullProof): Promise<EvaluatedProof>
 }
@@ -398,11 +398,11 @@ export class RLN implements IRLN {
     // Double check if the proof will spam or not using the cache.
     // Even if messageIDCounter is used, it is possible that the user restart and the counter is reset.
     const res = await this.checkProof(proof)
-    if (res.status === Status.SEEN) {
+    if (res.status === Status.DUPLICATE) {
       throw new Error('Proof has been generated before')
     } else if (res.status === Status.BREACH) {
       throw new Error('Proof will spam')
-    } else if (res.status === Status.ADDED) {
+    } else if (res.status === Status.VALID) {
       const resSaveProof = await this.saveProof(proof)
       if (resSaveProof.status !== res.status) {
         // Sanity check
@@ -456,8 +456,8 @@ export class RLN implements IRLN {
   /**
    * Save a proof to the cache and check if it's a spam.
    * @param proof the RLNFullProof to save and detect spam
-   * @returns result of the check. It could be 'added' if the proof is fresh,
-   * or 'seen' if the proof has been saved before, else 'breach' if the proof is a spam.
+   * @returns result of the check. `status` could be status.VALID if the proof is not a spam or invalid.
+   * Otherwise, it will be status.DUPLICATE or status.BREACH.
    */
   async saveProof(proof: RLNFullProof): Promise<EvaluatedProof> {
     const { snarkProof, epoch } = proof

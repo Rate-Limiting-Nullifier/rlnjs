@@ -29,9 +29,9 @@ type CacheMap = {
 
 
 export enum Status {
-  ADDED = 'added',
-  BREACH = 'breach',
-  SEEN = 'seen',
+  VALID,
+  DUPLICATE,
+  BREACH,
 }
 
 export type EvaluatedProof = {
@@ -42,11 +42,17 @@ export type EvaluatedProof = {
 }
 
 export interface ICache {
+  /**
+   * Add a proof to the cache and automatically evaluate it for rate limit breaches.
+   * @param proof CachedProof
+   * @returns an object with the status of the proof and the nullifier and secret if the proof is a breach
+   */
   addProof(proof: CachedProof): EvaluatedProof
   /**
-   * Check the proof if it is either valid, seen, or breaching.
+   * Check the proof if it is either valid, duplicate, or breaching.
    * Does not add the proof to the cache to avoid side effects.
    * @param proof CachedProof
+   * @returns an object with the status of the proof and the nullifier and secret if the proof is a breach
    */
   checkProof(proof: CachedProof): EvaluatedProof
 }
@@ -74,7 +80,7 @@ export class MemoryCache implements ICache {
   }
 
   /**
-   *  Adds a proof to the cache
+   * Add a proof to the cache and automatically evaluate it for rate limit breaches.
    * @param proof CachedProof
    * @returns an object with the status of the proof and the nullifier and secret if the proof is a breach
    */
@@ -86,7 +92,7 @@ export class MemoryCache implements ICache {
     // Check if the proof status
     const resCheckProof = this.checkProof(proof)
     // Only add the proof to the cache automatically if it's not seen before.
-    if (resCheckProof.status === Status.ADDED || resCheckProof.status === Status.BREACH) {
+    if (resCheckProof.status === Status.VALID || resCheckProof.status === Status.BREACH) {
       // Add proof to cache
       this.cache[epochString][nullifier].push(proof)
     }
@@ -94,9 +100,10 @@ export class MemoryCache implements ICache {
   }
 
   /**
-   * Check the proof if it is either valid, seen, or breaching.
+   * Check the proof if it is either valid, duplicate, or breaching.
    * Does not add the proof to the cache to avoid side effects.
    * @param proof CachedProof
+   * @returns an object with the status of the proof and the nullifier and secret if the proof is a breach
    */
   checkProof(proof: CachedProof): EvaluatedProof {
     const epochString = String(proof.epoch)
@@ -118,12 +125,12 @@ export class MemoryCache implements ICache {
     }
     // OK
     if (proofs.length === 0) {
-      return { status: Status.ADDED, nullifier: nullifier, msg: 'Proof added to cache' }
+      return { status: Status.VALID, nullifier: nullifier, msg: 'Proof added to cache' }
     // Exists proof with same epoch and nullifier. Possible breach or duplicate proof
     } else {
       const sameProofs = this.cache[epochString][nullifier].filter(p => isSameProof(p, proof))
       if (sameProofs.length > 0) {
-        return { status: Status.SEEN, msg: 'Proof already exists' }
+        return { status: Status.DUPLICATE, msg: 'Proof already exists' }
       } else {
         const otherProof = proofs[0]
         // Breach. Return secret

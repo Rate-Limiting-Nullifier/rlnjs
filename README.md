@@ -286,10 +286,10 @@ User should save all proofs they receive to detect spams. You can save a proof b
 
 ```typescript
 const result = await rln.saveProof(proof)
-// status can be "added", "seen", or "breach".
-// - "added" means the proof is successfully added to the cache
-// - "seen" means the proof is saved before
-// - "breach" means the added proof breaches the rate limit, the result will be `breach`, in which case the `secret` will be recovered and is accessible by accessing `result.secret`
+// status can be VALID, DUPLICATE, BREACH.
+// - VALID means the proof is successfully added to the cache
+// - DUPLICATE means the proof is already saved before
+// - BREACH means the added proof breaches the rate limit, in which case the `secret` is recovered and is accessible by `result.secret`
 const status = result.status
 // if status is "breach", you can get the secret by
 const secret = result.secret

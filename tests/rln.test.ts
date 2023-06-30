@@ -286,9 +286,9 @@ describe("RLN", function () {
             // messageLimitA1 is 1, so A1 can only create 1 proof per epoch
             // Test: can save the first proof
             proofA10 = await rlnA1.createProof(epoch0, message0);
-            // Test: status should be 'seen' when saving duplicate proof since it has been saved in createProof
+            // Test: status should be DUPLICATE when saving duplicate proof since it has been saved in createProof
             const resA10Again = await rlnA1.saveProof(proofA10);
-            expect(resA10Again.status).toBe(Status.SEEN);
+            expect(resA10Again.status).toBe(Status.DUPLICATE);
 
             // Reset messageIDCounterA1 at epoch0 to bypass the message id counter and
             // let it create a proof when it already exceeds `messageLimitA1`.
@@ -326,7 +326,7 @@ describe("RLN", function () {
             // Test: A0 is up-to-date and receives more than `messageLimitA1` proofs,
             // so A1's secret is breached by A0
             const resA10 = await rlnA0.saveProof(proofA10);
-            expect(resA10.status).toBe(Status.ADDED);
+            expect(resA10.status).toBe(Status.VALID);
             const resA12 = await rlnA0.saveProof(proofA11);
             expect(resA12.status).toBe(Status.BREACH);
             if (resA12.secret === undefined) {

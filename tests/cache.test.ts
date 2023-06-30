@@ -37,7 +37,7 @@ describe("MemoryCache", () => {
 
   test("should successfully add proof", () => {
     const result1 = cache.addProof(proof1)
-    expect(result1.status).toBe(Status.ADDED)
+    expect(result1.status).toBe(Status.VALID)
     expect(Object.keys(cache.cache).length
     ).toBe(1)
   })
@@ -52,12 +52,12 @@ describe("MemoryCache", () => {
 
   test("should check proof 3", () => {
     const result3 = cache.addProof(proof3)
-    expect(result3.status).toBe(Status.ADDED)
+    expect(result3.status).toBe(Status.VALID)
   })
 
   test("should check proof 4", () => {
     const result4 = cache.addProof(proof4)
-    expect(result4.status).toBe(Status.ADDED)
+    expect(result4.status).toBe(Status.VALID)
     // two epochs are added to the cache now
     expect(Object.keys(cache.cache).length
     ).toBe(2)
@@ -66,6 +66,6 @@ describe("MemoryCache", () => {
   test("should fail for proof 1 (duplicate proof)", () => {
     // Proof 1 is already in the cache
     const result1 = cache.addProof(proof1)
-    expect(result1.status).toBe(Status.SEEN)
+    expect(result1.status).toBe(Status.DUPLICATE)
   });
 })
