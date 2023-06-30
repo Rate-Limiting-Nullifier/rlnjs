@@ -4,11 +4,11 @@ describe('MessageIDCounter', () => {
     const messageLimit = BigInt(1)
     const messageIDCounter = new FakeMessageIDCounter(messageLimit)
 
-    it('should return correct message limit', async () => {
+    test('should return correct message limit', async () => {
         expect(messageIDCounter.messageLimit).toEqual(messageLimit)
     });
 
-    it('should return correct message ID', async () => {
+    test('should return correct message ID', async () => {
         const epoch0 = BigInt(0)
         const epoch1 = BigInt(1)
         const epoch2 = BigInt(2)
