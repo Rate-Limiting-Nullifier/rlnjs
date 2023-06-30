@@ -46,4 +46,4 @@ jobs:
         key: ${{ runner.os }}-${{ matrix.node-version }}-zkeyFiles-${{ hashFiles('./scripts/build-zkeys.sh') }}
     - name: Build circuit params
       run: ./scripts/build-zkeys.sh
-    - run: npm run test:debug
+    - run: npm run test:ci

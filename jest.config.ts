@@ -9,7 +9,6 @@ const config: Config.InitialOptions = {
     "^.+\\.tsx?$": ["ts-jest", { tsconfig: "tsconfig.test.json" }]
   },
   "silent": true,
-  "detectOpenHandles": true,
   "testTimeout": 100000,
   "collectCoverage": true,
   "forceExit": true,
