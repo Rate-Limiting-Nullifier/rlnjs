@@ -57,7 +57,7 @@ export interface ICache {
   checkProof(proof: CachedProof): EvaluatedProof
 }
 
-const DEFAULT_CACHE_SIZE = 100
+export const DEFAULT_CACHE_SIZE = 100
 /**
  * Cache for storing proofs and automatically evaluating them for rate limit breaches
  * in the memory.
