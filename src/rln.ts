@@ -8,6 +8,10 @@ import { RLNFullProof, RLNProver, RLNVerifier } from './circuit-wrapper'
 import { ethers } from 'ethers'
 import { RLNContract } from './contract-wrapper'
 
+// Ref: https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/55c7da2227b501175076bf73e3ff6dc512c4c813/circuits/rln.circom#L40
+const LIMIT_BIT_SIZE = 16
+const MAX_MESSAGE_LIMIT = (BigInt(1) << BigInt(LIMIT_BIT_SIZE)) - BigInt(1)
+
 export interface IRLN {
   /* Membership */
   /**
@@ -141,6 +145,15 @@ export class RLN implements IRLN {
      */
     withdrawFinalZkeyPath?: string,
   }) {
+    if (args.rlnIdentifier < 0) {
+      throw new Error('rlnIdentifier must be positive')
+    }
+    if (args.treeDepth !== undefined && args.treeDepth <= 0) {
+      throw new Error('treeDepth must be positive')
+    }
+    if (args.cacheSize !== undefined && args.cacheSize <= 0) {
+      throw new Error('cacheSize must be positive')
+    }
     this.rlnIdentifier = args.rlnIdentifier
     this.registry = args.registry
     this.cache = args.cache ? args.cache : new MemoryCache(args.cacheSize)
@@ -330,6 +343,11 @@ export class RLN implements IRLN {
    * @param messageIDCounter the messageIDCounter that the user wants to use. If not provided, a new `MemoryMessageIDCounter` is created.
    */
   async register(userMessageLimit: bigint, messageIDCounter?: IMessageIDCounter) {
+    if (userMessageLimit <= BigInt(0) || userMessageLimit > MAX_MESSAGE_LIMIT) {
+      throw new Error(
+        `userMessageLimit must be in range (0, ${MAX_MESSAGE_LIMIT}]. Got ${userMessageLimit}.`,
+      )
+    }
     await this.registry.register(this.identityCommitment, userMessageLimit)
     this.messageIDCounter = messageIDCounter ? messageIDCounter : new MemoryMessageIDCounter(userMessageLimit)
   }
@@ -367,6 +385,9 @@ export class RLN implements IRLN {
    * @returns the RLNFullProof
    */
   async createProof(epoch: bigint, message: string): Promise<RLNFullProof> {
+    if (epoch < 0) {
+      throw new Error('epoch cannot be negative')
+    }
     if (this.prover === undefined) {
       throw new Error('Prover is not initialized')
 
@@ -423,6 +444,9 @@ export class RLN implements IRLN {
    * @returns true if the proof is valid, false otherwise
    */
   async verifyProof(epoch: bigint, message: string, proof: RLNFullProof): Promise<boolean> {
+    if (epoch < BigInt(0)) {
+      throw new Error('epoch cannot be negative')
+    }
     if (this.verifier === undefined) {
       throw new Error('Verifier is not initialized')
     }
