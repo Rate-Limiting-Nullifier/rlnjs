@@ -1,7 +1,5 @@
 import type { Config } from '@jest/types';
 
-const SECONDS = 1000;
-
 const config: Config.InitialOptions = {
   preset: 'ts-jest',
   testEnvironment: 'node',
