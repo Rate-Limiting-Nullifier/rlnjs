@@ -1,28 +1,18 @@
 import { RLN, RLNFullProof } from "../src";
-import { Status } from "../src/cache";
+import { ICache, MemoryCache, Status } from "../src/cache";
 import { rlnParams, withdrawParams } from "./configs";
-import { MemoryMessageIDCounter } from "../src/message-id-counter";
 import { ethers } from "ethers";
 import { setupTestingContracts } from "./factories";
-import { fieldFactory } from "./utils";
+import { FakeMessageIDCounter, fieldFactory } from "./utils";
 import { MemoryRLNRegistry } from "../src/registry";
 
-class FakeMessageIDCounter extends MemoryMessageIDCounter {
-    reset(epoch: bigint) {
-        const epochStr = epoch.toString()
-        if (this.epochToMessageID[epochStr] === undefined) {
-            return;
-        }
-        this.epochToMessageID[epochStr] = BigInt(0)
-    }
-}
 
 describe("RLN", function () {
     describe("constructor params", function () {
         const rlnIdentifierA = BigInt(1);
         const registry = new MemoryRLNRegistry(rlnIdentifierA, 20)
 
-        it("should fail when neither proving params nor verification key is given", async function () {
+        test("should fail when neither proving params nor verification key is given", async function () {
             expect(() => {
                 new RLN({
                     rlnIdentifier: rlnIdentifierA,
@@ -34,7 +24,7 @@ describe("RLN", function () {
             );
         });
 
-        it("should fail to prove if no proving params is given as constructor arguments", async function () {
+        test("should fail to prove if no proving params is given as constructor arguments", async function () {
             const rln = new RLN({
                 rlnIdentifier: rlnIdentifierA,
                 registry,
@@ -45,7 +35,7 @@ describe("RLN", function () {
             }).rejects.toThrow("Prover is not initialized");
         });
 
-        it("should fail when verifying if no verification key is given as constructor arguments", async function () {
+        test("should fail when verifying if no verification key is given as constructor arguments", async function () {
             const rln = new RLN({
                 rlnIdentifier: rlnIdentifierA,
                 registry,
@@ -58,9 +48,6 @@ describe("RLN", function () {
             await expect(async () => {
                 await rln.verifyProof(randomEpoch, randomMessage, mockProof)
             }).rejects.toThrow("Verifier is not initialized");
-            await expect(async () => {
-                await rln.saveProof(mockProof)
-            }).rejects.toThrow("Verifier is not initialized");
         });
     });
 
@@ -69,7 +56,7 @@ describe("RLN", function () {
         const fakeProvider = {} as ethers.Provider
         const fakeContractAddress = "0x0000000000000000000000000000000000005678"
 
-        it("should fail when neither proving params nor verification key is given", async function () {
+        test("should fail when neither proving params nor verification key is given", async function () {
             expect(() => {
                 RLN.createWithContractRegistry({
                     rlnIdentifier: rlnIdentifierA,
@@ -82,7 +69,7 @@ describe("RLN", function () {
             );
         });
 
-        it("should fail to prove if no proving params is given as constructor arguments", async function () {
+        test("should fail to prove if no proving params is given as constructor arguments", async function () {
             const rln = RLN.createWithContractRegistry({
                 rlnIdentifier: rlnIdentifierA,
                 provider: fakeProvider,
@@ -94,7 +81,7 @@ describe("RLN", function () {
             }).rejects.toThrow("Prover is not initialized");
         });
 
-        it("should fail when verifying if no verification key is given as constructor arguments", async function () {
+        test("should fail when verifying if no verification key is given as constructor arguments", async function () {
             const rln = RLN.createWithContractRegistry({
                 rlnIdentifier: rlnIdentifierA,
                 provider: fakeProvider,
@@ -107,9 +94,6 @@ describe("RLN", function () {
             const mockProof = {} as RLNFullProof
             await expect(async () => {
                 await rln.verifyProof(randomEpoch, randomMessage, mockProof)
-            }).rejects.toThrow("Verifier is not initialized");
-            await expect(async () => {
-                await rln.saveProof(mockProof)
             }).rejects.toThrow("Verifier is not initialized");
         });
 
@@ -123,6 +107,7 @@ describe("RLN", function () {
         const epoch1 = BigInt(1);
         const message0 = "abc";
         const message1 = "abcd";
+        const message2 = "abcde";
 
         let deployed;
         let waitUntilFreezePeriodPassed: () => Promise<void>
@@ -138,6 +123,7 @@ describe("RLN", function () {
         const messageLimitA1 = BigInt(1);
         // Use a fake messageIDCounter which allows us to adjust reset message id for testing
         const messageIDCounterA1 = new FakeMessageIDCounter(messageLimitA1)
+        const cacheA1 = new MemoryCache()
         let proofA10: RLNFullProof;
         let proofA11: RLNFullProof;
 
@@ -154,6 +140,7 @@ describe("RLN", function () {
         function rlnInstanceFactory(args: {
             rlnIdentifier: bigint,
             signer?: ethers.Signer,
+            cache?: ICache,
         }) {
             return RLN.createWithContractRegistry({
                 wasmFilePath: rlnParams.wasmFilePath,
@@ -165,6 +152,7 @@ describe("RLN", function () {
                 contractAddress,
                 withdrawWasmFilePath: withdrawParams.wasmFilePath,
                 withdrawFinalZkeyPath: withdrawParams.finalZkeyPath,
+                cache: args.cache,
             })
         }
 
@@ -189,6 +177,7 @@ describe("RLN", function () {
             rlnA1 = rlnInstanceFactory({
                 rlnIdentifier: rlnIdentifierA,
                 signer: deployed.signer1,
+                cache: cacheA1,
             });
         });
 
@@ -198,19 +187,19 @@ describe("RLN", function () {
             console.log("node killed")
         });
 
-        it("should have correct members after initialization", async function () {
+        test("should have correct members after initialization", async function () {
             expect(await rlnA0.isRegistered()).toBe(false);
             expect((await rlnA0.getAllRateCommitments()).length).toBe(0);
             expect(await rlnA0.getMerkleRoot()).toBe(await rlnA1.getMerkleRoot());
         });
 
-        it("should fail when creating proof if not registered", async function () {
+        test("should fail when creating proof if not registered", async function () {
             await expect(async () => {
                 await rlnA0.createProof(BigInt(0), "abc")
             }).rejects.toThrow("User has not registered before");
         });
 
-        it("should register A0 successfully", async function () {
+        test("should register A0 successfully", async function () {
             await rlnA0.register(messageLimitA0, messageIDCounterA0);
             // A0 has not been updated in the registry
             expect(await rlnA0.isRegistered()).toBe(true);
@@ -219,17 +208,28 @@ describe("RLN", function () {
             expect(allRateCommitments[0]).toBe(await rlnA0.getRateCommitment());
         });
 
-        it("should be able to create proof", async function () {
+        test("should be able to set message id counter", async function () {
+            // Test: set a new message id counter with zero message limit
+            // I.e. no message can be sent
+            const zeroMessageLimit = BigInt(0)
+            const newMessageIDCounter = new FakeMessageIDCounter(zeroMessageLimit)
+            await rlnA0.setMessageIDCounter(newMessageIDCounter)
+            await expect(async () => {
+                await rlnA0.createProof(epoch0, message1)
+            }).rejects.toThrow(`Message ID counter exceeded message limit ${zeroMessageLimit}`);
+            // Change it back to make other tests work
+            await rlnA0.setMessageIDCounter(messageIDCounterA0)
+        })
+
+        test("should be able to create proof", async function () {
             const messageIDBefore = await messageIDCounterA0.peekNextMessageID(epoch0);
             proofA00 = await rlnA0.createProof(epoch0, message0);
             const messageIDAfter = await messageIDCounterA0.peekNextMessageID(epoch0);
             expect(messageIDAfter).toBe(messageIDBefore + BigInt(1));
             expect(await rlnA0.verifyProof(epoch0, message0, proofA00)).toBe(true);
-            const res = await rlnA0.saveProof(proofA00);
-            expect(res.status).toBe(Status.ADDED);
         });
 
-        it("should fail to create proof if messageID exceeds limit", async function () {
+        test("should fail to create proof if messageID exceeds limit", async function () {
             const currentMessageID = await messageIDCounterA0.peekNextMessageID(epoch0);
             // Sanity check: messageID should be equal to limit now
             expect(currentMessageID).toBe(messageLimitA0);
@@ -238,7 +238,7 @@ describe("RLN", function () {
             }).rejects.toThrow("Message ID counter exceeded message limit")
         });
 
-        it("should fail to verify invalid proof", async function () {
+        test("should fail to verify invalid proof", async function () {
             const proofA00Invalid: RLNFullProof = {
                 ...proofA00,
                 snarkProof: {
@@ -252,7 +252,7 @@ describe("RLN", function () {
             expect(await rlnA0.verifyProof(epoch0, message0, proofA00Invalid)).toBeFalsy()
         });
 
-        it("should be able to withdraw", async function () {
+        test("should be able to withdraw", async function () {
             await rlnA0.withdraw();
             await waitUntilFreezePeriodPassed()
             await rlnA0.releaseWithdrawal();
@@ -260,13 +260,13 @@ describe("RLN", function () {
             expect((await rlnA0.getAllRateCommitments()).length).toBe(1);
         });
 
-        it("should fail to create proof after withdraw", async function () {
+        test("should fail to create proof after withdraw", async function () {
             await expect(async () => {
                 await rlnA0.createProof(epoch0, message0);
             }).rejects.toThrow("User has not registered before");
         });
 
-        it("should be able to get the latest state with A1", async function () {
+        test("should be able to get the latest state with A1", async function () {
             expect(await rlnA1.isRegistered()).toBe(false);
             const allRateCommitmentsA1 = await rlnA1.getAllRateCommitments();
             expect(allRateCommitmentsA1.length).toBe(1);
@@ -274,7 +274,7 @@ describe("RLN", function () {
             expect(await rlnA1.getMerkleRoot()).toBe(await rlnA0.getMerkleRoot());
         });
 
-        it("should be able to register A1", async function () {
+        test("should be able to register A1", async function () {
             await rlnA1.register(messageLimitA1, messageIDCounterA1);
             expect(await rlnA1.isRegistered()).toBe(true);
             const allRateCommitmentsA1 = await rlnA1.getAllRateCommitments();
@@ -282,43 +282,51 @@ describe("RLN", function () {
             expect(allRateCommitmentsA1[1]).toBe(await rlnA1.getRateCommitment());
         });
 
-        it("should reveal its secret by itself if A1 creates more than `messageLimitA1` messages", async function () {
+        test("should reveal its secret by itself if A1 creates more than `messageLimitA1` messages", async function () {
             // messageLimitA1 is 1, so A1 can only create 1 proof per epoch
             // Test: can save the first proof
             proofA10 = await rlnA1.createProof(epoch0, message0);
-            const resA10 = await rlnA1.saveProof(proofA10);
-            expect(resA10.status).toBe(Status.ADDED);
-            // Test: fails when saving duplicate proof
+            // Test: status should be DUPLICATE when saving duplicate proof since it has been saved in createProof
             const resA10Again = await rlnA1.saveProof(proofA10);
-            expect(resA10Again.status).toBe(Status.INVALID);
+            expect(resA10Again.status).toBe(Status.DUPLICATE);
 
-            // Reset messageIDCounterA1 at epoch0 to force it create a proof
-            // when it already exceeds `messageLimitA1`
-            messageIDCounterA1.reset(epoch0);
+            // Reset messageIDCounterA1 at epoch0 to bypass the message id counter and
+            // let it create a proof when it already exceeds `messageLimitA1`.
+            await rlnA1.setMessageIDCounter(new FakeMessageIDCounter(BigInt(messageLimitA1)));
+
+            // Test: even messageIDCounter is reset, there is another guard `cache`
+            // to prevent creating more than `messageLimitA1` proofs
+            await expect(async () => {
+                await rlnA1.createProof(epoch0, message1);
+            }).rejects.toThrow("Proof will spam");
+
+            // Reset cache too, to allow rln createProof
+            cacheA1.cache[epoch0.toString()] = {}
+            // Reset messageIDCounterA1 again to bypass the message id counter since it increments
+            // the message id counter when `createProof` even if it fails.
+            await rlnA1.setMessageIDCounter(new FakeMessageIDCounter(BigInt(messageLimitA1)));
             // Test: number of proofs per epoch exceeds `messageLimitA1`, breach/ slashed when `saveProof`
             proofA11 = await rlnA1.createProof(epoch0, message1);
-            const resA11 = await rlnA1.saveProof(proofA11);
-            expect(resA11.status).toBe(Status.BREACH);
-            if (resA11.secret === undefined) {
+            const resA10AgainAgain = await rlnA1.saveProof(proofA10);
+            expect(resA10AgainAgain.status).toBe(Status.BREACH);
+            if (resA10AgainAgain.secret === undefined) {
                 throw new Error("secret should not be undefined")
             }
             // Test: but A1 cannot slash itself
-            const secret = resA11.secret;
+            const secret = resA10AgainAgain.secret;
             await expect(async () => {
                 await rlnA1.slash(secret)
             }).rejects.toThrow('execution reverted: "RLN, slash: self-slashing is prohibited"');
 
             // Test: epoch1 is a new epoch, so A1 can create 1 proof
-            const proofA12 = await rlnA1.createProof(epoch1, message1);
-            const resA12 = await rlnA1.saveProof(proofA12);
-            expect(resA12.status).toBe(Status.ADDED);
+            await rlnA1.createProof(epoch1, message1);
         });
 
-        it("should reveal its secret by others and get slashed", async function () {
+        test("should reveal its secret and get slashed by others", async function () {
             // Test: A0 is up-to-date and receives more than `messageLimitA1` proofs,
             // so A1's secret is breached by A0
             const resA10 = await rlnA0.saveProof(proofA10);
-            expect(resA10.status).toBe(Status.ADDED);
+            expect(resA10.status).toBe(Status.VALID);
             const resA12 = await rlnA0.saveProof(proofA11);
             expect(resA12.status).toBe(Status.BREACH);
             if (resA12.secret === undefined) {
@@ -329,7 +337,7 @@ describe("RLN", function () {
             expect(await rlnA1.isRegistered()).toBe(false);
         });
 
-        it("should be incompatible for RLN if rlnIdentifier is different", async function () {
+        test("should be incompatible for RLN if rlnIdentifier is different", async function () {
             // Create another rlnInstance with different rlnIdentifier
             const rlnB = rlnInstanceFactory({
                 rlnIdentifier: rlnIdentifierB,
@@ -337,6 +345,5 @@ describe("RLN", function () {
             // Test: verifyProof fails since proofA10.rlnIdentifier mismatches rlnB's rlnIdentifier
             expect(await rlnB.verifyProof(epoch0, message0, proofA10)).toBe(false);
         });
-        // TODO: Add tests to set messageIDCounter
     });
 });

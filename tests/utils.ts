@@ -5,6 +5,7 @@ import { BigNumber } from '@ethersproject/bignumber'
 import { keccak256 } from '@ethersproject/keccak256'
 
 import { Fq } from "../src/common"
+import { MemoryMessageIDCounter } from "../src/message-id-counter";
 
 export function fieldFactory(excludes?: bigint[], trials: number = 100): bigint {
     if (excludes) {
@@ -17,6 +18,16 @@ export function fieldFactory(excludes?: bigint[], trials: number = 100): bigint 
         throw new Error("Failed to generate a random epoch")
     } else {
         return Fq.random()
+    }
+}
+
+export class FakeMessageIDCounter extends MemoryMessageIDCounter {
+    async peekNextMessageID(epoch: bigint): Promise<bigint> {
+        const epochStr = epoch.toString()
+        if (this.epochToMessageID[epochStr] === undefined) {
+          return BigInt(0)
+        }
+        return this.epochToMessageID[epochStr]
     }
 }
 

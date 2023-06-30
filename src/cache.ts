@@ -29,9 +29,9 @@ type CacheMap = {
 
 
 export enum Status {
-  ADDED = 'added',
-  BREACH = 'breach',
-  INVALID = 'invalid',
+  VALID,
+  DUPLICATE,
+  BREACH,
 }
 
 export type EvaluatedProof = {
@@ -42,10 +42,22 @@ export type EvaluatedProof = {
 }
 
 export interface ICache {
+  /**
+   * Add a proof to the cache and automatically evaluate it for rate limit breaches.
+   * @param proof CachedProof
+   * @returns an object with the status of the proof and the nullifier and secret if the proof is a breach
+   */
   addProof(proof: CachedProof): EvaluatedProof
+  /**
+   * Check the proof if it is either valid, duplicate, or breaching.
+   * Does not add the proof to the cache to avoid side effects.
+   * @param proof CachedProof
+   * @returns an object with the status of the proof and the nullifier and secret if the proof is a breach
+   */
+  checkProof(proof: CachedProof): EvaluatedProof
 }
 
-const DEFAULT_CACHE_SIZE = 100
+export const DEFAULT_CACHE_SIZE = 100
 /**
  * Cache for storing proofs and automatically evaluating them for rate limit breaches
  * in the memory.
@@ -68,7 +80,7 @@ export class MemoryCache implements ICache {
   }
 
   /**
-   *  Adds a proof to the cache
+   * Add a proof to the cache and automatically evaluate it for rate limit breaches.
    * @param proof CachedProof
    * @returns an object with the status of the proof and the nullifier and secret if the proof is a breach
    */
@@ -77,10 +89,29 @@ export class MemoryCache implements ICache {
     // Since `BigInt` can't be used as key, use String instead
     const epochString = String(proof.epoch)
     const nullifier = String(proof.nullifier)
+    // Check if the proof status
+    const resCheckProof = this.checkProof(proof)
+    // Only add the proof to the cache automatically if it's not seen before.
+    if (resCheckProof.status === Status.VALID || resCheckProof.status === Status.BREACH) {
+      // Add proof to cache
+      this.cache[epochString][nullifier].push(proof)
+    }
+    return resCheckProof
+  }
 
-    this.evaluateEpoch(epochString)
+  /**
+   * Check the proof if it is either valid, duplicate, or breaching.
+   * Does not add the proof to the cache to avoid side effects.
+   * @param proof CachedProof
+   * @returns an object with the status of the proof and the nullifier and secret if the proof is a breach
+   */
+  checkProof(proof: CachedProof): EvaluatedProof {
+    const epochString = String(proof.epoch)
+    const nullifier = String(proof.nullifier)
+    this.shiftEpochs(epochString)
     // If nullifier doesn't exist for this epoch, create an empty array
     this.cache[epochString][nullifier] = this.cache[epochString][nullifier] || []
+    const proofs = this.cache[epochString][nullifier]
 
     // Check if the proof already exists. It's O(n) but it's not a big deal since n is exactly the
     // rate limit and it's usually small.
@@ -92,33 +123,26 @@ export class MemoryCache implements ICache {
         BigInt(proof1.nullifier) === BigInt(proof2.nullifier)
       )
     }
-    const sameProofs = this.cache[epochString][nullifier].filter(p => isSameProof(p, proof))
-    if (sameProofs.length > 0) {
-      return { status: Status.INVALID, msg: 'Proof already exists' }
-    }
-
-    // Add proof to cache
-    this.cache[epochString][nullifier].push(proof)
-
-    // Check if there is more than 1 proof for this nullifier for this epoch
-    return this.evaluateNullifierAtEpoch(epochString, nullifier)
-  }
-
-  private evaluateNullifierAtEpoch(epoch: string, nullifier: string): EvaluatedProof {
-    const proofs = this.cache[epoch][nullifier]
-    if (proofs.length > 1) {
-      // If there is more than 1 proof, return breach and secret
-      const [x1, y1] = [BigInt(proofs[0].x), BigInt(proofs[0].y)]
-      const [x2, y2] = [BigInt(proofs[1].x), BigInt(proofs[1].y)]
-      const secret = shamirRecovery(x1, x2, y1, y2)
-      return { status: Status.BREACH, nullifier: nullifier, secret: secret, msg: 'Rate limit breach, secret attached' }
+    // OK
+    if (proofs.length === 0) {
+      return { status: Status.VALID, nullifier: nullifier, msg: 'Proof added to cache' }
+    // Exists proof with same epoch and nullifier. Possible breach or duplicate proof
     } else {
-      // If there is only 1 proof, return added
-      return { status: Status.ADDED, nullifier: nullifier, msg: 'Proof added to cache' }
+      const sameProofs = this.cache[epochString][nullifier].filter(p => isSameProof(p, proof))
+      if (sameProofs.length > 0) {
+        return { status: Status.DUPLICATE, msg: 'Proof already exists' }
+      } else {
+        const otherProof = proofs[0]
+        // Breach. Return secret
+        const [x1, y1] = [BigInt(proof.x), BigInt(proof.y)]
+        const [x2, y2] = [BigInt(otherProof.x), BigInt(otherProof.y)]
+        const secret = shamirRecovery(x1, x2, y1, y2)
+        return { status: Status.BREACH, nullifier: nullifier, secret: secret, msg: 'Rate limit breach, secret attached' }
+      }
     }
   }
 
-  private evaluateEpoch(epoch: string) {
+  private shiftEpochs(epoch: string) {
     if (this.cache[epoch]) {
       // If epoch already exists, return
       return

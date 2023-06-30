@@ -21,7 +21,7 @@ describe("RLN", function () {
     const epoch = fieldFactory()
     const treeDepth = DEFAULT_REGISTRY_TREE_DEPTH
 
-    it("should generate valid proof", async function () {
+    test("should generate valid proof", async function () {
         const merkleProof = generateMerkleProof(rlnIdentifier, leaves, treeDepth, 0)
         const proof = await rlnProver.generateProof({
             rlnIdentifier,
@@ -40,7 +40,7 @@ describe("Withdraw", function () {
     const withdrawProver = new WithdrawProver(withdrawParams.wasmFilePath, withdrawParams.finalZkeyPath)
     const withdrawVerifier = new WithdrawVerifier(withdrawParams.verificationKey)
 
-    it("should generate valid proof", async function () {
+    test("should generate valid proof", async function () {
         const identitySecret = fieldFactory()
         const address = fieldFactory()
         const proof = await withdrawProver.generateProof({identitySecret, address})

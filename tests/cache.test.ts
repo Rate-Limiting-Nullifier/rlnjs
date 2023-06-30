@@ -1,5 +1,5 @@
 import { MemoryCache } from "../src"
-import { CachedProof, Status } from '../src/cache'
+import { CachedProof, DEFAULT_CACHE_SIZE, Status } from '../src/cache'
 import { fieldFactory } from "./utils"
 
 describe("MemoryCache", () => {
@@ -32,37 +32,51 @@ describe("MemoryCache", () => {
   })
 
   test("should have a cache length of 100", () => {
-    expect(cache.cacheLength).toBe(100)
+    expect(cache.cacheLength).toBe(DEFAULT_CACHE_SIZE)
   })
 
   test("should successfully add proof", () => {
+    const resultCheckProof = cache.checkProof(proof1)
+    expect(resultCheckProof.status).toBe(Status.VALID)
     const result1 = cache.addProof(proof1)
-    expect(result1.status).toBe(Status.ADDED)
+    expect(result1.status).toBe(resultCheckProof.status)
     expect(Object.keys(cache.cache).length
     ).toBe(1)
   })
 
   test("should detect breach and return secret", () => {
+    const resultCheckProof = cache.checkProof(proof2)
+    expect(resultCheckProof.status).toBe(Status.BREACH)
+    expect(resultCheckProof.secret).toBeGreaterThan(0)
     const result2 = cache.addProof(proof2)
-    expect(result2.status).toBe(Status.BREACH)
+    expect(result2.status).toBe(resultCheckProof.status)
     expect(result2.secret).toBeGreaterThan(0)
     expect(Object.keys(cache.cache).length
     ).toBe(1)
   })
 
   test("should check proof 3", () => {
+    const resultCheckProof = cache.checkProof(proof3)
+    expect(resultCheckProof.status).toBe(Status.VALID)
     const result3 = cache.addProof(proof3)
-    expect(result3.status).toBe(Status.ADDED)
+    expect(result3.status).toBe(resultCheckProof.status)
   })
 
   test("should check proof 4", () => {
+    const resultCheckProof = cache.checkProof(proof4)
+    expect(resultCheckProof.status).toBe(Status.VALID)
     const result4 = cache.addProof(proof4)
-    expect(result4.status).toBe(Status.ADDED)
+    expect(result4.status).toBe(resultCheckProof.status)
+    // two epochs are added to the cache now
+    expect(Object.keys(cache.cache).length
+    ).toBe(2)
   })
 
   test("should fail for proof 1 (duplicate proof)", () => {
     // Proof 1 is already in the cache
+    const resultCheckProof = cache.checkProof(proof1)
+    expect(resultCheckProof.status).toBe(Status.DUPLICATE)
     const result1 = cache.addProof(proof1)
-    expect(result1.status).toBe(Status.INVALID)
+    expect(result1.status).toBe(Status.DUPLICATE)
   });
 })

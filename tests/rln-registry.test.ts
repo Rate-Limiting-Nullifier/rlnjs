@@ -29,11 +29,11 @@ describe('MemoryRLNRegistry', () => {
       registry = new MemoryRLNRegistry(rlnIdentifier, treeDepth);
   });
 
-  it('should be initialized correctly', async () => {
+  test('should be initialized correctly', async () => {
     expect(await registry.getAllRateCommitments()).toEqual([])
   });
 
-  it('should fail when we query `identityCommitment0` before registration', async () => {
+  test('should fail when we query `identityCommitment0` before registration', async () => {
     expect(await registry.isRegistered(identityCommitment0)).toBeFalsy()
     await expect(async () => {
       await registry.getMessageLimit(identityCommitment0)
@@ -46,7 +46,7 @@ describe('MemoryRLNRegistry', () => {
     }).rejects.toThrow()
   });
 
-  it('should register with `messageLimit`', async () => {
+  test('should register with `messageLimit`', async () => {
     await registry.register(identityCommitment0, messageLimit0)
     expect(await registry.isRegistered(identityCommitment0)).toBeTruthy()
     expect(await registry.getMessageLimit(identityCommitment0)).toEqual(messageLimit0)
@@ -54,7 +54,7 @@ describe('MemoryRLNRegistry', () => {
     expect(await registry.getRateCommitment(identityCommitment0)).toEqual(expectedRateCommitment)
   });
 
-  it('should fail to register `identityCommitment0` again', async () => {
+  test('should fail to register `identityCommitment0` again', async () => {
     await expect(async () => {
       await registry.register(identityCommitment0, messageLimit0)
     }).rejects.toThrow()
@@ -64,7 +64,7 @@ describe('MemoryRLNRegistry', () => {
     }).rejects.toThrow()
   });
 
-  it('should register `identityCommitment1`', async () => {
+  test('should register `identityCommitment1`', async () => {
     await registry.register(identityCommitment1, messageLimit1)
     expect(await registry.isRegistered(identityCommitment1)).toBeTruthy()
     expect(await registry.getMessageLimit(identityCommitment1)).toEqual(messageLimit1)
@@ -72,7 +72,7 @@ describe('MemoryRLNRegistry', () => {
     expect(await registry.getRateCommitment(identityCommitment1)).toEqual(expectedRateCommitment)
   });
 
-  it('should delete `identityCommitment0`', async () => {
+  test('should delete `identityCommitment0`', async () => {
     await registry.withdraw(identitySecret0)
     await registry.releaseWithdrawal(identityCommitment0)
     expect(await registry.isRegistered(identityCommitment0)).toBeFalsy()
@@ -84,17 +84,17 @@ describe('MemoryRLNRegistry', () => {
     }).rejects.toThrow()
   });
 
-  it('should fail to delete `identityCommitment0` again', async () => {
+  test('should fail to delete `identityCommitment0` again', async () => {
     await expect(async () => {
       await registry.withdraw(identitySecret0)
     }).rejects.toThrow()
   });
 
-  it('should return correct final states', async () => {
+  test('should return correct final states', async () => {
     expect((await registry.getAllRateCommitments()).length).toEqual(2)
   });
 
-  it('should generate valid merkle proof for `identityCommitment1`', async () => {
+  test('should generate valid merkle proof for `identityCommitment1`', async () => {
     const proof = await registry.generateMerkleProof(identityCommitment1)
     expect(proof.root).toEqual(await registry.getMerkleRoot())
 
@@ -166,11 +166,11 @@ describe('ContractRLNRegistry', () => {
     console.log("node killed")
   });
 
-  it('should be initialized correctly', async () => {
+  test('should be initialized correctly', async () => {
     expect(await registry.getAllRateCommitments()).toEqual([])
   });
 
-  it('should fail when we query `identityCommitment0` before registration', async () => {
+  test('should fail when we query `identityCommitment0` before registration', async () => {
     expect(await registry.isRegistered(identityCommitment0)).toBeFalsy()
     await expect(async () => {
       await registry.getMessageLimit(identityCommitment0)
@@ -183,7 +183,7 @@ describe('ContractRLNRegistry', () => {
     }).rejects.toThrow()
   });
 
-  it('should register with `messageLimit`', async () => {
+  test('should register with `messageLimit`', async () => {
     await registry.register(identityCommitment0, messageLimit0)
     expect(await registry.isRegistered(identityCommitment0)).toBeTruthy()
     expect(await registry.getMessageLimit(identityCommitment0)).toEqual(messageLimit0)
@@ -191,7 +191,7 @@ describe('ContractRLNRegistry', () => {
     expect(await registry.getRateCommitment(identityCommitment0)).toEqual(expectedRateCommitment)
   });
 
-  it('should fail to register `identityCommitment0` again', async () => {
+  test('should fail to register `identityCommitment0` again', async () => {
     await expect(async () => {
       await registry.register(identityCommitment0, messageLimit0)
     }).rejects.toThrow()
@@ -201,7 +201,7 @@ describe('ContractRLNRegistry', () => {
     }).rejects.toThrow()
   });
 
-  it('should register `identityCommitment1`', async () => {
+  test('should register `identityCommitment1`', async () => {
     await registry.register(identityCommitment1, messageLimit1)
     expect(await registry.isRegistered(identityCommitment1)).toBeTruthy()
     expect(await registry.getMessageLimit(identityCommitment1)).toEqual(messageLimit1)
@@ -209,7 +209,7 @@ describe('ContractRLNRegistry', () => {
     expect(await registry.getRateCommitment(identityCommitment1)).toEqual(expectedRateCommitment)
   });
 
-  it('should delete `identityCommitment0`', async () => {
+  test('should delete `identityCommitment0`', async () => {
     await registry.withdraw(identitySecret0)
     await waitUntilFreezePeriodPassed()
     await registry.releaseWithdrawal(identityCommitment0)
@@ -222,17 +222,17 @@ describe('ContractRLNRegistry', () => {
     }).rejects.toThrow()
   });
 
-  it('should fail to delete `identityCommitment0` again', async () => {
+  test('should fail to delete `identityCommitment0` again', async () => {
     await expect(async () => {
       await registry.withdraw(identitySecret0)
     }).rejects.toThrow()
   });
 
-  it('should return correct final states', async () => {
+  test('should return correct final states', async () => {
     expect((await registry.getAllRateCommitments()).length).toEqual(2)
   });
 
-  it('should generate valid merkle proof for `identityCommitment1`', async () => {
+  test('should generate valid merkle proof for `identityCommitment1`', async () => {
     const proof = await registry.generateMerkleProof(identityCommitment1)
     expect(proof.root).toEqual(await registry.getMerkleRoot())
 

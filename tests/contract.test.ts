@@ -88,12 +88,12 @@ describe("RLNContract", () => {
         console.log("node killed")
     });
 
-    it("should be enough tokens in signer account", async () => {
+    test("should be enough tokens in signer account", async () => {
         expect(await erc20Contract.balanceOf(await signer.getAddress())).toBeGreaterThanOrEqual(expectedDepositAmount)
     });
 
     // RLNContract
-    it("should register", async () => {
+    test("should register", async () => {
         const balanceBefore = await erc20Contract.balanceOf(await signer.getAddress())
         await rlnContractWrapper.register(identityCommitment, expectedMessageLimit)
         const balanceAfter = await erc20Contract.balanceOf(await signer.getAddress())
@@ -104,7 +104,7 @@ describe("RLNContract", () => {
         expect(balanceBefore - balanceAfter).toBe(expectedDepositAmount)
     });
 
-    it("should withdraw and release", async () => {
+    test("should withdraw and release", async () => {
         // Test: after calling withdraw, user should not receive tokens until calling release
         const balanceBefore = await erc20Contract.balanceOf(await signer.getAddress())
         await rlnContractWrapper.withdraw(identityCommitment, mockProof)
@@ -125,7 +125,7 @@ describe("RLNContract", () => {
         expect(balanceAfterRelease - balanceBeforeRelease).toBe(expectedDepositAmount)
     });
 
-    it("should register another and slash with proof", async () => {
+    test("should register another and slash with proof", async () => {
         // Test: should register
         await rlnContractWrapperAnother.register(identityCommitmentAnother, expectedMessageLimit)
         const user = await rlnContractWrapperAnother.getUser(identityCommitmentAnother)
@@ -143,7 +143,7 @@ describe("RLNContract", () => {
         expect(balanceAfter - balanceBefore).toBe(expectedReceivedAmount)
     });
 
-    it("should get logs", async () => {
+    test("should get logs", async () => {
         const logs = await rlnContractWrapper.getLogs()
         expect(logs.length).toBe(4)
         expect(logs[0].name).toBe("MemberRegistered")

@@ -278,8 +278,7 @@ const proofResult = await rln.verifyProof(epoch, message, proof) // true or fals
 ```
 
 A proof can be invalid in the following conditions:
-- The proof is not for you. You're using a different `rlnIdentifier`
-- The proof is not for the current epoch
+- Proof mismatches epoch, message, or rlnIdentifier
 - The snark proof itself is invalid
 
 ### Saving a proof
@@ -287,10 +286,10 @@ User should save all proofs they receive to detect spams. You can save a proof b
 
 ```typescript
 const result = await rln.saveProof(proof)
-// status can be "added", "breach", or "invalid".
-// - "added" means the proof is successfully added to the cache
-// - "breach" means the added proof breaches the rate limit, the result will be `breach`, in which case the `secret` will be recovered and is accessible by accessing `result.secret`
-// - "invalid" means the proof is invalid, either it's received before or verification fails
+// status can be VALID, DUPLICATE, BREACH.
+// - VALID means the proof is successfully added to the cache
+// - DUPLICATE means the proof is already saved before
+// - BREACH means the added proof breaches the rate limit, in which case the `secret` is recovered and is accessible by `result.secret`
 const status = result.status
 // if status is "breach", you can get the secret by
 const secret = result.secret

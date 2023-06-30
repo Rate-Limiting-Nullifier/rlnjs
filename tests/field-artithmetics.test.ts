@@ -2,7 +2,7 @@ import { Fq } from "../src/common"
 
 describe("Field arithmetics", () => {
   describe("Test bunch of calculations in Fq", () => {
-    it("Retrieve n from y = kx + n", () => {
+    test("Retrieve n from y = kx + n", () => {
       const k = Fq.random()
       const n = Fq.random()
 
@@ -21,7 +21,7 @@ describe("Field arithmetics", () => {
       expect(retrieved).toEqual(n)
     })
 
-    it("Lagrange in Fq", () => {
+    test("Lagrange in Fq", () => {
       const degree = 4
 
       const coeffs: Array<bigint> = [BigInt(7), BigInt(6), BigInt(9), BigInt(1), BigInt(7)]
