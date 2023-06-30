@@ -110,8 +110,7 @@ export async function setupTestingContracts(args: {
                 reject(new Error('Killing node process timeout'));
             }, timeout);
             // Returns when node is killed
-            node.on('close', function (code, signal) {
-                console.log('RPC node exited with code = ' +code+'  signal = '+signal);
+            node.on('exit', () => {
                 clearTimeout(t);
                 resolve(undefined)
             });
