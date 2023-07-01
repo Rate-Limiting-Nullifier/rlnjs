@@ -149,10 +149,8 @@ async function main() {
         throw new Error(`rlnAnother should have been slashed`);
     }
     console.log(`Successfully slashed rlnAnother`);
-    process.exit(0)
 }
 
 main().catch((e) => {
     console.error(e)
-    process.exit(1)
 });
