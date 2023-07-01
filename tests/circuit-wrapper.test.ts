@@ -21,8 +21,9 @@ describe("RLN", function () {
     const epoch = fieldFactory()
     const treeDepth = DEFAULT_REGISTRY_TREE_DEPTH
 
-    test("should generate valid proof", async function () {
-        const merkleProof = generateMerkleProof(rlnIdentifier, leaves, treeDepth, 0)
+    const m0 = performance.now();
+    const merkleProof = generateMerkleProof(rlnIdentifier, leaves, treeDepth, 0);
+    const m1 = performance.now();
         const proof = await rlnProver.generateProof({
             rlnIdentifier,
             identitySecret,
@@ -30,9 +31,15 @@ describe("RLN", function () {
             messageId,
             merkleProof,
             x,
-            epoch,
-        })
-        expect(await rlnVerifier.verifyProof(rlnIdentifier, proof)).toBeTruthy()
+      epoch
+    });
+    const m2 = performance.now();
+    const isValid = await rlnVerifier.verifyProof(rlnIdentifier, proof);
+    const m3 = performance.now();
+    console.log(`Merkle proof generation: ${m1 - m0} ms`);
+    console.log(`RLN proof generation: ${m2 - m1} ms`);
+    console.log(`RLN proof verification: ${m3 - m2} ms`);
+    expect(isValid).toBeTruthy();
     });
 });
 
