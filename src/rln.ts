@@ -494,4 +494,15 @@ export class RLN implements IRLN {
     const { x, y, nullifier } = snarkProof.publicSignals
     return this.cache.checkProof({ x, y, nullifier, epoch })
   }
+
+  /**
+   * Clean up the worker threads used by the prover and verifier in snarkjs
+   * This function should be called when the user is done with the library
+   * and wants to clean up the worker threads.
+   *
+   * Ref: https://github.com/iden3/snarkjs/issues/152#issuecomment-1164821515
+   */
+  static cleanUp() {
+    globalThis.curve_bn128.terminate()
+  }
 }
