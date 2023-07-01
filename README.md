@@ -32,6 +32,13 @@ The core of RLN is in the [circuit logic](https://github.com/Rate-Limiting-Nulli
 
 [`RLN`](./src/rln.ts) class is the core of RLNjs. It allows user to generate proofs, verify proofs, and detect spams. Also, user can register to RLN, withdraw, and slash spammers.
 
+| _Tests Ran on an M2 Macbook_ | Time   |
+| ---------------------------- | ------ |
+| RLN Proof                    | ~800ms |
+| RLN Proof Verification       | ~130ms |
+| Withdraw Proof               | ~260ms |
+| Withdraw Proof Verification  | ~145ms |
+
 ## Install
 
 Install rlnjs with npm:
