@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { RLN } from "rlnjs";
-import { deployERC20, deployRLNContract, deployVerifier, rlnParams, treeDepth, url, withdrawParams } from "./configs.js";
+import { deployERC20, deployRLNContract, deployVerifier, rlnParams, treeDepth, url, withdrawParams } from "./configs";
 
 
 async function main() {

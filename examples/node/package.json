@@ -4,7 +4,7 @@
   "description": "An example of how to use RLN with NodeJS",
   "main": "dist/index.js",
   "scripts": {
-    "build-and-run": "tsc && node dist/index.js",
+    "test-node": "tsc && node dist/index.js",
     "clean": "rm -rf dist"
   },
   "type": "module",

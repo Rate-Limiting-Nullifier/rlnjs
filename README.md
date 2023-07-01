@@ -318,7 +318,8 @@ await rln.slash(secret) // funds go to the signer
 ```
 
 ## Example
-Please see the examples [here](./examples/node/) which can be run and demonstrate how to use RLNjs.
+
+Please see the examples [here](./examples/). We have examples for [NodeJS](./examples/node/) and [browser](./examples/browser/).
 
 ## Tests
 

@@ -1,4 +1,4 @@
-# Example: use RLNjs in NodeJS
+# Example: use RLNjs in browser
 
 The example go through the following steps:
 1. Deploy the necessary contracts: verifier (the mock proof verifier since it's not yet generated), ERC20 token, and the RLN contract
@@ -20,7 +20,26 @@ In a new terminal, run:
 $ npx hardhat node
 ```
 
-3. Run the example
+3. Run the web server
 ```bash
-$ npm run test-node
+$ npm run test-browser
+
+
+...
+Available on:
+  http://127.0.0.1:8080
+  http://192.168.50.66:8080
+Hit CTRL-C to stop the server
 ```
+
+4. Open the web page at `http://localhost:8080`. You should see the following output in the browser console.
+```
+Connecting to endpoint at http://localhost:8545
+Deploying contracts...
+
+...
+
+Successfully breached rlnAnother's secret=xxx
+Successfully slashed rlnAnother
+```
+
