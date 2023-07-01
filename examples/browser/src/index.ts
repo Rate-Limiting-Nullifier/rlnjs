@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
-import { RLN } from "rlnjs";
-import { deployERC20, deployRLNContract, deployVerifier, rlnParams, treeDepth, url, withdrawParams } from "./configs";
+import { ICache, MemoryCache, RLN, Status } from "rlnjs";
+import { deployERC20, deployRLNContract, deployVerifier, rlnParams, treeDepth, url, withdrawParams } from "./configs.js";
 
 
 async function main() {
@@ -42,8 +42,8 @@ async function main() {
     const rlnContractAtBlock = await provider.getBlockNumber()
     console.log(`Deployed RLN contract at ${rlnContractAddress} at block ${rlnContractAtBlock}`)
 
-    function createRLNInstance() {
-        return new RLN({
+    function createRLNInstance(cache?: ICache) {
+        return RLN.createWithContractRegistry({
             /* Required */
             rlnIdentifier,
             provider,
@@ -57,6 +57,7 @@ async function main() {
             verificationKey: rlnParams.verificationKey,
             withdrawWasmFilePath: withdrawParams.wasmFilePath,
             withdrawFinalZkeyPath: withdrawParams.finalZkeyPath,
+            cache,
         })
     }
 
@@ -116,7 +117,13 @@ async function main() {
     /* Slash */
 
     console.log("Try `slash` by making rlnAnother create more than " + `${messageLimit} proofs and get slashed by rln`)
-    const rlnAnother = createRLNInstance()
+    class ResettableCache extends MemoryCache {
+        async reset() {
+            this.cache = {}
+        }
+    }
+    const resettableCache = new ResettableCache()
+    const rlnAnother = createRLNInstance(resettableCache)
     console.log(`rlnAnother created: identityCommitment=${rlnAnother.identityCommitment}`)
     class FaultyMessageIDCounter {
         private counter: bigint = BigInt(0)
@@ -130,16 +137,24 @@ async function main() {
         }
     }
     console.log(`Registering rlnAnother...`)
+    // Intentionally uses a faulty message ID counter, so that it will use the same message ID
+    // and exceed the message limit. This will cause it to get slashed.
     await rlnAnother.register(messageLimit, new FaultyMessageIDCounter(messageLimit));
     console.log(`Creating proof0 for rlnAnother...`)
     const proof0 = await rlnAnother.createProof(epoch, message0);
     console.log(`Creating proof1 for rlnAnother...`)
+    // Intentionally clear the cache of rlnAnother, so that it will create a proof which
+    // will cause a breach and get slashed.
+    resettableCache.reset()
     const proof1 = await rlnAnother.createProof(epoch, message1);
     console.log(`rln saving proof0 from rlnAnother...`)
-    await rln.saveProof(proof0);
+    const res0 = await rln.saveProof(proof0);
+    if (res0.status != Status.VALID) {
+        throw new Error(`rlnAnother's proof should have been valid`);
+    }
     console.log(`rln saving proof1 for rlnAnother...`)
     const res1 = await rln.saveProof(proof1);
-    if (res1.status != "breach") {
+    if (res1.status != Status.BREACH) {
         throw new Error(`rlnAnother's secret should have been breached`);
     }
     const secret = res1.secret as bigint
@@ -149,6 +164,7 @@ async function main() {
         throw new Error(`rlnAnother should have been slashed`);
     }
     console.log(`Successfully slashed rlnAnother`);
+    RLN.cleanUp()
 }
 
 main().catch((e) => {
