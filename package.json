@@ -1,6 +1,6 @@
 {
   "name": "rlnjs",
-  "version": "3.1.3",
+  "version": "3.1.4",
   "description": "Client library for generating and using RLN ZK proofs.",
   "license": "MIT",
   "repository": "https://github.com/Rate-Limiting-Nullifier/rlnjs",
