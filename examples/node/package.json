@@ -11,7 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "ethers": "^6.6.0",
-    "test-rlnjs": "^3.1.20"
+    "rlnjs": "^3.1.5"
   },
   "devDependencies": {
     "hardhat": "^2.15.0"
