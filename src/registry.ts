@@ -1,12 +1,10 @@
 import { Group } from '@semaphore-protocol/group'
 import { MerkleProof } from './types'
-import { calculateRateCommitment } from './common'
+import { DEFAULT_MERKLE_TREE_DEPTH, calculateRateCommitment } from './common'
 import { RLNContract } from './contract-wrapper'
 import { ethers } from 'ethers'
 import poseidon from 'poseidon-lite'
 import { WithdrawProver } from './circuit-wrapper'
-
-export const DEFAULT_REGISTRY_TREE_DEPTH = 20
 
 export interface IRLNRegistry {
   isRegistered(identityCommitment: bigint): Promise<boolean>
@@ -36,10 +34,10 @@ export class ContractRLNRegistry implements IRLNRegistry {
     rlnIdentifier: bigint,
     rlnContract: RLNContract,
     treeDepth?: number,
-    withdrawWasmFilePath?: string,
-    withdrawFinalZkeyPath?: string,
+    withdrawWasmFilePath?: string | Uint8Array,
+    withdrawFinalZkeyPath?: string | Uint8Array,
   }) {
-    this.treeDepth = args.treeDepth ? args.treeDepth : DEFAULT_REGISTRY_TREE_DEPTH
+    this.treeDepth = args.treeDepth ? args.treeDepth : DEFAULT_MERKLE_TREE_DEPTH
     this.rlnContract = args.rlnContract
     this.rlnIdentifier = args.rlnIdentifier
 

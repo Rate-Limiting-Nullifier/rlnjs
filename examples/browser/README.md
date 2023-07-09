@@ -22,7 +22,7 @@ $ npx hardhat node
 
 3. Run the web server
 ```bash
-$ npm run test-browser
+$ npm run test
 
 
 ...

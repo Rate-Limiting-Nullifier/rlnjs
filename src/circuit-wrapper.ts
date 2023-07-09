@@ -54,14 +54,11 @@ export type RLNWitness = {
  * Wrapper of RLN circuit for proof generation.
  */
 export class RLNProver {
-  // system configs
-  wasmFilePath: string
 
-  finalZkeyPath: string
-
-  constructor(wasmFilePath: string, finalZkeyPath: string) {
-    this.wasmFilePath = wasmFilePath
-    this.finalZkeyPath = finalZkeyPath
+  constructor(
+    readonly wasmFilePath: string | Uint8Array,
+    readonly finalZkeyPath: string | Uint8Array,
+  ) {
   }
 
   /**
@@ -115,11 +112,7 @@ export class RLNProver {
  * Wrapper of RLN circuit for verification.
  */
 export class RLNVerifier {
-  // system configs
-  verificationKey: VerificationKey
-
-  constructor(verificationKey: VerificationKey) {
-    this.verificationKey = verificationKey
+  constructor(readonly verificationKey: VerificationKey) {
   }
 
   /**
@@ -167,13 +160,10 @@ type SNARKProof = {
  * Wrapper of Withdraw circuit for proof generation.
  */
 export class WithdrawProver {
-  wasmFilePath: string
-
-  finalZkeyPath: string
-
-  constructor(wasmFilePath: string, finalZkeyPath: string) {
-    this.wasmFilePath = wasmFilePath
-    this.finalZkeyPath = finalZkeyPath
+  constructor(
+    readonly wasmFilePath: string | Uint8Array,
+    readonly finalZkeyPath: string | Uint8Array,
+  ) {
   }
 
   async generateProof(args: { identitySecret: bigint; address: bigint }): Promise<SNARKProof> {
@@ -191,10 +181,7 @@ export class WithdrawProver {
  * on-chain, this class mainly used for testing.
  */
 export class WithdrawVerifier {
-  verificationKey: VerificationKey
-
-  constructor(verificationKey: VerificationKey) {
-    this.verificationKey = verificationKey
+  constructor(readonly verificationKey: VerificationKey) {
   }
 
   async verifyProof(proof: SNARKProof): Promise<boolean> {

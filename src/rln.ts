@@ -1,12 +1,14 @@
 import { Identity } from '@semaphore-protocol/identity'
 import { VerificationKey } from './types'
-import { calculateIdentityCommitment, calculateSignalHash } from './common'
+import { DEFAULT_MERKLE_TREE_DEPTH, calculateIdentityCommitment, calculateSignalHash } from './common'
 import { IRLNRegistry, ContractRLNRegistry } from './registry'
 import { MemoryCache, EvaluatedProof, ICache, Status } from './cache'
 import { IMessageIDCounter, MemoryMessageIDCounter } from './message-id-counter'
 import { RLNFullProof, RLNProver, RLNVerifier } from './circuit-wrapper'
 import { ethers } from 'ethers'
 import { RLNContract } from './contract-wrapper'
+
+import { defaultWithdrawParams, treeDepthToDefaultRLNParams } from './resources'
 
 // Ref: https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/55c7da2227b501175076bf73e3ff6dc512c4c813/circuits/rln.circom#L40
 const LIMIT_BIT_SIZE = 16
@@ -122,28 +124,18 @@ export class RLN implements IRLN {
      * File path of the RLN wasm file. If not provided, `createProof` will not work.
      * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
      */
-    wasmFilePath?: string
+    wasmFilePath?: string | Uint8Array
     /**
      * File path of the RLN final zkey file. If not provided, `createProof` will not work.
      * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
      */
-    finalZkeyPath?: string
+    finalZkeyPath?: string | Uint8Array
     // Verification key of the circuit. If not provided, `verifyProof` and `saveProof` will not work.
     /**
      * Verification key of the RLN circuit. If not provided, `verifyProof` and `saveProof` will not work.
      * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
      */
     verificationKey?: VerificationKey
-    /**
-     * File path of the wasm file for withdraw circuit. If not provided, `withdraw` will not work.
-     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/withdraw.circom}
-     */
-    withdrawWasmFilePath?: string,
-    /**
-     * File path of the final zkey file for withdraw circuit. If not provided, `withdraw` will not work.
-     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/withdraw.circom}
-     */
-    withdrawFinalZkeyPath?: string,
   }) {
     if (args.rlnIdentifier < 0) {
       throw new Error('rlnIdentifier must be positive')
@@ -154,22 +146,45 @@ export class RLN implements IRLN {
     if (args.cacheSize !== undefined && args.cacheSize <= 0) {
       throw new Error('cacheSize must be positive')
     }
+
     this.rlnIdentifier = args.rlnIdentifier
     this.registry = args.registry
     this.cache = args.cache ? args.cache : new MemoryCache(args.cacheSize)
     this.identity = args.identity ? args.identity : new Identity()
 
-    if ((args.wasmFilePath === undefined || args.finalZkeyPath === undefined) && args.verificationKey === undefined) {
+    // 3. Else, leave them undefined
+    let wasmFilePath: string | Uint8Array | undefined
+    let finalZkeyPath: string | Uint8Array | undefined
+    let verificationKey: VerificationKey | undefined
+
+    const treeDepth = args.treeDepth ? args.treeDepth : DEFAULT_MERKLE_TREE_DEPTH
+    // If `args.treeDepth` is given, `wasmFilePath`, `finalZkeyPath`, and `verificationKey` will be
+    // set to default first
+    if (treeDepth !== undefined) {
+      const defaultParams = treeDepthToDefaultRLNParams[treeDepth]
+      if (defaultParams !== undefined) {
+        wasmFilePath = defaultParams.wasmFile
+        finalZkeyPath = defaultParams.finalZkey
+        verificationKey = defaultParams.verificationKey
+      }
+    }
+    // If `args.wasmFilePath`, `args.finalZkeyPath`, and `args.verificationKey` are given, use them
+    // over the default
+    wasmFilePath = args.wasmFilePath ? args.wasmFilePath : wasmFilePath
+    finalZkeyPath = args.finalZkeyPath ? args.finalZkeyPath : finalZkeyPath
+    verificationKey = args.verificationKey ? args.verificationKey : verificationKey
+
+    if ((wasmFilePath === undefined || finalZkeyPath === undefined) && verificationKey === undefined) {
       throw new Error(
         'Either both `wasmFilePath` and `finalZkeyPath` must be supplied to generate proofs, ' +
         'or `verificationKey` must be provided to verify proofs.',
       )
     }
-    if (args.wasmFilePath !== undefined && args.finalZkeyPath !== undefined) {
-      this.prover = new RLNProver(args.wasmFilePath, args.finalZkeyPath)
+    if (wasmFilePath !== undefined && finalZkeyPath !== undefined) {
+      this.prover = new RLNProver(wasmFilePath, finalZkeyPath)
     }
-    if (args.verificationKey !== undefined) {
-      this.verifier = new RLNVerifier(args.verificationKey)
+    if (verificationKey !== undefined) {
+      this.verifier = new RLNVerifier(verificationKey)
     }
   }
 
@@ -215,12 +230,12 @@ export class RLN implements IRLN {
      * File path of the RLN wasm file. If not provided, `createProof` will not work.
      * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
      */
-    wasmFilePath?: string
+    wasmFilePath?: string | Uint8Array
     /**
      * File path of the RLN final zkey file. If not provided, `createProof` will not work.
      * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
      */
-    finalZkeyPath?: string
+    finalZkeyPath?: string | Uint8Array
     // Verification key of the circuit. If not provided, `verifyProof` and `saveProof` will not work.
     /**
      * Verification key of the RLN circuit. If not provided, `verifyProof` and `saveProof` will not work.
@@ -238,12 +253,12 @@ export class RLN implements IRLN {
      * File path of the wasm file for withdraw circuit. If not provided, `withdraw` will not work.
      * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/withdraw.circom}
      */
-    withdrawWasmFilePath?: string,
+    withdrawWasmFilePath?: string | Uint8Array,
     /**
      * File path of the final zkey file for withdraw circuit. If not provided, `withdraw` will not work.
      * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/withdraw.circom}
      */
-    withdrawFinalZkeyPath?: string,
+    withdrawFinalZkeyPath?: string | Uint8Array,
 
     /** Others */
     /**
@@ -266,12 +281,18 @@ export class RLN implements IRLN {
       contractAddress: args.contractAddress,
       contractAtBlock: args.contractAtBlock ? args.contractAtBlock : 0,
     })
+    const treeDepth = args.treeDepth ? args.treeDepth : DEFAULT_MERKLE_TREE_DEPTH
+
+    // If `args.withdrawWasmFilePath`, `args.withdrawFinalZkeyPath` are given, use them
+    // over the default
+    const withdrawWasmFilePath = args.withdrawWasmFilePath ? args.withdrawWasmFilePath : defaultWithdrawParams.wasmFile
+    const withdrawFinalZkeyPath = args.withdrawFinalZkeyPath ? args.withdrawFinalZkeyPath : defaultWithdrawParams.finalZkey
     const registry = new ContractRLNRegistry({
       rlnIdentifier: args.rlnIdentifier,
       rlnContract: rlnContractWrapper,
-      treeDepth: args.treeDepth,
-      withdrawWasmFilePath: args.withdrawWasmFilePath,
-      withdrawFinalZkeyPath: args.withdrawFinalZkeyPath,
+      treeDepth,
+      withdrawWasmFilePath: withdrawWasmFilePath,
+      withdrawFinalZkeyPath: withdrawFinalZkeyPath,
     })
     const argsWithRegistry = {
       ...args,
@@ -294,6 +315,22 @@ export class RLN implements IRLN {
       const userMessageLimit = await this.registry.getMessageLimit(this.identityCommitment)
       this.messageIDCounter = new MemoryMessageIDCounter(userMessageLimit)
     }
+  }
+
+  /**
+   * Set a custom cache
+   * @param cache The custom cache
+   */
+  setCache(cache: ICache) {
+    this.cache = cache
+  }
+
+  /**
+   * Set a custom registry
+   * @param registry The custom registry
+   */
+  setRegistry(registry: IRLNRegistry) {
+    this.registry = registry
   }
 
   /**
