@@ -6,7 +6,7 @@
   "module": "dist/index.mjs",
   "scripts": {
     "build": "rollup --config rollup.config.mjs",
-    "test-browser": "npm run build && mkdir -p public && cp dist/index.mjs index.html public && cp -r artifacts public && cd public && npx http-server",
+    "test": "npm run build && mkdir -p public && cp dist/index.mjs index.html public && cd public && npx http-server",
     "clean": "rm -rf dist"
   },
   "author": "",
@@ -21,6 +21,6 @@
     "rollup-plugin-polyfill-node": "^0.12.0",
     "rollup-plugin-typescript2": "^0.34.1",
     "rollup-plugin-visualizer": "^5.9.0",
-    "rlnjs": "^3.1.4"
+    "test-rlnjs": "^3.1.20"
   }
 }

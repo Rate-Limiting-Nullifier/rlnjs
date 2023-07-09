@@ -8,14 +8,17 @@ import { MemoryRLNRegistry } from "../src/registry";
 
 
 describe("RLN", function () {
+    const rlnIdentifierA = BigInt(1);
+    const treeDepthWithoutDefaultParams = 5566;
+
     describe("constructor params", function () {
-        const rlnIdentifierA = BigInt(1);
         const registry = new MemoryRLNRegistry(rlnIdentifierA, 20)
 
         test("should fail when neither proving params nor verification key is given", async function () {
             expect(() => {
                 new RLN({
                     rlnIdentifier: rlnIdentifierA,
+                    treeDepth: treeDepthWithoutDefaultParams,
                     registry,
                 });
             }).toThrow(
@@ -27,6 +30,7 @@ describe("RLN", function () {
         test("should fail to prove if no proving params is given as constructor arguments", async function () {
             const rln = new RLN({
                 rlnIdentifier: rlnIdentifierA,
+                treeDepth: treeDepthWithoutDefaultParams,
                 registry,
                 verificationKey: rlnParams.verificationKey,
             })
@@ -38,6 +42,7 @@ describe("RLN", function () {
         test("should fail when verifying if no verification key is given as constructor arguments", async function () {
             const rln = new RLN({
                 rlnIdentifier: rlnIdentifierA,
+                treeDepth: treeDepthWithoutDefaultParams,
                 registry,
                 wasmFilePath: rlnParams.wasmFilePath,
                 finalZkeyPath: rlnParams.finalZkeyPath,
@@ -52,7 +57,6 @@ describe("RLN", function () {
     });
 
     describe("createWithContractRegistry params", function () {
-        const rlnIdentifierA = BigInt(1);
         const fakeProvider = {} as ethers.Provider
         const fakeContractAddress = "0x0000000000000000000000000000000000005678"
 
@@ -60,6 +64,7 @@ describe("RLN", function () {
             expect(() => {
                 RLN.createWithContractRegistry({
                     rlnIdentifier: rlnIdentifierA,
+                    treeDepth: treeDepthWithoutDefaultParams,
                     provider: fakeProvider,
                     contractAddress: fakeContractAddress,
                 });
@@ -72,6 +77,7 @@ describe("RLN", function () {
         test("should fail to prove if no proving params is given as constructor arguments", async function () {
             const rln = RLN.createWithContractRegistry({
                 rlnIdentifier: rlnIdentifierA,
+                treeDepth: treeDepthWithoutDefaultParams,
                 provider: fakeProvider,
                 contractAddress: fakeContractAddress,
                 verificationKey: rlnParams.verificationKey,
@@ -84,6 +90,7 @@ describe("RLN", function () {
         test("should fail when verifying if no verification key is given as constructor arguments", async function () {
             const rln = RLN.createWithContractRegistry({
                 rlnIdentifier: rlnIdentifierA,
+                treeDepth: treeDepthWithoutDefaultParams,
                 provider: fakeProvider,
                 contractAddress: fakeContractAddress,
                 wasmFilePath: rlnParams.wasmFilePath,
@@ -107,7 +114,6 @@ describe("RLN", function () {
         const epoch1 = BigInt(1);
         const message0 = "abc";
         const message1 = "abcd";
-        const message2 = "abcde";
 
         let deployed;
         let waitUntilFreezePeriodPassed: () => Promise<void>
@@ -140,7 +146,6 @@ describe("RLN", function () {
         function rlnInstanceFactory(args: {
             rlnIdentifier: bigint,
             signer?: ethers.Signer,
-            cache?: ICache,
         }) {
             return RLN.createWithContractRegistry({
                 wasmFilePath: rlnParams.wasmFilePath,
@@ -152,7 +157,6 @@ describe("RLN", function () {
                 contractAddress,
                 withdrawWasmFilePath: withdrawParams.wasmFilePath,
                 withdrawFinalZkeyPath: withdrawParams.finalZkeyPath,
-                cache: args.cache,
             })
         }
 
@@ -177,8 +181,8 @@ describe("RLN", function () {
             rlnA1 = rlnInstanceFactory({
                 rlnIdentifier: rlnIdentifierA,
                 signer: deployed.signer1,
-                cache: cacheA1,
             });
+            rlnA1.setCache(cacheA1);
         });
 
         afterAll(async () => {

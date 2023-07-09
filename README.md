@@ -110,6 +110,34 @@ zkeyFiles
 
 ### Initializing an RLN instance
 
+#### Create RLN instance with the contract registry
+
+The following snippet creates RLN instance with default settings.
+
+```typescript
+const rlnIdentifier = BigInt(5566)
+const contractAddress = "0x..."
+const contractAtBlock = 12345678
+const provider = new ethers.JsonRpcProvider(url)
+const signer = await provider.getSigner(0)
+
+// Create an RLN instance with the contract registry.
+// ethers provider and the contract address are both required then.
+const rln = RLN.createWithContractRegistry({
+  /* These parameters are required */
+  rlnIdentifier, // The unique id representing your application
+  provider, // ethers.js provider
+  contractAddress, // RLN contract address
+
+  /* These parameters are optional */
+  contractAtBlock, // The block number at which the RLN contract was deployed. If not given, default is 0
+  signer, // ethers.js signer. If not given, users won't be able to execute write operations to the RLN contract
+  // ... See all optional parameters in RLN constructor in src/rln.ts
+})
+```
+
+Custom options can be passed to the RLN instance. Note that default tree depth is `20`. If you're using a tree depth other than `20`, you need to the circuit parameters when creating the RLN instance. See [RLN constructor](src/rln.ts) for all options.
+
 ```typescript
 import path from "path"
 
@@ -139,6 +167,7 @@ const withdrawWasmFilePath = path.join(withdrawZkeyFilesDir, "circuit.wasm")
 const withdrawFinalZkeyPath = path.join(withdrawZkeyFilesDir, "final.zkey")
 
 const rlnIdentifier = BigInt(5566)
+const treeDepth = 16
 const provider = new ethers.JsonRpcProvider(url)
 const contractAddress = "0x..."
 const signer = await provider.getSigner(0)
@@ -166,49 +195,14 @@ const rln = RLN.createWithContractRegistry({
   // ... See all optional parameters in RLN constructor in src/rln.ts
 })
 ```
-#### Use a registry other than the contract registry
-You can also initialize an RLN instance with the constructor, but you need to provide a registry. This is particularly useful if you want to use a custom registry instead of the contract registry.
-```typescript
-const registry: IRLNRegistry = new MemoryRLNRegistry(rlnIdentifier, treeDepth)
-const rln = new RLN({
-  /* These parameters are required */
-  rlnIdentifier, // The unique id representing your application
-  registry, // The RLN registry which implements IRLNRegistry
 
-  /* These parameters are optional */
-  identity, // the semaphore identity. If not given, a new identity is created
-  wasmFilePath: rlnWasmFilePath, // The path to the rln circuit wasm file. If not given, `createProof` will not work
-  finalZkeyPath: rlnFinalZkeyPath, // The path to the rln circuit final zkey file. If not given, `createProof` will not work
-  verificationKey: rlnVerificationKey, // The rln circuit verification key. If not given, `verifyProof` will not work
-  withdrawWasmFilePath, // The path to the withdraw circuit wasm file. If not given, `withdraw` will not work
-  withdrawFinalZkeyPath, // The path to the withdraw circuit final zkey file. If not given, `withdraw` will not work
-
-  // ... See all optional parameters in RLN constructor in src/rln.ts
-})
-```
-
-For testing, you could use `MemoryRLNRegistry` and let different RLN instances share the same registry.
+#### Create RLN instance with other types of registries
+You can also initialize an RLN instance with the constructor, but you need to provide a registry. This is particularly useful if you want to use a custom registry instead of the contract registry. For testing, you could use `MemoryRLNRegistry` and let different RLN instances use the same registry.
 
 ```typescript
 const registry: IRLNRegistry = new MemoryRLNRegistry(rlnIdentifier, treeDepth)
-const rln1 = new RLN({
-  rlnIdentifier,
-  registry,
-  wasmFilePath: rlnWasmFilePath,
-  finalZkeyPath: rlnFinalZkeyPath,
-  verificationKey: rlnVerificationKey,
-  withdrawWasmFilePath,
-  withdrawFinalZkeyPath,
-})
-const rln2 = new RLN({
-  rlnIdentifier,
-  registry,
-  wasmFilePath: rlnWasmFilePath,
-  finalZkeyPath: rlnFinalZkeyPath,
-  verificationKey: rlnVerificationKey,
-  withdrawWasmFilePath,
-  withdrawFinalZkeyPath,
-})
+const rln1 = new RLN({rlnIdentifier, registry, treeDepth})
+const rln2 = new RLN({rlnIdentifier, registry, treeDepth})
 
 // ...Do something with rln1 and rln2
 ```
@@ -222,13 +216,14 @@ const rlnProverOnly = new RLN({
   registry,
   wasmFilePath: rlnWasmFilePath,
   finalZkeyPath: rlnFinalZkeyPath,
-  verificationKey: rlnVerificationKey,
+  // Missing `verificationKey`
   withdrawWasmFilePath,
   withdrawFinalZkeyPath,
 })
 const rlnVerifierOnly = new RLN({
   rlnIdentifier,
   registry,
+  // Missing `wasmFilePath` and `finalZkeyPath`
   verificationKey: rlnVerificationKey,
   withdrawWasmFilePath,
   withdrawFinalZkeyPath,
@@ -237,7 +232,7 @@ const rlnVerifierOnly = new RLN({
 
 ### Accessing Identity and Identity Commitment
 
-When an RLN instance is initialized without `identity` given, it creates an identity commitment which you can access by calling `rlnInstance.commitment`.
+When an RLN instance is initialized without `identity` given, it creates an `Identity` for you. You can access identity and its commitment using `rln.identity` and `rln.identityCommitment` respectively.
 
 ```typescript
 // Example of accessing the generated identity commitment
@@ -262,18 +257,19 @@ const epoch = BigInt(123)
 const message = "Hello World"
 const proof = await rln.createProof(epoch, message);
 ```
-You can generate a proof by calling `rln.createProof()`. For the same epoch, you can only generate up to `messageLimit` proofs, each of them with a unique `messageId` within the range `[0, messageLimit-1]`. Message id is not required here because after registering, there is a message id counter inside to avoid reaching the rate limit.
+You can generate a proof for an epoch and a message by calling `rln.createProof()`. For the same epoch, you can only generate up to `messageLimit` proofs, each of them with a unique `messageId` within the range `[0, messageLimit-1]`. Message id is not required here because after registering, there is a message id counter inside to avoid reaching the rate limit.
 
 > Note that the built-in [MemoryMessageIDCounter](./src/message-id-counter.ts) is not persistent. If you stop the application and restart it in the same epoch, you might risk spamming. If you want to persist the message id counter, you can implement your own message id counter by implementing the [IMessageIDCounter](./src/message-id-counter.ts) interface and set it with `rln.setMessageIDCounter()`.
 
 ### Withdrawing
 ```typescript
-// To withdraw, rln generates
+// This withdraws the identity commitment from the registry.
+// If you're using ContractRLNRegistry, you will send a transaction to the RLN contract, and get the tokens back.
 await rln.withdraw();
 // after withdrawing, you still need to wait for the freezePeriod in order to release the withdrawal
 console.log(await rln.isRegistered()) // true
 
-// After freezePeriod (i.e. freezePeriod + 1 blocks), you can release the withdrawal and successfully get the funds back
+// If you're using ContractRLNRegistry, after `freezePeriod` (i.e. `freezePeriod + 1` blocks), you can release the withdrawal and successfully get the funds back
 await rln.releaseWithdrawal();
 console.log(await rln.isRegistered()) // false
 ```
@@ -302,7 +298,7 @@ const status = result.status
 const secret = result.secret
 ```
 
-> 1. `verifyProof(epoch, message, proof)` and `saveProof(proof)` are different. `verifyProof` not only verifies the snark proof but ensure the proof matches `epoch` and `message`, while `saveProof()` only verifies the snark proof itself also then saves the proof to the cache to detect spam. If one wants to make sure the proof is for `epoch` and `message` and also detect spams, they should call both `verifyProof` and `saveProof`.
+> 1. `verifyProof(epoch, message, proof)` and `saveProof(proof)` are different. `verifyProof` not only verifies the snark proof but ensure the proof matches `epoch` and `message`, while `saveProof()` does not verify the snark proof at all. `saveProof()` checks if the proof will spam and adds the proof to cache for future spam detection. If one wants to make sure the proof is for `epoch` and `message` and also detect spams, they should call both `verifyProof` and `saveProof`.
 
 > 2. `saveProof` is not persistent. If you restart the application, you might fail to detect some spams. If you want to persist the proof cache, you can implement your own proof cache by implementing the [ICache](./src/cache.ts) interface and set it in the constructor.
 

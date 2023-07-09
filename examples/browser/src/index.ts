@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
-import { ICache, MemoryCache, RLN, Status } from "rlnjs";
-import { deployERC20, deployRLNContract, deployVerifier, rlnParams, treeDepth, url, withdrawParams } from "./configs.js";
+import { MemoryCache, RLN, Status } from "test-rlnjs";
+import { deployERC20, deployRLNContract, deployVerifier, treeDepth, url } from "./configs";
 
 
 async function main() {
@@ -42,7 +42,7 @@ async function main() {
     const rlnContractAtBlock = await provider.getBlockNumber()
     console.log(`Deployed RLN contract at ${rlnContractAddress} at block ${rlnContractAtBlock}`)
 
-    function createRLNInstance(cache?: ICache) {
+    function createRLNInstance() {
         return RLN.createWithContractRegistry({
             /* Required */
             rlnIdentifier,
@@ -51,13 +51,6 @@ async function main() {
             /* Optional */
             contractAtBlock: rlnContractAtBlock,
             signer,
-            treeDepth: treeDepth,
-            wasmFilePath: rlnParams.wasmFilePath,
-            finalZkeyPath: rlnParams.finalZkeyPath,
-            verificationKey: rlnParams.verificationKey,
-            withdrawWasmFilePath: withdrawParams.wasmFilePath,
-            withdrawFinalZkeyPath: withdrawParams.finalZkeyPath,
-            cache,
         })
     }
 
@@ -123,7 +116,8 @@ async function main() {
         }
     }
     const resettableCache = new ResettableCache()
-    const rlnAnother = createRLNInstance(resettableCache)
+    const rlnAnother = createRLNInstance()
+    rlnAnother.setCache(resettableCache)
     console.log(`rlnAnother created: identityCommitment=${rlnAnother.identityCommitment}`)
     class FaultyMessageIDCounter {
         private counter: bigint = BigInt(0)

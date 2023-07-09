@@ -22,5 +22,5 @@ $ npx hardhat node
 
 3. Run the example
 ```bash
-$ npm run test-node
+$ npm run test
 ```

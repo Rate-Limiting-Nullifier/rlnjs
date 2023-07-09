@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 import { ChildProcessWithoutNullStreams } from "child_process";
 import { RLNContract } from "../src/contract-wrapper";
 
-import { DEFAULT_REGISTRY_TREE_DEPTH } from "../src/registry";
+import { DEFAULT_MERKLE_TREE_DEPTH } from "../src/common";
 import { fieldFactory } from "./utils";
 import { Proof } from "../src";
 import { setupTestingContracts } from "./factories";
@@ -26,7 +26,7 @@ describe("RLNContract", () => {
     const tokenAmount = BigInt("1000000000000000000")
     // 10 token
     const minimalDeposit = BigInt(10)
-    const treeDepth = DEFAULT_REGISTRY_TREE_DEPTH
+    const treeDepth = DEFAULT_MERKLE_TREE_DEPTH
     // 10%
     const feePercentage = BigInt(10)
     const feeReceiver = "0x0000000000000000000000000000000000005566"

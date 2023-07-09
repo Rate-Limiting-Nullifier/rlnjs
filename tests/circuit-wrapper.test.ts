@@ -2,7 +2,7 @@ import { RLNProver, RLNVerifier, WithdrawProver, WithdrawVerifier } from '../src
 import { rlnParams, withdrawParams } from './configs';
 import { fieldFactory, generateMerkleProof } from './utils';
 import poseidon from 'poseidon-lite';
-import { DEFAULT_REGISTRY_TREE_DEPTH } from '../src/registry';
+import { DEFAULT_MERKLE_TREE_DEPTH } from '../src/common';
 
 // `userMessageLimit` is at most 16 bits
 // Ref: https://github.com/Rate-Limiting-Nullifier/rln-circuits-v2/blob/b40dfa63b7b1248527d7ab417d0d9cf538cad93a/circuits/utils.circom#L36-L37
@@ -19,7 +19,7 @@ describe('RLN', function () {
   const messageId = BigInt(0);
   const x = fieldFactory();
   const epoch = fieldFactory();
-  const treeDepth = DEFAULT_REGISTRY_TREE_DEPTH;
+  const treeDepth = DEFAULT_MERKLE_TREE_DEPTH;
 
   test('should generate valid proof', async function () {
     const m0 = performance.now();

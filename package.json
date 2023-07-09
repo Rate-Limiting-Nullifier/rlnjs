@@ -1,6 +1,6 @@
 {
   "name": "rlnjs",
-  "version": "3.1.4",
+  "version": "3.1.5",
   "description": "Client library for generating and using RLN ZK proofs.",
   "license": "MIT",
   "repository": "https://github.com/Rate-Limiting-Nullifier/rlnjs",
@@ -22,6 +22,7 @@
   "scripts": {
     "prepare": "husky install",
     "build": "rollup --config rollup.config.mjs",
+    "build-and-publish": "npm install && npm run build && npm publish",
     "test": "jest",
     "test:debug": "jest --silent=false",
     "test:benchmark": "jest --silent=false ./tests/circuit-wrapper.test.ts",
@@ -42,10 +43,10 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "./dist/index.node.js",
+  "main": "./dist/index.node.cjs",
   "module": "./dist/index.mjs",
   "browser": {
-    "./dist/index.node.js": "./dist/index.mjs"
+    "./dist/index.node.cjs": "./dist/index.mjs"
   },
   "types": "./dist/types/index.d.ts",
   "directories": {
@@ -67,6 +68,7 @@
     "@semaphore-protocol/group": "^3.10.1",
     "@semaphore-protocol/identity": "^3.10.1",
     "@zk-kit/incremental-merkle-tree": "^0.4.3",
+    "base64-js": "^1.5.1",
     "ethers": "^6.4.0",
     "ffjavascript": "0.2.55",
     "poseidon-lite": "^0.0.2",
