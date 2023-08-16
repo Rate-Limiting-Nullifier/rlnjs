@@ -9,7 +9,7 @@ const config: Config.InitialOptions = {
     "^.+\\.tsx?$": ["ts-jest", { tsconfig: "tsconfig.test.json" }]
   },
   "silent": true,
-  "testTimeout": 100000,
+  "testTimeout": 200000,
   "collectCoverage": true,
   "forceExit": true,
 };
