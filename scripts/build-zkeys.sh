@@ -22,6 +22,7 @@ rln_circuits_version=v1.0.0
 rln_circuits_repo='circom-rln'
 rln_circuits_repo_url="https://github.com/Rate-Limiting-Nullifier/$rln_circuits_repo.git"
 
+
 #
 # Determine which circuits to build
 #
