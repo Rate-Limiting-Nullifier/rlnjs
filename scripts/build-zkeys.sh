@@ -11,6 +11,7 @@
 #   $ ./scripts/build-zkeys.sh withdraw
 #   Build all circuits defined in `supported_circuit_names`
 #   $ ./scripts/build-zkeys.sh
+#
 
 #
 # Configs
