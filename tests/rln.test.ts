@@ -1,5 +1,5 @@
 import { RLN, RLNFullProof } from "../src";
-import { ICache, MemoryCache, Status } from "../src/cache";
+import { MemoryCache, Status } from "../src/cache";
 import { rlnParams, withdrawParams } from "./configs";
 import { ethers } from "ethers";
 import { setupTestingContracts } from "./factories";
@@ -136,6 +136,7 @@ describe("RLN", function () {
         const treeDepth = 20
 
         const tokenAmount = BigInt("1000000000000000000")
+        const maximalRate = tokenAmount
         // 10 token
         const minimalDeposit = BigInt(10)
         // 10%
@@ -163,6 +164,7 @@ describe("RLN", function () {
         beforeAll(async () => {
             deployed = await setupTestingContracts({
                 initialTokenAmount: tokenAmount,
+                maximalRate,
                 minimalDeposit,
                 treeDepth,
                 feePercentage,

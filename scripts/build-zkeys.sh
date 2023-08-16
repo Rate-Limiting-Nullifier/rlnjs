@@ -67,7 +67,6 @@ build_and_copy_params() {
 
     # Return if the params already exist
     # rlnjs
-    # |_rln-circuits-v2
     # |_zkeyFiles
     target_zkeyfiles_dir="../zkeyFiles/$circuit_name"
     target_rln_wasm_path="$target_zkeyfiles_dir/circuit.wasm"

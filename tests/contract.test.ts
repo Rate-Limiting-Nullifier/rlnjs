@@ -25,6 +25,7 @@ describe("RLNContract", () => {
 
     const tokenAmount = BigInt("1000000000000000000")
     // 10 token
+    const maximalRate = BigInt(100)
     const minimalDeposit = BigInt(10)
     const treeDepth = DEFAULT_MERKLE_TREE_DEPTH
     // 10%
@@ -58,6 +59,7 @@ describe("RLNContract", () => {
     beforeAll(async () => {
         const deployed = await setupTestingContracts({
             initialTokenAmount: tokenAmount,
+            maximalRate,
             minimalDeposit,
             treeDepth,
             feePercentage,
