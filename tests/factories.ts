@@ -23,6 +23,7 @@ async function deployContract(signer: ethers.Signer, bytecode: string, abi: stri
 export async function setupTestingContracts(args: {
     initialTokenAmount: bigint,
     minimalDeposit: bigint,
+    maximalRate: bigint,
     treeDepth: number,
     feePercentage: bigint,
     feeReceiver: string,
@@ -74,6 +75,7 @@ export async function setupTestingContracts(args: {
     const contractAtBlock = await provider.getBlockNumber()
     const rlnContractArgs = [
         args.minimalDeposit,
+        args.maximalRate,
         args.treeDepth,
         args.feePercentage,
         args.feeReceiver,

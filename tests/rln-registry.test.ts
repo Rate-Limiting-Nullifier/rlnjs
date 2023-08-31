@@ -132,6 +132,7 @@ describe('ContractRLNRegistry', () => {
   const treeDepth = 20
 
   const tokenAmount = BigInt("1000000000000000000")
+  const maximalRate = BigInt(100)
   // 10 token
   const minimalDeposit = BigInt(10)
   // 10%
@@ -142,6 +143,7 @@ describe('ContractRLNRegistry', () => {
   beforeAll(async () => {
       const deployed = await setupTestingContracts({
           initialTokenAmount: tokenAmount,
+          maximalRate,
           minimalDeposit,
           treeDepth,
           feePercentage,
