@@ -11,6 +11,7 @@
 #   $ ./scripts/build-zkeys.sh withdraw
 #   Build all circuits defined in `supported_circuit_names`
 #   $ ./scripts/build-zkeys.sh
+#
 
 #
 # Configs
@@ -21,6 +22,7 @@ supported_circuit_names=("rln" "withdraw")
 rln_circuits_version=v1.0.0
 rln_circuits_repo='circom-rln'
 rln_circuits_repo_url="https://github.com/Rate-Limiting-Nullifier/$rln_circuits_repo.git"
+
 
 #
 # Determine which circuits to build
