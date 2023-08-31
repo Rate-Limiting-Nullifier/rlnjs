@@ -18,7 +18,7 @@ export const Fq = new ZqField(SNARK_FIELD_SIZE)
 
 export const DEFAULT_MERKLE_TREE_DEPTH = 20
 
-export function calculateIdentityCommitment(identity: Identity): bigint {
+export function calculateIdentitySecret(identity: Identity): bigint {
   return poseidon([
     identity.getNullifier(),
     identity.getTrapdoor(),

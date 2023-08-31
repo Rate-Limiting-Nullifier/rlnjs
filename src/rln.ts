@@ -1,6 +1,6 @@
 import { Identity } from '@semaphore-protocol/identity'
 import { VerificationKey } from './types'
-import { DEFAULT_MERKLE_TREE_DEPTH, calculateIdentityCommitment, calculateSignalHash } from './common'
+import { DEFAULT_MERKLE_TREE_DEPTH, calculateIdentitySecret, calculateSignalHash } from './common'
 import { IRLNRegistry, ContractRLNRegistry } from './registry'
 import { MemoryCache, EvaluatedProof, ICache, Status } from './cache'
 import { IMessageIDCounter, MemoryMessageIDCounter } from './message-id-counter'
@@ -349,7 +349,7 @@ export class RLN implements IRLN {
   }
 
   private get identitySecret(): bigint {
-    return calculateIdentityCommitment(this.identity)
+    return calculateIdentitySecret(this.identity)
   }
 
   /**
