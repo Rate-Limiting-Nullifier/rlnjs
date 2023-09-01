@@ -1,17 +1,15 @@
-
 # Rate Limiting Nullifier Javascript / Typescript Library
 
-## Contents
 
 - [Rate Limiting Nullifier Javascript / Typescript Library](#rate-limiting-nullifier-javascript-typescript-library)
-  * [Contents](#contents)
   * [Description](#description)
+    + [Benchmarks](#benchmarks)
+  * [Overview](#overview)
   * [Install](#install)
-    + [Build circuits and get the parameter files](#build-circuits-and-get-the-parameter-files)
-      - [With script (Recommended)](#with-script-recommended)
-      - [Manually clone and build the circuits](#manually-clone-and-build-the-circuits)
   * [Usage](#usage)
-    + [Initializing an RLN instance](#initializing-an-rln-instance)
+    + [Initializing a RLN instance](#initializing-a-rln-instance)
+      - [1. `RLN.create()`](#1-rlncreate)
+      - [2. `RLN.createWithContractRegistry()`](#2-rlncreatewithcontractregistry)
     + [Accessing Identity and Identity Commitment](#accessing-identity-and-identity-commitment)
     + [Registering](#registering)
     + [Generating a proof](#generating-a-proof)
@@ -19,10 +17,12 @@
     + [Verifying a proof](#verifying-a-proof)
     + [Saving a proof](#saving-a-proof)
     + [Slashing a user](#slashing-a-user)
+    + [Custom Options for RLN instance](#custom-options-for-rln-instance)
   * [Example](#example)
   * [Tests](#tests)
   * [Bugs, Questions & Features](#bugs-questions-features)
   * [License](#license)
+
 
 ## Description
 
@@ -30,7 +30,7 @@ RLN (Rate-Limiting Nullifier) is a zk-gadget/protocol that enables spam preventi
 
 The core of RLN is in the [circuit logic](https://github.com/Rate-Limiting-Nullifier/circom-rln), documentation [here](https://rate-limiting-nullifier.github.io/rln-docs/protocol_spec.html#technical-side-of-rln). RLNjs provides easy management of the registry and proof creation.
 
-[`RLN`](./src/rln.ts) class is the core of RLNjs. It allows user to generate proofs, verify proofs, and detect spams. Also, user can register to RLN, withdraw, and slash spammers.
+### Benchmarks
 
 | _Tests Ran on an M2 Macbook_ | Time   |
 | ---------------------------- | ------ |
@@ -38,6 +38,19 @@ The core of RLN is in the [circuit logic](https://github.com/Rate-Limiting-Nulli
 | RLN Proof Verification       | ~130ms |
 | Withdraw Proof               | ~260ms |
 | Withdraw Proof Verification  | ~145ms |
+
+## Overview
+
+[`RLN`](./src/rln.ts) class is the entry point of RLNjs. It contains all operations that users need, including registration, proof generation and verification, and spam detection.
+
+[`IRLNRegistry`](./src/registry.ts) is a interface that manages users registrations. Effectively it's just a merkle tree. Registration and Withdrawal are just users added and removed in the merkle tree. See [Registration section in the docs](https://rate-limiting-nullifier.github.io/rln-docs/what_is_rln.html#registration) to learn more about registration.
+
+RLNjs provides two implementations of `IRLNRegistry`: `MemoryRLNRegistry` and `ContractRLNRegistry`. You can find their implementation [here](./src/registry.ts).
+- `MemoryRLNRegistry` is a in-memory registry that is not persistent.
+- `ContractRLNRegistry` is a registry that uses the [RLN contract](https://github.com/Rate-Limiting-Nullifier/rln-contract) as the registry.
+- You can also implement your own registry by implementing the `IRLNRegistry` interface.
+
+Whichever registry to use depends on your purpose. If you're just testing, you can try `MemoryRLNRegistry`. If you're using RLN in a peer-to-peer setup, you should use `ContractRLNRegistry`.
 
 ## Install
 
@@ -47,187 +60,57 @@ Install rlnjs with npm:
 npm install rlnjs
 ```
 
-### Build circuits and get the parameter files
-
-Circuit parameter files `circuit.wasm`, `final.zkey`, and `verification_key.json` are needed when instantiating a [RLN](src/rln.ts) instance. You can choose to build the circuits with script or manually.
-
-#### With script (Recommended)
-
-Run the script [scripts/build-zkeys.sh](scripts/build-zkeys.sh) and it will build the circuits for you.
-
-```bash
-./scripts/build-zkeys.sh
-```
-
-In the project root, you should can see the zkey files in the `./zkeyFiles` folder.
-```bash
-$ tree ./zkeyFiles
-zkeyFiles
-├── rln
-│   ├── circuit.wasm
-│   ├── final.zkey
-│   └── verification_key.json
-└── withdraw
-    ├── circuit.wasm
-    ├── final.zkey
-    └── verification_key.json
-```
-
-#### Manually clone and build the circuits
-
-> Circom needs to be installed, please see this [link](https://docs.circom.io/getting-started/installation/) for installation instructions.
-
-```bash
-git clone https://github.com/Rate-Limiting-Nullifier/circom-rln.git &&
-cd circom-rln
-```
-
-> Make sure the depth of the merkle tree are the same in both rlnjs and rln-circuits, otherwise verification will fail. You need to rebuild the circuits every time the circuit is changed.
-
-```bash
-npm i &&
-npm run build
-```
-
-The previous step should have produced the following files:
-
-```bash
-$ tree zkeyFiles
-zkeyFiles
-├── rln
-│   ├── circuit.config.toml
-│   ├── circuit.wasm
-│   ├── final.zkey
-│   └── verification_key.json
-└── withdraw
-    ├── circuit.config.toml
-    ├── circuit.wasm
-    ├── final.zkey
-    └── verification_key.json
-```
-
 ## Usage
 
-### Initializing an RLN instance
+### Initializing a RLN instance
+You can initialize a RLN instance with two static functions `RLN.create()` or `RLN.createWithContractRegistry()`. It's not recommended to use constructor directly since you'd need to setup a lot of stuff on your own.
 
-#### Create RLN instance with the contract registry
+If you're using RLN contract as the registry, you should use `RLN.createWithContractRegistry()`. If you're using registry other than the RLN contract, you should use `RLN.create()`.
+
+#### 1. `RLN.create()`
+`RLN.create()` works with any registry that implements `IRLNRegistry` interface. For testing, you can use `MemoryRLNRegistry` and create all RLN instances with it.
+
+```typescript
+import { RLN, IRLNRegistry, MemoryRLNRegistry } from "rlnjs"
+
+// A unique id representing your application.
+const rlnIdentifier = BigInt(5566)
+// A single registry instance shared by all RLN instances, to ensure all RLN instances can get the up-to-date registry information.
+const registry: IRLNRegistry = new MemoryRLNRegistry(rlnIdentifier)
+const rln1 = await RLN.create({rlnIdentifier, registry})
+const rln2 = await RLN.create({rlnIdentifier, registry})
+
+// Do stuff with rln1 and rln2
+```
+
+#### 2. `RLN.createWithContractRegistry()`
+`RLN.createWithContractRegistry()` only works with the [RLN contract registry](https://github.com/Rate-Limiting-Nullifier/rln-contract). To use it, you must have a RLN contract deployed and have the contract address.
 
 The following snippet creates RLN instance with default settings.
 
 ```typescript
+import { ethers } from "ethers"
+import { RLN, IRLNRegistry, ContractRLNRegistry } from "rlnjs"
+
+// A unique id representing your application.
 const rlnIdentifier = BigInt(5566)
+// The address that RLN contract has been deployed.
 const contractAddress = "0x..."
+// The block number at which the RLN contract was deployed.
 const contractAtBlock = 12345678
 const provider = new ethers.JsonRpcProvider(url)
 const signer = await provider.getSigner(0)
 
 // Create an RLN instance with the contract registry.
-// ethers provider and the contract address are both required then.
-const rln = RLN.createWithContractRegistry({
-  /* These parameters are required */
-  rlnIdentifier, // The unique id representing your application
-  provider, // ethers.js provider
-  contractAddress, // RLN contract address
-
-  /* These parameters are optional */
-  contractAtBlock, // The block number at which the RLN contract was deployed. If not given, default is 0
-  signer, // ethers.js signer. If not given, users won't be able to execute write operations to the RLN contract
-  // ... See all optional parameters in RLN constructor in src/rln.ts
-})
-```
-
-Custom options can be passed to the RLN instance. Note that default tree depth is `20`. If you're using a tree depth other than `20`, you need to the circuit parameters when creating the RLN instance. See [RLN constructor](src/rln.ts) for all options.
-
-```typescript
-import path from "path"
-
-import { ethers } from "ethers"
-import { Identity } from '@semaphore-protocol/identity'
-import { RLN, IRLNRegsitry, ContractRLNRegistry } from "rlnjs"
-
-// Assume you have built `rln.circom` and `withdraw.circom` and have placed them under the folder ./zkeyFiles/rln
-// and ./zkeyFiles/withdraw respectively.
-
-/* rln circuit parameters */
-const rlnZkeyFilesDir = path.join("zkeyFiles", "rln");
-// zkeyFiles/rln/verification_key.json
-const rlnVerificationKey = JSON.parse(
-  fs.readFileSync(path.join(rlnZkeyFilesDir, "verification_key.json"), "utf-8")
-)
-// zkeyFiles/rln/circuit.wasm
-const rlnWasmFilePath = path.join(rlnZkeyFilesDir, "circuit.wasm")
-// zkeyFiles/rln/final.zkey
-const rlnFinalZkeyPath = path.join(rlnZkeyFilesDir, "final.zkey")
-
-/* withdraw circuit parameters */
-const withdrawZkeyFilesDir = path.join("zkeyFiles", "withdraw")
-// zkeyFiles/withdraw/circuit.wasm
-const withdrawWasmFilePath = path.join(withdrawZkeyFilesDir, "circuit.wasm")
-// zkeyFiles/withdraw/final.zkey
-const withdrawFinalZkeyPath = path.join(withdrawZkeyFilesDir, "final.zkey")
-
-const rlnIdentifier = BigInt(5566)
-const treeDepth = 16
-const provider = new ethers.JsonRpcProvider(url)
-const contractAddress = "0x..."
-const signer = await provider.getSigner(0)
-const identity = new Identity("1234")
-
-// Create an RLN instance with the contract registry.
-// ethers provider and the contract address are both required then.
-const rln = RLN.createWithContractRegistry({
-  /* These parameters are required */
-  rlnIdentifier, // The unique id representing your application
-  provider, // ethers.js provider
-  contractAddress, // RLN contract address
-
-  /* These parameters are optional */
-  contractAtBlock, // The block number at which the RLN contract was deployed. If not given, default is 0
-  identity, // the semaphore identity. If not given, a new identity is created
-  signer, // ethers.js signer. If not given, users won't be able to execute write operations to the RLN contract
-  treeDepth, // The depth of the merkle tree. Default is 20
-  wasmFilePath: rlnWasmFilePath, // The path to the rln circuit wasm file. If not given, `createProof` will not work
-  finalZkeyPath: rlnFinalZkeyPath, // The path to the rln circuit final zkey file. If not given, `createProof` will not work
-  verificationKey: rlnVerificationKey, // The rln circuit verification key. If not given, `verifyProof` will not work
-  withdrawWasmFilePath, // The path to the withdraw circuit wasm file. If not given, `withdraw` will not work
-  withdrawFinalZkeyPath, // The path to the withdraw circuit final zkey file. If not given, `withdraw` will not work
-
-  // ... See all optional parameters in RLN constructor in src/rln.ts
-})
-```
-
-#### Create RLN instance with other types of registries
-You can also initialize an RLN instance with the constructor, but you need to provide a registry. This is particularly useful if you want to use a custom registry instead of the contract registry. For testing, you could use `MemoryRLNRegistry` and let different RLN instances use the same registry.
-
-```typescript
-const registry: IRLNRegistry = new MemoryRLNRegistry(rlnIdentifier, treeDepth)
-const rln1 = new RLN({rlnIdentifier, registry, treeDepth})
-const rln2 = new RLN({rlnIdentifier, registry, treeDepth})
-
-// ...Do something with rln1 and rln2
-```
-
-#### Prover-only and Verifier-only modes
-RLN instance must at least be initialized with either `wasmFilePath` and `finalZkeyPath`, or `verificationKey`. If you only provide `wasmFilePath` and `finalZkeyPath`, you can only generate proofs. You will get an error if you try to verify a proof. If you only provide `verificationKey`, you can only verify proofs. You will get an error if you try to generate a proof. If you provide both, you can both generate and verify proofs.
-
-```typescript
-const rlnProverOnly = new RLN({
+const rln = await RLN.createWithContractRegistry({
   rlnIdentifier,
-  registry,
-  wasmFilePath: rlnWasmFilePath,
-  finalZkeyPath: rlnFinalZkeyPath,
-  // Missing `verificationKey`
-  withdrawWasmFilePath,
-  withdrawFinalZkeyPath,
+  provider,
+  contractAddress,
+  contractAtBlock,
+  signer,
 })
-const rlnVerifierOnly = new RLN({
-  rlnIdentifier,
-  registry,
-  // Missing `wasmFilePath` and `finalZkeyPath`
-  verificationKey: rlnVerificationKey,
-  withdrawWasmFilePath,
-  withdrawFinalZkeyPath,
-})
+
+// Do stuff with rln
 ```
 
 ### Accessing Identity and Identity Commitment
@@ -244,7 +127,6 @@ const identityCommitment = rln.identityCommitment
 
 ```typescript
 const messageLimit = BigInt(1);
-// This registers the identity commitment to the registry
 // If you're using ContractRLNRegistry, you will send a transaction to the RLN contract, sending tokens, and get registered.
 await rln.register(messageLimit);
 console.log(await rln.isRegistered()) // true
@@ -313,9 +195,66 @@ If receiver is not given, the funds will go to the signer.
 await rln.slash(secret) // funds go to the signer
 ```
 
+### Custom Options for RLN instance
+
+Custom options can be used to the RLN instance. For example, you can build circuits parameters on your own and pass them when initiating the RLN instance. See all parameters in [rln.ts](src/rln.ts) for all options, and the script [scripts/build-zkeys.sh](scripts/build-zkeys.sh) if you want to build the circuits parameters on your own.
+
+```typescript
+import path from "path"
+
+import { ethers } from "ethers"
+import { Identity } from '@semaphore-protocol/identity'
+import { RLN, IRLNRegistry, ContractRLNRegistry } from "rlnjs"
+
+// Assume you have built `rln.circom` and `withdraw.circom` and have placed them under the folder ./zkeyFiles/rln
+// and ./zkeyFiles/withdraw respectively.
+
+/* rln circuit parameters */
+const rlnZkeyFilesDir = path.join("zkeyFiles", "rln");
+const rlnVerificationKey = JSON.parse(
+  fs.readFileSync(path.join(rlnZkeyFilesDir, "verification_key.json"), "utf-8")
+)
+const rlnWasmFilePath = path.join(rlnZkeyFilesDir, "circuit.wasm")
+const rlnFinalZkeyPath = path.join(rlnZkeyFilesDir, "final.zkey")
+
+/* withdraw circuit parameters */
+const withdrawZkeyFilesDir = path.join("zkeyFiles", "withdraw")
+const withdrawWasmFilePath = path.join(withdrawZkeyFilesDir, "circuit.wasm")
+const withdrawFinalZkeyPath = path.join(withdrawZkeyFilesDir, "final.zkey")
+
+const rlnIdentifier = BigInt(5566)
+const treeDepth = 16
+const provider = new ethers.JsonRpcProvider(url)
+const contractAddress = "0x..."
+const signer = await provider.getSigner(0)
+const identity = new Identity("1234")
+
+// Create an RLN instance with the contract registry.
+// ethers provider and the contract address are both required then.
+const rln = await RLN.createWithContractRegistry({
+  /* These parameters are required */
+  rlnIdentifier, // The unique id representing your application
+  provider, // ethers.js provider
+  contractAddress, // RLN contract address
+
+  /* These parameters are optional */
+  contractAtBlock, // The block number at which the RLN contract was deployed. If not given, default is 0
+  identity, // the semaphore identity. If not given, a new identity is created
+  signer, // ethers.js signer. If not given, users won't be able to execute write operations to the RLN contract
+  treeDepth, // The depth of the merkle tree. Default is 20
+  wasmFilePath: rlnWasmFilePath, // The path to the rln circuit wasm file. If not given, `createProof` will not work
+  finalZkeyPath: rlnFinalZkeyPath, // The path to the rln circuit final zkey file. If not given, `createProof` will not work
+  verificationKey: rlnVerificationKey, // The rln circuit verification key. If not given, `verifyProof` will not work
+  withdrawWasmFilePath, // The path to the withdraw circuit wasm file. If not given, `withdraw` will not work
+  withdrawFinalZkeyPath, // The path to the withdraw circuit final zkey file. If not given, `withdraw` will not work
+
+  // ... See all optional parameters in RLN constructor in src/rln.ts
+})
+```
+
 ## Example
 
-Please see the examples [here](./examples/). We have examples for [NodeJS](./examples/node/) and [browser](./examples/browser/).
+See [example for both NodeJS](./examples/node/) and [example for browser](./examples/browser/).
 
 ## Tests
 

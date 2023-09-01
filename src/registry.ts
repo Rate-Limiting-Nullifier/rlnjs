@@ -177,7 +177,7 @@ export class MemoryRLNRegistry implements IRLNRegistry {
 
   constructor(
     readonly rlnIdentifier: bigint,
-    readonly treeDepth?: number | undefined,
+    readonly treeDepth: number  = DEFAULT_MERKLE_TREE_DEPTH,
   ) {
     this.mapIsWithdrawing = new Map<string, boolean>()
     this.mapMessageLimit = new Map<string, bigint>()

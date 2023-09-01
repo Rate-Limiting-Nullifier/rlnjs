@@ -8,7 +8,7 @@ import { RLNFullProof, RLNProver, RLNVerifier } from './circuit-wrapper'
 import { ethers } from 'ethers'
 import { RLNContract } from './contract-wrapper'
 
-import { defaultWithdrawParams, treeDepthToDefaultRLNParams } from './resources'
+import { getDefaultRLNParams, getDefaultWithdrawParams } from './resources'
 
 // Ref: https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/55c7da2227b501175076bf73e3ff6dc512c4c813/circuits/rln.circom#L40
 const LIMIT_BIT_SIZE = 16
@@ -60,6 +60,8 @@ export interface IRLN {
 
 /**
  * RLN handles all operations for a RLN user, including registering, withdrawing, creating proof, verifying proof.
+ * Please use `RLN.create` or `RLN.createWithContractRegistry` to create a RLN instance instead of
+ * using the constructor.
  */
 export class RLN implements IRLN {
   // the unique identifier of the app using RLN
@@ -94,6 +96,67 @@ export class RLN implements IRLN {
      * @see {@link ContractRLNRegistry}
      */
     registry: IRLNRegistry
+    /**
+     * `ICache` that stores proofs added by the user with `addProof`, and detect spams automatically.
+     * If not provided, a new `MemoryCache` is created.
+     * @see {@link MemoryCache}
+     */
+    cache: ICache
+    /**
+     * Semaphore identity of the user. If not provided, a new `Identity` is created.
+    */
+    identity: Identity
+
+    /** Optional */
+    /**
+     * File path of the RLN wasm file. If not provided, `createProof` will not work.
+     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
+     */
+    wasmFilePath?: string | Uint8Array
+    /**
+     * File path of the RLN final zkey file. If not provided, `createProof` will not work.
+     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
+     */
+    finalZkeyPath?: string | Uint8Array
+    /**
+     * Verification key of the RLN circuit. If not provided, `verifyProof` and `saveProof` will not work.
+     * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
+     */
+    verificationKey?: VerificationKey
+  }) {
+    this.rlnIdentifier = args.rlnIdentifier
+    this.registry = args.registry
+    this.cache = args.cache
+    this.identity = args.identity
+
+    if ((args.wasmFilePath === undefined || args.finalZkeyPath === undefined) && args.verificationKey === undefined) {
+      throw new Error(
+        'Either both `wasmFilePath` and `finalZkeyPath` must be supplied to generate proofs, ' +
+        'or `verificationKey` must be provided to verify proofs.',
+      )
+    }
+    if (args.wasmFilePath !== undefined && args.finalZkeyPath !== undefined) {
+      this.prover = new RLNProver(args.wasmFilePath, args.finalZkeyPath)
+    }
+    if (args.verificationKey !== undefined) {
+      this.verifier = new RLNVerifier(args.verificationKey)
+    }
+  }
+
+  /**
+   * Create RLN instance with a custom registry
+   */
+  static async create(args: {
+    /** Required */
+    /**
+     * The unique identifier of the app using RLN. The identifier must be unique for every app.
+     */
+    rlnIdentifier: bigint
+    /**
+     * `IRegistry` that stores the registered users.
+     * @see {@link IRegistry}
+     */
+    registry: IRLNRegistry
 
     /** Optional */
     /**
@@ -119,7 +182,10 @@ export class RLN implements IRLN {
      */
     cache?: ICache
 
-    // File paths of the wasm and zkey file. If not provided, `createProof` will not work.
+    /**
+     * If all of `wasmFilePath`, `finalZkeyPath`, and `verificationKey` are not given, default ones according to
+     * the `treeDepth` are used.
+     */
     /**
      * File path of the RLN wasm file. If not provided, `createProof` will not work.
      * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
@@ -130,7 +196,6 @@ export class RLN implements IRLN {
      * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
      */
     finalZkeyPath?: string | Uint8Array
-    // Verification key of the circuit. If not provided, `verifyProof` and `saveProof` will not work.
     /**
      * Verification key of the RLN circuit. If not provided, `verifyProof` and `saveProof` will not work.
      * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
@@ -147,51 +212,47 @@ export class RLN implements IRLN {
       throw new Error('cacheSize must be positive')
     }
 
-    this.rlnIdentifier = args.rlnIdentifier
-    this.registry = args.registry
-    this.cache = args.cache ? args.cache : new MemoryCache(args.cacheSize)
-    this.identity = args.identity ? args.identity : new Identity()
-
-    // 3. Else, leave them undefined
-    let wasmFilePath: string | Uint8Array | undefined
-    let finalZkeyPath: string | Uint8Array | undefined
-    let verificationKey: VerificationKey | undefined
+    const rlnIdentifier = args.rlnIdentifier
+    const registry = args.registry
+    const cache = args.cache ? args.cache : new MemoryCache(args.cacheSize)
+    const identity = args.identity ? args.identity : new Identity()
 
     const treeDepth = args.treeDepth ? args.treeDepth : DEFAULT_MERKLE_TREE_DEPTH
     // If `args.treeDepth` is given, `wasmFilePath`, `finalZkeyPath`, and `verificationKey` will be
     // set to default first
-    if (treeDepth !== undefined) {
-      const defaultParams = treeDepthToDefaultRLNParams[treeDepth]
+    // If all params are not given, use the default
+    let wasmFilePath: string | Uint8Array | undefined
+    let finalZkeyPath: string | Uint8Array | undefined
+    let verificationKey: VerificationKey | undefined
+    // If `args.wasmFilePath`, `args.finalZkeyPath`, and `args.verificationKey` are not given, see if we have defaults that can be used
+    if (args.wasmFilePath === undefined && args.finalZkeyPath === undefined && args.verificationKey === undefined) {
+      const defaultParams = await getDefaultRLNParams(treeDepth)
       if (defaultParams !== undefined) {
         wasmFilePath = defaultParams.wasmFile
         finalZkeyPath = defaultParams.finalZkey
         verificationKey = defaultParams.verificationKey
       }
+    } else {
+      // Else, use the given params even if it is not complete
+      wasmFilePath = args.wasmFilePath
+      finalZkeyPath = args.finalZkeyPath
+      verificationKey = args.verificationKey
     }
-    // If `args.wasmFilePath`, `args.finalZkeyPath`, and `args.verificationKey` are given, use them
-    // over the default
-    wasmFilePath = args.wasmFilePath ? args.wasmFilePath : wasmFilePath
-    finalZkeyPath = args.finalZkeyPath ? args.finalZkeyPath : finalZkeyPath
-    verificationKey = args.verificationKey ? args.verificationKey : verificationKey
-
-    if ((wasmFilePath === undefined || finalZkeyPath === undefined) && verificationKey === undefined) {
-      throw new Error(
-        'Either both `wasmFilePath` and `finalZkeyPath` must be supplied to generate proofs, ' +
-        'or `verificationKey` must be provided to verify proofs.',
-      )
-    }
-    if (wasmFilePath !== undefined && finalZkeyPath !== undefined) {
-      this.prover = new RLNProver(wasmFilePath, finalZkeyPath)
-    }
-    if (verificationKey !== undefined) {
-      this.verifier = new RLNVerifier(verificationKey)
-    }
+    return new RLN({
+      rlnIdentifier,
+      registry,
+      identity,
+      cache,
+      wasmFilePath,
+      finalZkeyPath,
+      verificationKey,
+    })
   }
 
   /**
    * Create RLN instance, using a deployed RLN contract as registry.
    */
-  static createWithContractRegistry(args: {
+  static async createWithContractRegistry(args: {
     /** Required */
     /**
      * The unique identifier of the app using RLN. The identifier must be unique for every app.
@@ -236,9 +297,8 @@ export class RLN implements IRLN {
      * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
      */
     finalZkeyPath?: string | Uint8Array
-    // Verification key of the circuit. If not provided, `verifyProof` and `saveProof` will not work.
     /**
-     * Verification key of the RLN circuit. If not provided, `verifyProof` and `saveProof` will not work.
+     * Verification key of the RLN circuit. If not provided, `verifyProof` will not work.
      * @see {@link https://github.com/Rate-Limiting-Nullifier/circom-rln/blob/main/circuits/rln.circom}
      */
     verificationKey?: VerificationKey
@@ -283,10 +343,21 @@ export class RLN implements IRLN {
     })
     const treeDepth = args.treeDepth ? args.treeDepth : DEFAULT_MERKLE_TREE_DEPTH
 
-    // If `args.withdrawWasmFilePath`, `args.withdrawFinalZkeyPath` are given, use them
-    // over the default
-    const withdrawWasmFilePath = args.withdrawWasmFilePath ? args.withdrawWasmFilePath : defaultWithdrawParams.wasmFile
-    const withdrawFinalZkeyPath = args.withdrawFinalZkeyPath ? args.withdrawFinalZkeyPath : defaultWithdrawParams.finalZkey
+    // If all params are not given, use the default
+    let withdrawWasmFilePath: string | Uint8Array | undefined
+    let withdrawFinalZkeyPath: string | Uint8Array | undefined
+    // If `args.withdrawWasmFilePath`, `args.finalZkeyPath`, see if we have defaults that can be used
+    if (args.withdrawWasmFilePath === undefined && args.withdrawFinalZkeyPath === undefined) {
+      const defaultParams = await getDefaultWithdrawParams()
+      if (defaultParams !== undefined) {
+        withdrawWasmFilePath = defaultParams.wasmFile
+        withdrawFinalZkeyPath = defaultParams.finalZkey
+      }
+    } else {
+      // Else, use the given params even if it is not complete
+      withdrawWasmFilePath = args.withdrawWasmFilePath
+      withdrawFinalZkeyPath = args.withdrawFinalZkeyPath
+    }
     const registry = new ContractRLNRegistry({
       rlnIdentifier: args.rlnIdentifier,
       rlnContract: rlnContractWrapper,
@@ -298,7 +369,7 @@ export class RLN implements IRLN {
       ...args,
       registry,
     }
-    return new RLN(argsWithRegistry)
+    return RLN.create(argsWithRegistry)
   }
 
   /**

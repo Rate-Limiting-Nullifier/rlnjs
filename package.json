@@ -68,7 +68,7 @@
     "@semaphore-protocol/group": "^3.10.1",
     "@semaphore-protocol/identity": "^3.10.1",
     "@zk-kit/incremental-merkle-tree": "^0.4.3",
-    "base64-js": "^1.5.1",
+    "axios": "^1.5.0",
     "ethers": "^6.4.0",
     "ffjavascript": "0.2.55",
     "poseidon-lite": "^0.0.2",
