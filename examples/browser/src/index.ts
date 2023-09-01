@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { MemoryCache, RLN, Status } from "test-rlnjs";
+import { MemoryCache, RLN, Status } from "rlnjs";
 import { deployERC20, deployRLNContract, deployVerifier, treeDepth, url } from "./configs";
 
 
@@ -42,8 +42,8 @@ async function main() {
     const rlnContractAtBlock = await provider.getBlockNumber()
     console.log(`Deployed RLN contract at ${rlnContractAddress} at block ${rlnContractAtBlock}`)
 
-    function createRLNInstance() {
-        return RLN.createWithContractRegistry({
+    async function createRLNInstance() {
+        return await RLN.createWithContractRegistry({
             /* Required */
             rlnIdentifier,
             provider,
@@ -58,7 +58,7 @@ async function main() {
         provider.send("hardhat_mine", ["0x" + numBlocks.toString(16)])
     }
 
-    const rln = createRLNInstance()
+    const rln = await createRLNInstance()
     console.log(`rln created: identityCommitment=${rln.identityCommitment}`)
     if (await rln.isRegistered()) {
         throw new Error(`rln should not have yet registered`);
@@ -116,7 +116,7 @@ async function main() {
         }
     }
     const resettableCache = new ResettableCache()
-    const rlnAnother = createRLNInstance()
+    const rlnAnother = await createRLNInstance()
     rlnAnother.setCache(resettableCache)
     console.log(`rlnAnother created: identityCommitment=${rlnAnother.identityCommitment}`)
     class FaultyMessageIDCounter {
@@ -157,7 +157,7 @@ async function main() {
     if (await rlnAnother.isRegistered()) {
         throw new Error(`rlnAnother should have been slashed`);
     }
-    console.log(`Successfully slashed rlnAnother`);
+    console.log(`Completed successfully`)
     RLN.cleanUp()
 }
 
