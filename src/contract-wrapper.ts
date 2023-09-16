@@ -27,15 +27,16 @@ function proofToArray(proof: Proof) {
   //     [proof[6], proof[7]],
   //     [identityCommitment, uint256(uint160(receiver))]
   // );
+  // Ref: https://github.com/iden3/snarkjs/blob/33c753b1c513747e3b1f2d6cab2ca2e0c830eb77/smart_contract_tests/test/smart_contracts.test.js#L85-L87
   return [
-    BigInt(proof.pi_a[0]),
-    BigInt(proof.pi_a[1]),
-    BigInt(proof.pi_b[0][0]),
-    BigInt(proof.pi_b[0][1]),
-    BigInt(proof.pi_b[1][0]),
-    BigInt(proof.pi_b[1][1]),
-    BigInt(proof.pi_c[0]),
-    BigInt(proof.pi_c[1]),
+    proof.pi_a[0].toString(),
+    proof.pi_a[1].toString(),
+    proof.pi_b[0][1].toString(),
+    proof.pi_b[0][0].toString(),
+    proof.pi_b[1][1].toString(),
+    proof.pi_b[1][0].toString(),
+    proof.pi_c[0].toString(),
+    proof.pi_c[1].toString(),
   ]
 }
 
