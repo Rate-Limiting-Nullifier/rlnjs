@@ -90,15 +90,35 @@ export class RLNContract {
     return this.signer || this.provider
   }
 
-  async getTokenAddress() {
-    return this.rlnContract.token()
-  }
-
   async getSignerAddress() {
     if (this.signer === undefined) {
       throw new Error('Cannot get signer address if signer is not set')
     }
     return this.signer.getAddress()
+  }
+
+  async getMinimalDeposit() {
+    return this.rlnContract.MINIMAL_DEPOSIT()
+  }
+
+  async getMaximalRate() {
+    return this.rlnContract.MAXIMAL_RATE()
+  }
+
+  async getFeeReceiver() {
+    return this.rlnContract.FEE_RECEIVER()
+  }
+
+  async getFeePercentage() {
+    return this.rlnContract.FEE_PERCENTAGE()
+  }
+
+  async getFreezePeriod() {
+    return this.rlnContract.FREEZE_PERIOD()
+  }
+
+  async getTokenAddress() {
+    return this.rlnContract.token()
   }
 
   async getLogs() {
