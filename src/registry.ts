@@ -137,6 +137,9 @@ export class ContractRLNRegistry implements IRLNRegistry {
       identitySecret,
       address: userAddressBigInt,
     })
+    if (identityCommitment != BigInt(proof.publicSignals[0]) || userAddressBigInt != BigInt(proof.publicSignals[1])) {
+      throw new Error('Withdraw proof public signals do not match')
+    }
     await this.rlnContract.withdraw(identityCommitment, proof.proof)
   }
 
@@ -163,6 +166,9 @@ export class ContractRLNRegistry implements IRLNRegistry {
       identitySecret,
       address: receiverBigInt,
     })
+    if (identityCommitment != BigInt(proof.publicSignals[0]) || receiverBigInt != BigInt(proof.publicSignals[1])) {
+      throw new Error('Withdraw proof public signals do not match')
+    }
     await this.rlnContract.slash(identityCommitment, receiver, proof.proof)
   }
 }

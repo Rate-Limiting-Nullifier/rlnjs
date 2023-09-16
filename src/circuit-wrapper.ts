@@ -75,6 +75,10 @@ export class RLNProver {
     x: bigint;
     epoch: bigint;
   }): Promise<RLNFullProof> {
+    if (args.x <= BigInt(0)) {
+      // y = identitySecret + a1 * x
+      throw new Error('identity secret is directly leaked if x = 0')
+    }
     const witness: RLNWitness = {
       identitySecret: args.identitySecret,
       userMessageLimit: args.userMessageLimit,
