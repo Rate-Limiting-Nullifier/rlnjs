@@ -180,8 +180,11 @@ export class RLNContract {
       erc20ABI,
       this.getContractRunner(),
     )
-    const txApprove = await tokenContract.approve(rlnContractAddress, amount)
-    await txApprove.wait()
+    const allowance = await tokenContract.allowance(await this.getSignerAddress(), rlnContractAddress)
+    if (allowance < amount) {
+      const txApprove = await tokenContract.approve(rlnContractAddress, amount)
+      await txApprove.wait()
+    }
     const txRegister = await this.rlnContract.register(identityCommitment, amount)
     const receipt = await txRegister.wait()
     return receipt
