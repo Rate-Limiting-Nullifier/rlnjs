@@ -57,3 +57,7 @@ export function shamirRecovery(x1: bigint, x2: bigint, y1: bigint, y2: bigint): 
 
   return Fq.normalize(privateKey)
 }
+
+export function calculateIdentityCommitment(identitySecret: bigint) {
+  return poseidon([identitySecret])
+}
