@@ -1,5 +1,5 @@
 import { IncrementalMerkleTree } from "@zk-kit/incremental-merkle-tree"
-import { calculateRateCommitment } from '../src/common';
+import { calculateIdentityCommitment, calculateRateCommitment } from '../src/common';
 import { ContractRLNRegistry, MemoryRLNRegistry, IRLNRegistry } from '../src/registry'
 import { fieldFactory } from './utils';
 import poseidon from "poseidon-lite";
@@ -18,8 +18,8 @@ describe('MemoryRLNRegistry', () => {
   const rlnIdentifier = BigInt(1)
   const identitySecret0 = fieldFactory();
   const identitySecret1 = fieldFactory([identitySecret0]);
-  const identityCommitment0 = poseidon([identitySecret0]);
-  const identityCommitment1 = poseidon([identitySecret1]);
+  const identityCommitment0 = calculateIdentityCommitment(identitySecret0);
+  const identityCommitment1 = calculateIdentityCommitment(identitySecret1);
 
   const messageLimit0 = BigInt(100)
   const messageLimit1 = BigInt(101)
@@ -124,8 +124,8 @@ describe('ContractRLNRegistry', () => {
   const rlnIdentifier = BigInt(1)
   const identitySecret0 = fieldFactory();
   const identitySecret1 = fieldFactory([identitySecret0]);
-  const identityCommitment0 = poseidon([identitySecret0]);
-  const identityCommitment1 = poseidon([identitySecret1]);
+  const identityCommitment0 = calculateIdentityCommitment(identitySecret0);
+  const identityCommitment1 = calculateIdentityCommitment(identitySecret1);
 
   const messageLimit0 = BigInt(100)
   const messageLimit1 = BigInt(101)

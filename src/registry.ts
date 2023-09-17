@@ -1,6 +1,6 @@
 import { Group } from '@semaphore-protocol/group'
 import { MerkleProof } from './types'
-import { DEFAULT_MERKLE_TREE_DEPTH, calculateRateCommitment } from './common'
+import { DEFAULT_MERKLE_TREE_DEPTH, calculateIdentityCommitment, calculateRateCommitment } from './common'
 import { RLNContract } from './contract-wrapper'
 import { ethers } from 'ethers'
 import poseidon from 'poseidon-lite'
@@ -126,7 +126,7 @@ export class ContractRLNRegistry implements IRLNRegistry {
     if (this.withdrawProver === undefined) {
       throw new Error('Withdraw prover is not initialized')
     }
-    const identityCommitment = poseidon([identitySecret])
+    const identityCommitment = calculateIdentityCommitment(identitySecret)
     const user = await this.rlnContract.getUser(identityCommitment)
     if (user.userAddress === ethers.ZeroAddress) {
       throw new Error('Identity commitment is not registered')
@@ -158,7 +158,7 @@ export class ContractRLNRegistry implements IRLNRegistry {
     if (this.withdrawProver === undefined) {
       throw new Error('Withdraw prover is not initialized')
     }
-    const identityCommitment = poseidon([identitySecret])
+    const identityCommitment = calculateIdentityCommitment(identitySecret)
     receiver = receiver ? receiver : await this.rlnContract.getSignerAddress()
     const receiverBigInt = BigInt(receiver)
 
@@ -236,7 +236,7 @@ export class MemoryRLNRegistry implements IRLNRegistry {
   }
 
   async withdraw(identitySecret: bigint): Promise<void> {
-    const identityCommitment = poseidon([identitySecret])
+    const identityCommitment = calculateIdentityCommitment(identitySecret)
     if (!await this.isRegistered(identityCommitment)) {
       throw new Error('Identity commitment is not registered')
     }
@@ -264,7 +264,7 @@ export class MemoryRLNRegistry implements IRLNRegistry {
   }
 
   async slash(identitySecret: bigint, _?: string): Promise<void> {
-    const identityCommitment = poseidon([identitySecret])
+    const identityCommitment = calculateIdentityCommitment(identitySecret)
     const rateCommitment = await this.getRateCommitment(identityCommitment)
     const index = this.group.indexOf(rateCommitment)
     if (index === -1) {

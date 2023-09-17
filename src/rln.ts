@@ -71,19 +71,19 @@ export class RLN implements IRLN {
   readonly identity: Identity
 
   // the prover allows user to generate proof with the RLN circuit
-  private prover?: RLNProver
+  prover?: RLNProver
 
   // the verifier allows user to verify proof with the RLN circuit
-  private verifier?: RLNVerifier
+  verifier?: RLNVerifier
 
   // the registry that stores the registered users
-  private registry: IRLNRegistry
+  registry: IRLNRegistry
 
   // the cache that stores proofs added by the user with `addProof`, and detect spams automatically
-  private cache: ICache
+  cache: ICache
 
   // the messageIDCounter is used to **safely** generate the latest messageID for the user
-  public messageIDCounter?: IMessageIDCounter
+  messageIDCounter?: IMessageIDCounter
 
   constructor(args: {
     /** Required */
@@ -436,6 +436,18 @@ export class RLN implements IRLN {
    */
   async isRegistered(): Promise<boolean> {
     return this.registry.isRegistered(this.identityCommitment)
+  }
+
+  async getMessageLimit(): Promise<bigint> {
+    return this.registry.getMessageLimit(this.identityCommitment)
+  }
+
+  async isUserRegistered(identityCommitment: bigint): Promise<boolean> {
+    return this.registry.isRegistered(identityCommitment)
+  }
+
+  async getMessageLimitForUser(identityCommitment: bigint): Promise<bigint> {
+    return this.registry.getMessageLimit(identityCommitment)
   }
 
   /**
