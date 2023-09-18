@@ -1,7 +1,6 @@
 import { RLNProver, RLNVerifier, WithdrawProver, WithdrawVerifier } from '../src/circuit-wrapper';
 import { rlnParams, withdrawParams } from './configs';
 import { fieldFactory, generateMerkleProof } from './utils';
-import poseidon from 'poseidon-lite';
 import { DEFAULT_MERKLE_TREE_DEPTH, calculateIdentityCommitment } from '../src/common';
 
 // `userMessageLimit` is at most 16 bits
