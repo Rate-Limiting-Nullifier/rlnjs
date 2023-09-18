@@ -2,6 +2,7 @@ export { IRLN, RLN } from './rln'
 export { ContractRLNRegistry, IRLNRegistry, MemoryRLNRegistry } from './registry'
 export { CachedProof, ICache, MemoryCache, Status } from './cache'
 export { IMessageIDCounter, MemoryMessageIDCounter } from './message-id-counter'
+export { getDefaultRLNParams, getDefaultWithdrawParams } from './resources'
 
 export * from './types'
 // Expose helpers
