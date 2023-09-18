@@ -374,12 +374,9 @@ export class RLN implements IRLN {
 
   /**
    * Set a custom messageIDCounter
-   * @param messageIDCounter The custom messageIDCounter
+   * @param messageIDCounter The custom messageIDCounter. If undefined, a new `MemoryMessageIDCounter` is created.
    */
   async setMessageIDCounter(messageIDCounter?: IMessageIDCounter) {
-    if (await this.isRegistered() === false) {
-      throw new Error('Cannot set messageIDCounter for an unregistered user.')
-    }
     if (messageIDCounter !== undefined) {
       this.messageIDCounter = messageIDCounter
     } else {
@@ -468,8 +465,18 @@ export class RLN implements IRLN {
         `userMessageLimit must be in range (0, ${MAX_MESSAGE_LIMIT}]. Got ${userMessageLimit}.`,
       )
     }
-    await this.registry.register(this.identityCommitment, userMessageLimit)
-    this.messageIDCounter = messageIDCounter ? messageIDCounter : new MemoryMessageIDCounter(userMessageLimit)
+
+    if (await this.isRegistered() === false) {
+      await this.registry.register(this.identityCommitment, userMessageLimit)
+      console.debug(
+        `User has registered: this.identityCommitment=${this.identityCommitment}, userMessageLimit=${userMessageLimit}`
+      )
+    } else {
+      console.debug(
+        `User has already registered before. Skip registration: this.identityCommitment=${this.identityCommitment}`
+      )
+    }
+    await this.setMessageIDCounter(messageIDCounter)
   }
 
   /**
@@ -516,11 +523,15 @@ export class RLN implements IRLN {
       throw new Error('User has not registered before')
     }
     if (this.messageIDCounter === undefined) {
-      throw new Error(
-        'State is not synced with the registry. ' +
-        'If user is currently registered, `messageIDCounter` should be non-undefined',
+      await this.setMessageIDCounter()
+      console.warn(
+        'MessageIDCounter is not initialized but user has registered. Maybe the user has restarted the app? ' +
+        'A new counter is created automatically. If a counter has been persisted, consider setting it with ' +
+        'with `setMessageIDCounter`. Otherwise, it is possible for user to reuse the same message id.'
       )
     }
+    // Safely cast `this.messageIDCounter` to `IMessageIDCounter` since it must have been set.
+    this.messageIDCounter = this.messageIDCounter as IMessageIDCounter
     const merkleProof = await this.registry.generateMerkleProof(this.identityCommitment)
     // NOTE: get the message id and increment the counter.
     // Even if the message is not sent, the counter is still incremented.
