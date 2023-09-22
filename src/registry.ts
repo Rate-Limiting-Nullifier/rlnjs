@@ -3,7 +3,6 @@ import { MerkleProof } from './types'
 import { DEFAULT_MERKLE_TREE_DEPTH, calculateIdentityCommitment, calculateRateCommitment } from './common'
 import { RLNContract } from './contract-wrapper'
 import { ethers } from 'ethers'
-import poseidon from 'poseidon-lite'
 import { WithdrawProver } from './circuit-wrapper'
 
 export interface IRLNRegistry {
