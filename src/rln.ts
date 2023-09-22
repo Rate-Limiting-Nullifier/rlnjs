@@ -469,11 +469,11 @@ export class RLN implements IRLN {
     if (await this.isRegistered() === false) {
       await this.registry.register(this.identityCommitment, userMessageLimit)
       console.debug(
-        `User has registered: this.identityCommitment=${this.identityCommitment}, userMessageLimit=${userMessageLimit}`
+        `User has registered: this.identityCommitment=${this.identityCommitment}, userMessageLimit=${userMessageLimit}`,
       )
     } else {
       console.debug(
-        `User has already registered before. Skip registration: this.identityCommitment=${this.identityCommitment}`
+        `User has already registered before. Skip registration: this.identityCommitment=${this.identityCommitment}`,
       )
     }
     await this.setMessageIDCounter(messageIDCounter)
@@ -527,7 +527,7 @@ export class RLN implements IRLN {
       console.warn(
         'MessageIDCounter is not initialized but user has registered. Maybe the user has restarted the app? ' +
         'A new counter is created automatically. If a counter has been persisted, consider setting it with ' +
-        'with `setMessageIDCounter`. Otherwise, it is possible for user to reuse the same message id.'
+        'with `setMessageIDCounter`. Otherwise, it is possible for user to reuse the same message id.',
       )
     }
     // Safely cast `this.messageIDCounter` to `IMessageIDCounter` since it must have been set.
