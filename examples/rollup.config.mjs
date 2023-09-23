@@ -8,7 +8,6 @@ import replace from '@rollup/plugin-replace'
 import { visualizer } from 'rollup-plugin-visualizer'
 import cleaner from 'rollup-plugin-cleaner'
 import * as fs from 'fs'
-import { terser } from 'rollup-plugin-terser'
 
 
 const input = 'src/index.ts'
@@ -53,7 +52,6 @@ const browserPlugins = [
   json(),
   // Replace node built-in modules with polyfills
   nodePolyfills(),
-  terser(),
 ]
 
 
