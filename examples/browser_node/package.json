@@ -8,7 +8,7 @@
   "scripts": {
     "build": "rollup --config rollup.config.mjs",
     "browser": "npm run build && mkdir -p public && cp dist/index.mjs index.html public && cd public && npx http-server",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist && rm -rf public",
     "node": "node src/index.js"
   },
   "author": "",
