@@ -253,8 +253,7 @@ const rln = await RLN.createWithContractRegistry({
 ```
 
 ## Example
-
-See [example for both NodeJS](./examples/node/) and [example for browser](./examples/browser/).
+See the [example](./examples) that can be run in both NodeJS and browser.
 
 ## Tests
 
