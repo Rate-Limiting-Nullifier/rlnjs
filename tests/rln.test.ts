@@ -126,7 +126,7 @@ describe("RLN", function () {
         });
 
         test("should fail when finalZkeyPath doesn't exist on local", async function () {
-            const wasmFilePath = "./packages.json"
+            const wasmFilePath = "./package.json"
             const finalZkeyPath = "./404"
             await expect(async () => {
                 await RLN.createWithContractRegistry({
