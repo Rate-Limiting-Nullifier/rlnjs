@@ -92,7 +92,7 @@ export async function checkFileExists(path: string): Promise<boolean> {
       )
     }
 
-    const fs = await import("fs")
+    const fs = await import('fs')
     return fs.existsSync(path)
   }
 }
