@@ -1,6 +1,6 @@
 import { Identity } from '@semaphore-protocol/identity'
 import { VerificationKey } from './types'
-import { DEFAULT_MERKLE_TREE_DEPTH, calculateIdentitySecret, calculateSignalHash } from './common'
+import { DEFAULT_MERKLE_TREE_DEPTH, calculateIdentitySecret, calculateSignalHash, checkFileExists } from './common'
 import { IRLNRegistry, ContractRLNRegistry } from './registry'
 import { MemoryCache, EvaluatedProof, ICache, Status } from './cache'
 import { IMessageIDCounter, MemoryMessageIDCounter } from './message-id-counter'
@@ -224,6 +224,19 @@ export class RLN implements IRLN {
     let wasmFilePath: string | Uint8Array | undefined
     let finalZkeyPath: string | Uint8Array | undefined
     let verificationKey: VerificationKey | undefined
+
+    if (typeof args.wasmFilePath === 'string' && !await checkFileExists(args.wasmFilePath)) {
+      throw new Error(
+        'the file does not exist at the path for `wasmFilePath`'
+      )
+    }
+
+    if (typeof args.finalZkeyPath === 'string' && !await checkFileExists(args.finalZkeyPath)) {
+      throw new Error(
+        'the file does not exist at the path for `finalZkeyPath`'
+      )
+    }
+
     // If `args.wasmFilePath`, `args.finalZkeyPath`, and `args.verificationKey` are not given, see if we have defaults that can be used
     if (args.wasmFilePath === undefined && args.finalZkeyPath === undefined && args.verificationKey === undefined) {
       const defaultParams = await getDefaultRLNParams(treeDepth)
