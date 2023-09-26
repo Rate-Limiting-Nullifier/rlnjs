@@ -86,7 +86,7 @@ export async function checkFileExists(path: string): Promise<boolean> {
     return await checkFileExistsOnWeb(path)
   } else {
 
-    if (typeof process === 'undefined') {
+    if (typeof process === 'undefined' && typeof window !=='undefined') {
       throw new Error(
         'not allowed to read local files from browser',
       )
