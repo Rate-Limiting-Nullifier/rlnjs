@@ -7,7 +7,6 @@ import { ZqField } from 'ffjavascript'
 import poseidon from 'poseidon-lite'
 import { Identity } from '@semaphore-protocol/identity'
 import axios from 'axios'
-import fs from 'fs'
 
 /*
   This is the "Baby Jubjub" curve described here:
@@ -87,12 +86,13 @@ export async function checkFileExists(path: string): Promise<boolean> {
     return await checkFileExistsOnWeb(path)
   } else {
 
-    if (typeof window !== 'undefined' && typeof window.document !== 'undefined') {
+    if (typeof process === 'undefined') {
       throw new Error(
         'not allowed to read local files from browser',
       )
     }
 
+    const fs = await import("fs")
     return fs.existsSync(path)
   }
 }
