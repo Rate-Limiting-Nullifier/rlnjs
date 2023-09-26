@@ -18,5 +18,6 @@
     "outDir": "./dist",
     "strict": true,
     "resolveJsonModule": true,
+    "baseUrl": "."
   }
 }

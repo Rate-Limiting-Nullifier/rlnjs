@@ -2,14 +2,13 @@
   "name": "example-browser",
   "version": "1.0.0",
   "description": "",
-  "main": "dist/index.mjs",
+  "exports": "./dist/index.mjs",
   "module": "dist/index.mjs",
-  "type": "module",
   "scripts": {
     "build": "rollup --config rollup.config.mjs",
     "browser": "npm run build && mkdir -p public && cp dist/index.mjs index.html public && cd public && npx http-server",
     "clean": "rm -rf dist && rm -rf public",
-    "node": "node src/index.js"
+    "node": "tsc --module commonjs && node dist/src/index.js"
   },
   "author": "",
   "license": "ISC",
