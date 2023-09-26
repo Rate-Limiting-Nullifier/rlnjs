@@ -83,7 +83,7 @@ export async function checkFileExistsOnWeb(url: string): Promise<boolean> {
 
 export async function checkFileExists(path: string): Promise<boolean> {
   if (isValidUrl(path)) {
-    return await checkFileExistsOnWeb(path)
+    return checkFileExistsOnWeb(path)
   } else {
 
     if (typeof process === 'undefined' && typeof window !== 'undefined') {
