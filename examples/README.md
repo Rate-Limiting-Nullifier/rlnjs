@@ -21,6 +21,7 @@ $ npx hardhat node
 ```
 
 3. Run the web server
+(take note that you should hit "npm run clean" after hitting "npm run browser")
 ```bash
 $ npm run node
 or
