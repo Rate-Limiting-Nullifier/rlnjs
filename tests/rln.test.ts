@@ -74,6 +74,74 @@ describe("RLN", function () {
             );
         });
 
+        test("should fail when wasmFilePath doesn't exist on the web", async function () {
+            const wasmFilePath = "https://rln-trusted-setup-ceremony-pse-p0tion-production.s3.eu-central-1.amazonaws.com/404"
+            const finalZkeyPath = "https://rln-trusted-setup-ceremony-pse-p0tion-production.s3.eu-central-1.amazonaws.com/404"
+            await expect(async () => {
+                await RLN.createWithContractRegistry({
+                    rlnIdentifier: rlnIdentifierA,
+                    treeDepth: treeDepthWithoutDefaultParams,
+                    provider: fakeProvider,
+                    contractAddress: fakeContractAddress,
+                    wasmFilePath: wasmFilePath,
+                    finalZkeyPath: finalZkeyPath
+                });
+            }).rejects.toThrow(
+                `the file does not exist at the path for \`wasmFilePath\`: wasmFilePath=${wasmFilePath}`
+            );
+        });
+
+        test("should fail when finalZkeyPath doesn't exist on the web", async function () {
+            const wasmFilePath = "https://rln-trusted-setup-ceremony-pse-p0tion-production.s3.eu-central-1.amazonaws.com/circuits/rln-20/RLN-20.wasm"
+            const finalZkeyPath = "https://rln-trusted-setup-ceremony-pse-p0tion-production.s3.eu-central-1.amazonaws.com/404"
+            await expect(async () => {
+                await RLN.createWithContractRegistry({
+                    rlnIdentifier: rlnIdentifierA,
+                    treeDepth: treeDepthWithoutDefaultParams,
+                    provider: fakeProvider,
+                    contractAddress: fakeContractAddress,
+                    wasmFilePath: wasmFilePath,
+                    finalZkeyPath: finalZkeyPath
+                });
+            }).rejects.toThrow(
+                `the file does not exist at the path for \`finalZkeyPath\`: finalZkeyPath=${finalZkeyPath}`
+            );
+        });
+
+        test("should fail when wasmFilePath doesn't exist on local", async function () {
+            const wasmFilePath = "./404"
+            const finalZkeyPath = "./404"
+            await expect(async () => {
+                await RLN.createWithContractRegistry({
+                    rlnIdentifier: rlnIdentifierA,
+                    treeDepth: treeDepthWithoutDefaultParams,
+                    provider: fakeProvider,
+                    contractAddress: fakeContractAddress,
+                    wasmFilePath: wasmFilePath,
+                    finalZkeyPath: finalZkeyPath
+                });
+            }).rejects.toThrow(
+                `the file does not exist at the path for \`wasmFilePath\`: wasmFilePath=${wasmFilePath}`
+            );
+        });
+
+        test("should fail when finalZkeyPath doesn't exist on local", async function () {
+            const wasmFilePath = "./package.json"
+            const finalZkeyPath = "./404"
+            await expect(async () => {
+                await RLN.createWithContractRegistry({
+                    rlnIdentifier: rlnIdentifierA,
+                    treeDepth: treeDepthWithoutDefaultParams,
+                    provider: fakeProvider,
+                    contractAddress: fakeContractAddress,
+                    wasmFilePath: wasmFilePath,
+                    finalZkeyPath: finalZkeyPath
+                });
+            }).rejects.toThrow(
+                `the file does not exist at the path for \`finalZkeyPath\`: finalZkeyPath=${finalZkeyPath}`
+            );
+        });
+
         test("should fail to prove if no proving params is given as constructor arguments", async function () {
             const rln = await RLN.createWithContractRegistry({
                 rlnIdentifier: rlnIdentifierA,

@@ -6,6 +6,7 @@ import { ZqField } from 'ffjavascript'
 
 import poseidon from 'poseidon-lite'
 import { Identity } from '@semaphore-protocol/identity'
+import axios from 'axios'
 
 /*
   This is the "Baby Jubjub" curve described here:
@@ -60,4 +61,38 @@ export function shamirRecovery(x1: bigint, x2: bigint, y1: bigint, y2: bigint): 
 
 export function calculateIdentityCommitment(identitySecret: bigint) {
   return poseidon([identitySecret])
+}
+
+export function isValidUrl(str: string): boolean {
+  try {
+    new URL(str)
+    return true
+  } catch (_) {
+    return false
+  }
+}
+
+export async function checkFileExistsOnWeb(url: string): Promise<boolean> {
+  try {
+    await axios.head(url)
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+export async function checkFileExists(path: string): Promise<boolean> {
+  if (isValidUrl(path)) {
+    return checkFileExistsOnWeb(path)
+  } else {
+
+    if (typeof process === 'undefined' && typeof window !== 'undefined') {
+      throw new Error(
+        'not allowed to read local files from browser',
+      )
+    }
+
+    const fs = await import('fs')
+    return fs.existsSync(path)
+  }
 }
