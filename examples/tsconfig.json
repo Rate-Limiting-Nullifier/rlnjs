@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES6",
-    "module": "CommonJS",
+    "module": "ES6",
     "moduleResolution": "node",
     "allowJs": true,
     "allowSyntheticDefaultImports": true,
@@ -17,6 +17,7 @@
     "declarationDir": "./dist/types",
     "outDir": "./dist",
     "strict": true,
+    "resolveJsonModule": true,
     "baseUrl": "."
   }
 }
