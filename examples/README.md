@@ -20,11 +20,9 @@ In a new terminal, run:
 $ npx hardhat node
 ```
 
-3. Run the web server
+3. Run the example in a browser
 (take note that you should hit "npm run clean" after hitting "npm run browser")
 ```bash
-$ npm run node
-or
 $ npm run browser
 
 ...
@@ -33,8 +31,7 @@ Available on:
   http://192.168.50.66:8080
 Hit CTRL-C to stop the server
 ```
-
-4. Open the web page at `http://localhost:8080`. You should see the following output in the browser console.
+Open the web page at `http://localhost:8080`. You should see the following output in the browser console.
 ```
 Connecting to endpoint at http://localhost:8545
 Deploying contracts...
@@ -45,3 +42,14 @@ Successfully breached rlnAnother's secret=xxx
 Successfully slashed rlnAnother
 ```
 
+4. Run the example in NodeJS
+```
+$ npm run node
+
+...
+Connecting to endpoint at http://localhost:8545
+Deploying contracts...
+...
+Successfully breached rlnAnother's secret=xxx
+Successfully slashed rlnAnother
+```
