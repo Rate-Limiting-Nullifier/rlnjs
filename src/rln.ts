@@ -359,6 +359,19 @@ export class RLN implements IRLN {
     // If all params are not given, use the default
     let withdrawWasmFilePath: string | Uint8Array | undefined
     let withdrawFinalZkeyPath: string | Uint8Array | undefined
+
+    if (typeof args.withdrawWasmFilePath === 'string' && !await checkFileExists(args.withdrawWasmFilePath)) {
+      throw new Error(
+        `the file does not exist at the path for \`withdrawWasmFilePath\`: withdrawWasmFilePath=${args.withdrawWasmFilePath}`,
+      )
+    }
+
+    if (typeof args.withdrawFinalZkeyPath === 'string' && !await checkFileExists(args.withdrawFinalZkeyPath)) {
+      throw new Error(
+        `the file does not exist at the path for \`withdrawFinalZkeyPath\`: withdrawFinalZkeyPath=${args.withdrawFinalZkeyPath}`,
+      )
+    }
+
     // If `args.withdrawWasmFilePath`, `args.finalZkeyPath`, see if we have defaults that can be used
     if (args.withdrawWasmFilePath === undefined && args.withdrawFinalZkeyPath === undefined) {
       const defaultParams = await getDefaultWithdrawParams()
