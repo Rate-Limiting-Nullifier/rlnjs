@@ -21,7 +21,7 @@ $ npx hardhat node
 ```
 
 3. Run the example in a browser
-(take note that you should hit "npm run clean" after hitting "npm run browser")
+"Try npm run clean if you've made changes to the code but the web page is not updated"
 ```bash
 $ npm run browser
 
