@@ -66,16 +66,16 @@ export function calculateIdentityCommitment(identitySecret: bigint) {
 
 export function isValidUrl(str: string): boolean {
   try {
-      new URL(str)
-      return true
+    new URL(str)
+    return true
   } catch (_) {
-      return false
+    return false
   }
 }
 
 export async function checkFileExistsOnWeb(url: string): Promise<boolean> {
   try {
-    await axios.head(url);
+    await axios.head(url)
     return true
   } catch (error) {
     return false
@@ -84,12 +84,12 @@ export async function checkFileExistsOnWeb(url: string): Promise<boolean> {
 
 export async function checkFileExists(path: string): Promise<boolean> {
   if (isValidUrl(path)) {
-    return await checkFileExistsOnWeb(path)
+    return checkFileExistsOnWeb(path)
   } else {
 
     if (typeof window !== 'undefined' && typeof window.document !== 'undefined') {
       throw new Error(
-        'not allowed to read local files from browser'
+        'not allowed to read local files from browser',
       )
     }
 

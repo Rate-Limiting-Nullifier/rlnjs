@@ -227,13 +227,13 @@ export class RLN implements IRLN {
 
     if (typeof args.wasmFilePath === 'string' && !await checkFileExists(args.wasmFilePath)) {
       throw new Error(
-        'the file does not exist at the path for `wasmFilePath`'
+        'the file does not exist at the path for `wasmFilePath`',
       )
     }
 
     if (typeof args.finalZkeyPath === 'string' && !await checkFileExists(args.finalZkeyPath)) {
       throw new Error(
-        'the file does not exist at the path for `finalZkeyPath`'
+        'the file does not exist at the path for `finalZkeyPath`',
       )
     }
 
