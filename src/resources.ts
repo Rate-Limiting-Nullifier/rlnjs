@@ -50,9 +50,6 @@ export async function getDefaultRLNParams(treeDepth: number): Promise<IRLNParams
   }
   const wasmFileURL = `${url}/RLN-20.wasm`
   const finalZkeyURL = `${url}/contributions/rln-20_final.zkey`
-  console.log(url)
-  console.log(wasmFileURL)
-  console.log(finalZkeyURL)
   const verificationKeyURL = `${url}/rln-20_vkey.json`
   const verificationKey = await downloadVerificationKey(verificationKeyURL)
   const [wasmFile, finalZkey] = await Promise.all([
